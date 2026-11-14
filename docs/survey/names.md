@@ -76,3 +76,28 @@ the other way round. Two ways to rhyme:
 
 If a family theme is wanted anyway, the low-cost route is a line, not a
 rename: "TenForge, SpanWorks, SurView: open tools from Katalyst Nord".
+
+## Round 2 (2026-11-14)
+
+Screened: GitHub repositories with the name, PyPI, .com and .io; the
+names marked clean also had one web search with no hits.
+
+| Name | Says | Result |
+|---|---|---|
+| **Meshverk** | Mesher's sound, as a works: the mesh works | clean (0 repositories, PyPI free, no .com or .io) |
+| **Shearverk**, **Shearloom**, **Shearyard** | shear, the stress fluids and solids share | clean |
+| **Eddyverk**, **Eddyloom** | eddies, the flow side | clean |
+| **Trussverk**, **Strutverk**, **Gridverk** | structure words | clean |
+| **Yieldverk** | yield: plasticity, and what a run gives | clean |
+| **Strainyard** | strain + yard (a works) | clean |
+| **Solvverk** | solve works | clean on the screen (search 1) |
+| Faltverk, Tryckverk, Virvelverk, Rheoverk, Maskverk | field, pressure, vortex, rheology, mesh (Swedish *maska*) | clean on the screen, less natural |
+| ForceNet | | **out**: ForceNet is a known graph neural network that predicts atomic forces (Hu et al., ICLR 2021 workshop, Meta and Stanford, OC20); with AI surrogates as toolkits, confusable; 27 repositories, .com held |
+| Mesher | | out: the generic word (562 repositories) |
+| Masher | | **out**: its main English slang sense is a man who makes unwelcome advances to women (Dictionary.com, Wordnik); 718 repositories |
+| FlowWorks | | out: FloWorks is a current fluid-flow add-on for FlexSim (2025 release); FlowWorks Inc. (environmental flow software, now infinitii) holds flowworks.com |
+| MeshWorks | | out: DEP MeshWorks, an established commercial CAE meshing platform |
+| ShearWorks, StrutWorks, FjordWorks, KeelWorks, YieldWorks, EddyWorks, YieldForge, SpanLab, SpanYard, SpanLoom, LoadLoom, YieldLoom, FieldLoom, MeshYard, MeshSmith, MeshLoom, MeshForge | | .com held, or repositories or PyPI taken |
+
+TenForge stays (named 2026-11-11, trademark check 2026-11-12; David
+confirmed 2026-11-14).
