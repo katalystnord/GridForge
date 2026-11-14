@@ -1,0 +1,19 @@
+FluidStress (working name)
+Copyright (C) 2026 Katalyst Nord
+
+Licensed under the GNU Lesser General Public License, version 2.1 or (at
+your option) any later version. See LICENSE.
+
+Third-party software used
+-------------------------
+
+Qt 6 (Core, Widgets, OpenGLWidgets), The Qt Company and contributors,
+LGPL-3.0. https://www.qt.io/
+
+VTK, Kitware, Inc. and contributors, BSD-3-Clause. https://vtk.org/
+
+Programs run, not included
+--------------------------
+
+None yet. CalculiX (GPL-2.0), Gmsh (GPL-2.0-or-later) and OpenFOAM
+(GPL-3.0-or-later) will be run as separate programs, never linked.

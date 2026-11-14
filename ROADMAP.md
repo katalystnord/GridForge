@@ -1,0 +1,84 @@
+# Roadmap (DRAFT, 2026-11-14, for David's review)
+
+From the survey ([docs/survey/](docs/survey/README.md)). Sizes are
+relative (S, M, L), not dates. Each phase ends with its exit criteria met
+and verified by driving the real thing.
+
+The order puts first what is useful on its own: the CalculiX results
+hand-off serves everyone who runs ccx today (from FreeCAD, PrePoMax or by
+hand) before there is any window.
+
+## Phase 0: Foundations (S) - started 2026-11-14
+
+- Repository, CMake skeleton (`fs_core` headless, `fs_gui`, `FluidStress`,
+  `fs-study`), test regime, hook, CI. Done in the skeleton commit.
+- CLAUDE.md with tenets (DRAFT until David settles them).
+- Written specs, reviewed by David before code: the study file (v1) and
+  the results hand-off (v1: what a VTKHDF/.pvd from us holds).
+- The name, by David; a trademark check before relying on it.
+- Exit: CI green; tenets settled; specs approved.
+
+## Phase 1: CalculiX results to ParaView (M)
+
+- `.frd` reader, ASCII and binary, own C++ (cgx manual chapter 11 as the
+  specification; FreeCAD's LGPL reader as a reference).
+- Writer: VTKHDF time series with named sets as blocks; `.vtu` + `.pvd`
+  fallback. Derived von Mises and principal stresses, said as derived.
+- `fs-study convert job.frd` on the command line.
+- Fixtures: `.frd` files written by a released ccx from small committed
+  `.inp` decks, each with an independently known answer (a bar in
+  tension, a cantilever); one binary, one with several increments.
+- Exit: ParaView 6.x opens our output with every variable and set; the
+  same numbers as cgx shows for the fixtures. Offer the reader upstream
+  (ParaView plugin or beside ccx2paraview).
+
+## Phase 2: Study model, deck writer, running ccx (M)
+
+- The study file (spec from Phase 0); `.inp` writer: nodes, elements,
+  sets, surfaces, materials (`.FCMat` elastic part, TenForge's `*PLASTIC`
+  by `*INCLUDE`), sections, steps, supports, loads; raw-keyword
+  passthrough per step.
+- ccx as a watched child process: log, `.sta`/`.cvg` increments, cancel.
+- Meshing: Gmsh as a process, `.msh` 4.1, physical groups to sets.
+- Exit: a plastic dogbone from a study file to ParaView with no hand edits,
+  checked against a known answer.
+
+## Phase 3: The window, release 0.1 (L)
+
+- Model tree (geometry, mesh, materials, steps, results), the banner-led
+  next step (as in TenForge), the generated deck shown.
+- Geometry in: `.brep` + the group file from a FreeCAD macro we ship;
+  STEP with picking faces; per-face fingerprints.
+- Run monitor that never blocks; quick look (deformed shape, contours);
+  "Open in ParaView" by handing over the file.
+- Exit: walkthrough test from a FreeCAD export to a ParaView file using
+  only on-screen guidance; AppImage; release 0.1.
+
+## Phase 4: Nonlinear breadth (M)
+
+- Several steps, contact pairs, large deformation, increment control;
+  geometry swap keeping assignments.
+
+## Phase 5: Measured against predicted (M)
+
+- A SurView strain field and TenForge's force curve, imported as files,
+  beside the CalculiX prediction; difference fields out to ParaView.
+
+## Phase 6: OpenFOAM® back end (L)
+
+- Case writers for both lines (Foundation v13/v14, OpenCFD v25xx/v26xx),
+  meshing with snappyHexMesh or cfMesh as processes, results opened in
+  ParaView through `case.foam`. Tested versions stated.
+
+## Later
+
+Physics panels from data files, remote and container runs, parameter
+studies, Elmer for heat and coupled problems.
+
+## Needs from David
+
+| When | Need |
+|---|---|
+| Phase 0 | The name; settle the tenets; approve the two specs; where the repository lives (GitHub katalystnord, the forge, or both). |
+| Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenForge's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
+| Phase 3 | Whether the AppImage bundles ccx and gmsh (with their sources on the release page) or uses the user's own. |

@@ -1,0 +1,67 @@
+name: check
+
+# The gate that survives a fresh clone and `git commit --no-verify`: it sees
+# the project the way a new contributor's machine does, from nothing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Without these, apt-get can stop for a debconf or needrestart prompt and
+  # wait forever (learned in SurView's CI).
+  DEBIAN_FRONTEND: noninteractive
+  NEEDRESTART_MODE: a
+
+jobs:
+  fluidstress:
+    name: FluidStress build + tests (${{ matrix.variant }})
+    # 26.04 is the first Ubuntu image whose VTK Qt binding is a Qt6 build.
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [plain, sanitized]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No em-dashes
+        run: tools/check-no-em-dashes.sh
+
+      - name: Install dependencies
+        uses: ./.github/actions/apt-deps
+        # 60, not 25. With a warm cache this step takes about a minute
+        # (SurView's runs, Oct 2026). A COLD run downloads the whole VTK stack
+        # (Java bindings included) and took 25 to 33 minutes in SurView; the
+        # first TenForge run hit a 25-minute limit, and because the timeout
+        # covers the whole composite action it also killed the cache save, so
+        # the cache could never warm. The limit must outlast one cold run.
+        timeout-minutes: 60
+        with:
+          cache-key: apt-fluidstress-26.04
+          need-vtk-qt: 'true'
+          packages: >-
+            ninja-build cmake g++
+            qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev xvfb
+
+      - name: Configure
+        run: |
+          if [ "${{ matrix.variant }}" = "sanitized" ]; then
+            cmake -S . -B build -G Ninja -DFS_SANITIZE=ON
+          else
+            cmake -S . -B build -G Ninja
+          fi
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --test-dir build --output-on-failure
