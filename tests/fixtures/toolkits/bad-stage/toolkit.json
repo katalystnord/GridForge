@@ -1,0 +1,4 @@
+{"format": "fluidstress-toolkit", "version": "1.0", "id": "bad-stage", "name": "bad-stage",
+ "toolkit_version": "1", "licence": "MIT", "homepage": "",
+ "stages": [{"stage": "simulate", "kinds": ["structural.static"], "features": [], "trust": "solved"}],
+ "command": ["x", "{job}"], "requires": [], "notices": []}

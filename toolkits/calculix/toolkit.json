@@ -1,0 +1,20 @@
+{
+  "format": "fluidstress-toolkit",
+  "version": "1.0",
+  "id": "calculix",
+  "name": "CalculiX",
+  "toolkit_version": "0.0.1",
+  "licence": "ccx: GPL-2.0-only, run as a separate program; this adapter: LGPL-2.1-or-later",
+  "homepage": "http://www.calculix.de/",
+  "stages": [
+    {
+      "stage": "solve",
+      "kinds": ["structural.static"],
+      "features": ["plasticity", "contact", "large-deformation", "multi-step"],
+      "trust": "solved"
+    }
+  ],
+  "command": ["fs-calculix", "{job}"],
+  "requires": [{"program": "ccx"}],
+  "notices": []
+}

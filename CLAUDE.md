@@ -43,6 +43,12 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   predicted.
 - **CalculiX first, OpenFOAM® later**; Elmer a candidate for heat and
   coupled problems.
+- **Toolkits (David, 2026-11-14):** CalculiX and OpenFOAM® are toolkits the
+  user selects, and more follow (Python, AI surrogates such as an ANN
+  standing in for FEM). Every toolkit, the shipped ones included, is a
+  separate program behind one door: a `toolkit.json` manifest and a job
+  folder (`docs/specs/toolkits-v1.md`, DRAFT). No in-process plugins. A
+  surrogate's results are labelled as predictions everywhere.
 - **Independent kit**: TenForge and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,
@@ -88,7 +94,8 @@ git config core.hooksPath tools/git-hooks       # once per clone
 ## Layout
 
 ```
-src/core/   fs_core   the solver-neutral model, headless
+src/core/   fs_core   the solver-neutral model and the toolkit door, headless
+toolkits/   the shipped toolkits' manifests (calculix, openfoam)
 src/gui/    fs_gui    the window; FluidStress
 src/cli/    fs-study  the same work without a window
 tests/      one executable per subject; fixtures/ committed data

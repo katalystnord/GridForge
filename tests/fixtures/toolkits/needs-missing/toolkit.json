@@ -1,0 +1,4 @@
+{"format": "fluidstress-toolkit", "version": "1.0", "id": "needs-missing", "name": "needs-missing",
+ "toolkit_version": "1", "licence": "MIT", "homepage": "",
+ "stages": [{"stage": "derive", "kinds": ["compare"], "features": [], "trust": "derived"}],
+ "command": ["run.sh", "{job}"], "requires": [{"program": "no-such-program-fs-test"}], "notices": []}

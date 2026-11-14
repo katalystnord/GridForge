@@ -1,0 +1,4 @@
+{"format": "fluidstress-toolkit", "version": "1.0", "id": "no-command", "name": "no-command",
+ "toolkit_version": "1", "licence": "MIT", "homepage": "",
+ "stages": [{"stage": "solve", "kinds": ["structural.static"], "features": [], "trust": "solved"}],
+ "command": [], "requires": [], "notices": []}

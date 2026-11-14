@@ -13,10 +13,16 @@ hand) before there is any window.
 - Repository, CMake skeleton (`fs_core` headless, `fs_gui`, `FluidStress`,
   `fs-study`), test regime, hook, CI. Done in the skeleton commit.
 - CLAUDE.md with tenets (DRAFT until David settles them).
-- Written specs, reviewed by David before code: the study file (v1) and
+- Written specs, reviewed by David before code: toolkits (v1, drafted
+  2026-11-14), the study file (v1) and
   the results hand-off (v1: what a VTKHDF/.pvd from us holds).
 - The name, by David; a trademark check before relying on it.
 - Exit: CI green; tenets settled; specs approved.
+
+Toolkits (David, 2026-11-14): CalculiX and OpenFOAM® are selectable
+toolkits behind one door (`docs/specs/toolkits-v1.md`), and Python and AI
+surrogates follow through the same door. The manifests and the offer
+logic are in Phase 0; each phase below adds to the door what it needs.
 
 ## Phase 1: CalculiX results to ParaView (M)
 
@@ -38,7 +44,10 @@ hand) before there is any window.
   sets, surfaces, materials (`.FCMat` elastic part, TenForge's `*PLASTIC`
   by `*INCLUDE`), sections, steps, supports, loads; raw-keyword
   passthrough per step.
-- ccx as a watched child process: log, `.sta`/`.cvg` increments, cancel.
+- The job folder and the progress protocol (toolkits spec, sections 4
+  and 5); `fs-calculix`, the CalculiX toolkit's adapter, as their first
+  user. ccx as a watched child process: log, `.sta`/`.cvg` increments,
+  cancel.
 - Meshing: Gmsh as a process, `.msh` 4.1, physical groups to sets.
 - Exit: a plastic dogbone from a study file to ParaView with no hand edits,
   checked against a known answer.
@@ -70,15 +79,24 @@ hand) before there is any window.
   meshing with snappyHexMesh or cfMesh as processes, results opened in
   ParaView through `case.foam`. Tested versions stated.
 
+## Phase 7: More toolkits (M each)
+
+- Python: a reference toolkit and a small job-folder library, for a
+  user's own solver or post-processing.
+- AI surrogates: a `solve` toolkit with trust `surrogate`, its validity
+  domain and held-out error in its results; a solved run beside it in
+  one click. Possibly helping make one: parameter studies with CalculiX
+  as the training set (David to decide).
+
 ## Later
 
-Physics panels from data files, remote and container runs, parameter
+Physics panels from data files (the toolkits' parameter schemas), remote and container runs, parameter
 studies, Elmer for heat and coupled problems.
 
 ## Needs from David
 
 | When | Need |
 |---|---|
-| Phase 0 | The name; settle the tenets; approve the two specs; where the repository lives (GitHub katalystnord, the forge, or both). |
+| Phase 0 | The name; settle the tenets; approve the three specs (toolkits, drafted; study file and results hand-off, to write); where the repository lives (GitHub katalystnord, the forge, or both). |
 | Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenForge's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
 | Phase 3 | Whether the AppImage bundles ccx and gmsh (with their sources on the release page) or uses the user's own. |

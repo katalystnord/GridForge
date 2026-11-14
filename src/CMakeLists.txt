@@ -6,6 +6,7 @@
 # principle 7: no empty targets).
 add_library(fs_core STATIC
     core/ApplicationInfo.cpp
+    core/Toolkit.cpp
 )
 target_include_directories(fs_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(fs_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel)

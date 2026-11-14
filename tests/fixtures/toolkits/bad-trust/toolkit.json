@@ -1,0 +1,4 @@
+{"format": "fluidstress-toolkit", "version": "1.0", "id": "bad-trust", "name": "bad-trust",
+ "toolkit_version": "1", "licence": "MIT", "homepage": "",
+ "stages": [{"stage": "solve", "kinds": ["structural.static"], "features": [], "trust": "guessed"}],
+ "command": ["x", "{job}"], "requires": [], "notices": []}
