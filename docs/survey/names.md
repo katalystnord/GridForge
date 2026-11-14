@@ -99,5 +99,5 @@ names marked clean also had one web search with no hits.
 | MeshWorks | | out: DEP MeshWorks, an established commercial CAE meshing platform |
 | ShearWorks, StrutWorks, FjordWorks, KeelWorks, YieldWorks, EddyWorks, YieldForge, SpanLab, SpanYard, SpanLoom, LoadLoom, YieldLoom, FieldLoom, MeshYard, MeshSmith, MeshLoom, MeshForge | | .com held, or repositories or PyPI taken |
 
-TenForge stays (named 2026-11-11, trademark check 2026-11-12; David
-confirmed 2026-11-14).
+TenForge stays: named by David 2026-11-11, trademark check 2026-11-12,
+and nothing since has reopened it.
