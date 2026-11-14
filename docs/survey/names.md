@@ -101,3 +101,21 @@ names marked clean also had one web search with no hits.
 
 TenForge stays: named by David 2026-11-11, trademark check 2026-11-12,
 and nothing since has reopened it.
+
+## Round 3: grid (2026-11-14)
+
+David: "Grid is a very good word." A mesh is a grid in CFD's own word,
+for solids and fluids alike.
+
+| Name | Result |
+|---|---|
+| **Gridverk** | clean: 0 repositories, PyPI free, no .com or .io, no web hit |
+| **Gridsund** | clean: 0 repositories, PyPI free, no .com or .io, no web hit |
+| **Straingrid** | 0 repositories, PyPI free, no web hit; .com held |
+| **Gridstrom** | 0 repositories, PyPI free, no web hit; .com held |
+| **Gridloom** | 7 repositories; .com held |
+| **GridForce** | **out**: GRIDFORCE is a registered US trade mark (serial 87632625, registered 2018) of GridForce, which sells field-service software; .com and .io held |
+| **GridWorks** | **out**: 90 repositories, PyPI taken, .com and .io held; companies named Gridworks in energy and audiovisual work |
+| GridForge, GridSmith, GridSpan, GridFab, FlowGrid, GridFlow, FluxGrid | out: PyPI taken or crowded (36 to 194 repositories) |
+| StressGrid, GridYard, GridWright, GridBro, SpanGrid, ForceGrid, LoadGrid, GridKraft, YieldGrid | a few repositories and the .com held |
+| Rutverk (Swedish *rutnät*, grid) | clean on the screen, less natural |
