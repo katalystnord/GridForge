@@ -1,5 +1,8 @@
 # What a CalculiX and OpenFOAM® GUI between FreeCAD and ParaView should be
 
+**Named GridForge on 2026-11-15**; this survey keeps the working name
+it was written under.
+
 **Survey, 2026-11-14.** Working name FluidStress (the name is David's to
 decide). Three research notes sit beside this page, every claim in them
 with its source: [landscape.md](landscape.md) (about 25 existing tools and

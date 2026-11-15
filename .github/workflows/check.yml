@@ -20,8 +20,8 @@ env:
   NEEDRESTART_MODE: a
 
 jobs:
-  fluidstress:
-    name: FluidStress build + tests (${{ matrix.variant }})
+  gridforge:
+    name: GridForge build + tests (${{ matrix.variant }})
     # 26.04 is the first Ubuntu image whose VTK Qt binding is a Qt6 build.
     runs-on: ubuntu-26.04
     strategy:
@@ -39,12 +39,12 @@ jobs:
         # 60, not 25. With a warm cache this step takes about a minute
         # (SurView's runs, Oct 2026). A COLD run downloads the whole VTK stack
         # (Java bindings included) and took 25 to 33 minutes in SurView; the
-        # first TenForge run hit a 25-minute limit, and because the timeout
+        # first TenSense run hit a 25-minute limit, and because the timeout
         # covers the whole composite action it also killed the cache save, so
         # the cache could never warm. The limit must outlast one cold run.
         timeout-minutes: 60
         with:
-          cache-key: apt-fluidstress-26.04
+          cache-key: apt-gridforge-26.04
           need-vtk-qt: 'true'
           packages: >-
             ninja-build cmake g++
@@ -53,7 +53,7 @@ jobs:
       - name: Configure
         run: |
           if [ "${{ matrix.variant }}" = "sanitized" ]; then
-            cmake -S . -B build -G Ninja -DFS_SANITIZE=ON
+            cmake -S . -B build -G Ninja -DGF_SANITIZE=ON
           else
             cmake -S . -B build -G Ninja
           fi

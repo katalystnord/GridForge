@@ -11,7 +11,7 @@
 
 #include <vector>
 
-namespace fs::core {
+namespace gf::core {
 
 struct ToolkitStage {
     QString stage;        // "mesh", "solve", "derive"
@@ -73,4 +73,4 @@ Availability availability(const Toolkit &t);
 // The command to run for a job folder.
 QStringList commandFor(const Toolkit &t, const QString &jobFolder);
 
-} // namespace fs::core
+} // namespace gf::core

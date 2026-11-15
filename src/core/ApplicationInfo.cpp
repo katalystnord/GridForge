@@ -1,11 +1,11 @@
 #include "core/ApplicationInfo.h"
 
-namespace fs::core {
+namespace gf::core {
 
-// A working name (David, 2026-11-14: still to decide).
+// Named by David, 2026-11-15 (working name FluidStress).
 QString applicationName()
 {
-    return QStringLiteral("FluidStress");
+    return QStringLiteral("GridForge");
 }
 
 QString applicationSubtitle()
@@ -15,12 +15,12 @@ QString applicationSubtitle()
 
 QString applicationVersion()
 {
-    return QStringLiteral(FS_VERSION);
+    return QStringLiteral(GF_VERSION);
 }
 
 QString applicationBuild()
 {
-    return QStringLiteral(FS_BUILD);
+    return QStringLiteral(GF_BUILD);
 }
 
-} // namespace fs::core
+} // namespace gf::core

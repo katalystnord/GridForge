@@ -14,9 +14,9 @@ int main(int argc, char *argv[])
     // script can ask on a machine with no display.
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--version")) {
-            std::printf("%s %s (build %s)\n", qPrintable(fs::core::applicationName()),
-                        qPrintable(fs::core::applicationVersion()),
-                        qPrintable(fs::core::applicationBuild()));
+            std::printf("%s %s (build %s)\n", qPrintable(gf::core::applicationName()),
+                        qPrintable(gf::core::applicationVersion()),
+                        qPrintable(gf::core::applicationBuild()));
             return 0;
         }
     }
@@ -26,11 +26,11 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat());
 
     QApplication app(argc, argv);
-    QApplication::setApplicationName(fs::core::applicationName());
+    QApplication::setApplicationName(gf::core::applicationName());
     QApplication::setOrganizationName(QStringLiteral("Katalyst Nord"));
-    QApplication::setApplicationVersion(fs::core::applicationVersion());
+    QApplication::setApplicationVersion(gf::core::applicationVersion());
 
-    fs::gui::MainWindow window;
+    gf::gui::MainWindow window;
     window.show();
     return app.exec();
 }

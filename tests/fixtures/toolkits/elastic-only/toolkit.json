@@ -1,4 +1,4 @@
-{"format": "fluidstress-toolkit", "version": "1.0", "id": "elastic-only", "name": "elastic-only",
+{"format": "gridforge-toolkit", "version": "1.0", "id": "elastic-only", "name": "elastic-only",
  "toolkit_version": "1", "licence": "MIT", "homepage": "",
  "stages": [{"stage": "solve", "kinds": ["structural.static"], "features": [], "trust": "solved"}],
  "command": ["python3", "solve.py", "{job}"], "requires": [{"program": "python3"}], "notices": []}

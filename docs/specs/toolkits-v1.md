@@ -47,7 +47,7 @@ Each toolkit is a folder holding `toolkit.json`:
 
 ```json
 {
-  "format": "fluidstress-toolkit",
+  "format": "gridforge-toolkit",
   "version": "1.0",
   "id": "calculix",
   "name": "CalculiX",
@@ -63,7 +63,7 @@ Each toolkit is a folder holding `toolkit.json`:
       "parameters": "solve-parameters.schema.json"
     }
   ],
-  "command": ["fs-calculix", "{job}"],
+  "command": ["gf-calculix", "{job}"],
   "requires": [{"program": "ccx"}],
   "notices": []
 }
@@ -162,7 +162,7 @@ Python enters in two ways, both through files:
   `["python3", "solve.py", "{job}"]`, for any stage. A reference toolkit
   with a small Python library for the job folder (read `job.json` and the
   mesh, write results, report progress) is shipped as an example.
-- **Driving the application**: `fs-study` runs a study file without a
+- **Driving the application**: `gf-study` runs a study file without a
   window, so a Python script (or any program) can build study files and
   run them, for parameter studies or for training a surrogate.
 
@@ -184,14 +184,14 @@ order (a later one replaces an earlier one of the same id, and says so),
 offers for a stage, kind and features (with the reason a toolkit cannot),
 whether its programs are there, and the command for a job folder. The
 shipped manifests are `toolkits/calculix/` and `toolkits/openfoam/`; their
-adapter programs (`fs-calculix`, `fs-openfoam`) are not written yet, so
+adapter programs (`gf-calculix`, `gf-openfoam`) are not written yet, so
 both report themselves as not ready. Not yet: the job folder, running,
 the progress protocol, parameter schemas.
 
 ## 10. Open questions for David
 
 1. Python: is the first need a user's own solver or post-processing
-   (toolkit), or scripting the application (`fs-study`), or both?
+   (toolkit), or scripting the application (`gf-study`), or both?
 2. The surrogate: should the application also help make one (run a
    parameter study with CalculiX, collect the training set), or only run
    one made elsewhere?

@@ -9,6 +9,6 @@
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 build="$here/build-sanitize"
-cmake -S "$here" -B "$build" -G Ninja -DFS_SANITIZE=ON >/dev/null
+cmake -S "$here" -B "$build" -G Ninja -DGF_SANITIZE=ON >/dev/null
 cmake --build "$build"
 ( cd "$build" && ASAN_OPTIONS=detect_leaks=0 ctest --output-on-failure )

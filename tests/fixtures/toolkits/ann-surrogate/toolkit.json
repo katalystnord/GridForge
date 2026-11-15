@@ -1,4 +1,4 @@
-{"format": "fluidstress-toolkit", "version": "1.0", "id": "ann-surrogate", "name": "ann-surrogate",
+{"format": "gridforge-toolkit", "version": "1.0", "id": "ann-surrogate", "name": "ann-surrogate",
  "toolkit_version": "1", "licence": "MIT", "homepage": "",
  "stages": [{"stage": "solve", "kinds": ["structural.static"], "features": ["plasticity"], "trust": "surrogate"}],
  "command": ["python3", "predict.py", "{job}"], "requires": [], "notices": []}

@@ -7,7 +7,7 @@
 #include <vtkNew.h>
 #include <vtkRenderer.h>
 
-namespace fs::gui {
+namespace gf::gui {
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -24,4 +24,4 @@ MainWindow::MainWindow(QWidget *parent)
     resize(1200, 800);
 }
 
-} // namespace fs::gui
+} // namespace gf::gui

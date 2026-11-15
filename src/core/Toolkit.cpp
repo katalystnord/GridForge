@@ -11,7 +11,7 @@
 
 #include <algorithm>
 
-namespace fs::core {
+namespace gf::core {
 
 namespace {
 
@@ -57,8 +57,8 @@ Toolkit readToolkit(const QString &folder, QString *error)
     if (!doc.isObject())
         return fail(path + ": not JSON (" + pe.errorString() + ")");
     const QJsonObject o = doc.object();
-    if (o.value("format").toString() != "fluidstress-toolkit")
-        return fail(path + ": not a toolkit manifest (format is not \"fluidstress-toolkit\")");
+    if (o.value("format").toString() != "gridforge-toolkit")
+        return fail(path + ": not a toolkit manifest (format is not \"gridforge-toolkit\")");
     if (!o.value("version").toString().startsWith("1."))
         return fail(path + ": manifest version " + o.value("version").toString()
                     + " is not one this application reads (1.x)");
@@ -208,4 +208,4 @@ QStringList commandFor(const Toolkit &t, const QString &jobFolder)
     return argv;
 }
 
-} // namespace fs::core
+} // namespace gf::core

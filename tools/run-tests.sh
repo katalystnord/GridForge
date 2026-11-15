@@ -1,12 +1,12 @@
 #!/bin/sh
 # run-tests.sh -- the whole suite, in one command.
 #
-# This is FluidStress's `npm test`: "run the tests" is one thing a person, a
+# This is GridForge's `npm test`: "run the tests" is one thing a person, a
 # hook or CI can do without knowing which build directory is current or
 # which tests need a display.
 #
-# There is one half only. FluidStress builds against no other project's
-# checkout (SurView, OpenCorr and FluidStress are independent kits), so there
+# There is one half only. GridForge builds against no other project's
+# checkout (SurView, OpenCorr and GridForge are independent kits), so there
 # is no pinned engine suite to run beside it.
 #
 # Usage: tools/run-tests.sh [-q]
@@ -30,12 +30,12 @@ say() { [ "$quiet" -eq 1 ] || printf '%s\n' "$*"; }
 say "=== No em-dashes ==="
 "$here/tools/check-no-em-dashes.sh"
 
-say "=== Building FluidStress and its tests ==="
+say "=== Building GridForge and its tests ==="
 cmake -S "$here" -B "$build" -G Ninja >/dev/null
 cmake --build "$build"
 
 say ""
-say "=== FluidStress test suite ==="
+say "=== GridForge test suite ==="
 status=0
 ( cd "$build" && ctest --output-on-failure ) || status=$?
 
@@ -44,5 +44,5 @@ if [ "$status" -eq 0 ]; then
     echo "ALL TESTS PASSED"
     exit 0
 fi
-echo "FAILED: FluidStress test suite"
+echo "FAILED: GridForge test suite"
 exit 1

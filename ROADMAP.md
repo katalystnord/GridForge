@@ -10,13 +10,14 @@ hand) before there is any window.
 
 ## Phase 0: Foundations (S) - started 2026-11-14
 
-- Repository, CMake skeleton (`fs_core` headless, `fs_gui`, `FluidStress`,
-  `fs-study`), test regime, hook, CI. Done in the skeleton commit.
+- Repository, CMake skeleton (`gf_core` headless, `gf_gui`, `GridForge`,
+  `gf-study`), test regime, hook, CI. Done in the skeleton commit.
 - CLAUDE.md with tenets (DRAFT until David settles them).
 - Written specs, reviewed by David before code: toolkits (v1, drafted
   2026-11-14), the study file (v1) and
   the results hand-off (v1: what a VTKHDF/.pvd from us holds).
-- The name, by David; a trademark check before relying on it.
+- The name: GridForge (David, 2026-11-15); a trademark check before
+  relying on it (US filing 99871866 first).
 - Exit: CI green; tenets settled; specs approved.
 
 Toolkits (David, 2026-11-14): CalculiX and OpenFOAM® are selectable
@@ -30,7 +31,7 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   specification; FreeCAD's LGPL reader as a reference).
 - Writer: VTKHDF time series with named sets as blocks; `.vtu` + `.pvd`
   fallback. Derived von Mises and principal stresses, said as derived.
-- `fs-study convert job.frd` on the command line.
+- `gf-study convert job.frd` on the command line.
 - Fixtures: `.frd` files written by a released ccx from small committed
   `.inp` decks, each with an independently known answer (a bar in
   tension, a cantilever); one binary, one with several increments.
@@ -41,11 +42,11 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 ## Phase 2: Study model, deck writer, running ccx (M)
 
 - The study file (spec from Phase 0); `.inp` writer: nodes, elements,
-  sets, surfaces, materials (`.FCMat` elastic part, TenForge's `*PLASTIC`
+  sets, surfaces, materials (`.FCMat` elastic part, TenSense's `*PLASTIC`
   by `*INCLUDE`), sections, steps, supports, loads; raw-keyword
   passthrough per step.
 - The job folder and the progress protocol (toolkits spec, sections 4
-  and 5); `fs-calculix`, the CalculiX toolkit's adapter, as their first
+  and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,
   cancel.
 - Meshing: Gmsh as a process, `.msh` 4.1, physical groups to sets.
@@ -55,7 +56,7 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 ## Phase 3: The window, release 0.1 (L)
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
-  next step (as in TenForge), the generated deck shown.
+  next step (as in TenSense), the generated deck shown.
 - Geometry in: `.brep` + the group file from a FreeCAD macro we ship;
   STEP with picking faces; per-face fingerprints.
 - Run monitor that never blocks; quick look (deformed shape, contours);
@@ -70,7 +71,7 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 
 ## Phase 5: Measured against predicted (M)
 
-- A SurView strain field and TenForge's force curve, imported as files,
+- A SurView strain field and TenSense's force curve, imported as files,
   beside the CalculiX prediction; difference fields out to ParaView.
 
 ## Phase 6: OpenFOAM® back end (L)
@@ -97,6 +98,6 @@ studies, Elmer for heat and coupled problems.
 
 | When | Need |
 |---|---|
-| Phase 0 | The name; settle the tenets; approve the three specs (toolkits, drafted; study file and results hand-off, to write); where the repository lives (GitHub katalystnord, the forge, or both). |
-| Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenForge's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
+| Phase 0 | Settle the tenets; approve the three specs (toolkits, drafted; study file and results hand-off, to write); where the repository lives (GitHub katalystnord, the forge, or both). |
+| Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenSense's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
 | Phase 3 | Whether the AppImage bundles ccx and gmsh (with their sources on the release page) or uses the user's own. |

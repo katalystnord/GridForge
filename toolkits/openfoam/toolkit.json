@@ -1,5 +1,5 @@
 {
-  "format": "fluidstress-toolkit",
+  "format": "gridforge-toolkit",
   "version": "1.0",
   "id": "openfoam",
   "name": "OpenFOAM®",
@@ -20,7 +20,7 @@
       "trust": "solved"
     }
   ],
-  "command": ["fs-openfoam", "{job}"],
+  "command": ["gf-openfoam", "{job}"],
   "requires": [{"one_of": ["foamRun", "simpleFoam"]}],
   "notices": [
     "This offering is not approved or endorsed by OpenCFD Limited, producer and distributor of the OpenFOAM software via www.openfoam.com, and owner of the OPENFOAM® and OpenCFD® trade marks.",

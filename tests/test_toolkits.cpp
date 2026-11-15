@@ -14,13 +14,13 @@
 #include <string>
 #include <vector>
 
-using namespace fs::core;
+using namespace gf::core;
 
-#ifndef FS_FIXTURES
-#error "FS_FIXTURES must point at tests/fixtures"
+#ifndef GF_FIXTURES
+#error "GF_FIXTURES must point at tests/fixtures"
 #endif
-#ifndef FS_SHIPPED_TOOLKITS
-#error "FS_SHIPPED_TOOLKITS must point at toolkits/"
+#ifndef GF_SHIPPED_TOOLKITS
+#error "GF_SHIPPED_TOOLKITS must point at toolkits/"
 #endif
 
 namespace {
@@ -46,7 +46,7 @@ struct Register {
         }                                                                              \
     } while (0)
 
-QString fixture(const char *rel) { return QString(FS_FIXTURES) + "/toolkits/" + rel; }
+QString fixture(const char *rel) { return QString(GF_FIXTURES) + "/toolkits/" + rel; }
 
 const Offer *offerFor(const std::vector<Offer> &offers, const QString &id)
 {
@@ -60,7 +60,7 @@ const Offer *offerFor(const std::vector<Offer> &offers, const QString &id)
 
 CASE(the_shipped_calculix_and_openfoam_manifests_are_read)
 {
-    const ToolkitSet set = findToolkits({FS_SHIPPED_TOOLKITS});
+    const ToolkitSet set = findToolkits({GF_SHIPPED_TOOLKITS});
     CHECK(set.problems.isEmpty());
     const Toolkit *ccx = set.find("calculix");
     const Toolkit *of = set.find("openfoam");
@@ -74,7 +74,7 @@ CASE(the_shipped_calculix_and_openfoam_manifests_are_read)
 
 CASE(a_toolkit_is_offered_only_for_what_it_declares)
 {
-    const ToolkitSet set = findToolkits({FS_SHIPPED_TOOLKITS});
+    const ToolkitSet set = findToolkits({GF_SHIPPED_TOOLKITS});
     const auto offers = set.offers("solve", "structural.static", {"plasticity"});
     const Offer *ccx = offerFor(offers, "calculix");
     const Offer *of = offerFor(offers, "openfoam");
@@ -84,7 +84,7 @@ CASE(a_toolkit_is_offered_only_for_what_it_declares)
 
 CASE(a_missing_feature_is_named)
 {
-    const ToolkitSet set = findToolkits({FS_SHIPPED_TOOLKITS, fixture("elastic-only/..")});
+    const ToolkitSet set = findToolkits({GF_SHIPPED_TOOLKITS, fixture("elastic-only/..")});
     const auto offers = set.offers("solve", "structural.static", {"plasticity"});
     const Offer *e = offerFor(offers, "elastic-only");
     CHECK(e && !e->can && e->why.contains("plasticity"));
@@ -129,7 +129,7 @@ CASE(a_toolkit_whose_programs_are_missing_says_which)
         return;
     const Availability a = availability(*t);
     CHECK(!a.ready);
-    CHECK(a.missing.contains("no-such-program-fs-test"));
+    CHECK(a.missing.contains("no-such-program-gf-test"));
     // Its own program, in its folder, is found there.
     CHECK(!a.missing.contains("run.sh"));
 }

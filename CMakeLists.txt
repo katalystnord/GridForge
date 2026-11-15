@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
-# The name is a working name (David, 2026-11-14: still to decide). It is
+# Named GridForge by David, 2026-11-15 (working name FluidStress). It is
 # said once here and once in src/core/ApplicationInfo.cpp.
-project(FluidStress VERSION 0.0.1 LANGUAGES C CXX)
+project(GridForge VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,8 +12,8 @@ set(CMAKE_AUTOMOC ON)
 
 # Address and undefined-behaviour sanitizers, in their own build directory
 # (tools/sanitize.sh): the instrumentation changes the object code.
-option(FS_SANITIZE "Build with address and undefined-behaviour sanitizers" OFF)
-if(FS_SANITIZE)
+option(GF_SANITIZE "Build with address and undefined-behaviour sanitizers" OFF)
+if(GF_SANITIZE)
     add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all
                         -fno-omit-frame-pointer -g)
     add_link_options(-fsanitize=address,undefined)
@@ -24,7 +24,7 @@ endif()
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets Test)
 
 # Ubuntu's VTK re-exports system libraries through its imported targets but
-# leaves the consumer to locate them (learned in SurView and TenForge). MPI's
+# leaves the consumer to locate them (learned in SurView and TenSense). MPI's
 # C target needs LANGUAGES C above.
 find_package(MPI QUIET)
 find_package(jsoncpp QUIET)

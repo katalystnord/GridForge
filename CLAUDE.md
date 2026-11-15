@@ -1,18 +1,19 @@
-# FluidStress (working name) - Context File
+# GridForge - Context File
 
 Open simulation set-up between FreeCAD and ParaView: CalculiX first,
 OpenFOAM® later. Katalyst Nord. Licence LGPL-2.1-or-later.
 
-**The name is not settled** (David, 2026-11-14). It is written in
-`CMakeLists.txt` (`project()`), `src/core/ApplicationInfo.cpp`, the
-executable name in `src/CMakeLists.txt` and the version tests; code uses
-the `fs` prefix, which can stay.
+**Named GridForge on 2026-11-15** (David; the working name was
+FluidStress). Code uses the `gf` prefix. The survey (`docs/survey/`) keeps
+the working name it was written under. Before going public: a trademark
+check, starting with US filing 99871866 (GRIDFORGE, GridForge, Inc.,
+class 9, intent to use) found 2026-11-14.
 
 The survey that shaped it: [docs/survey/](docs/survey/README.md). The
 plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
-[fluidstress-notes.md](fluidstress-notes.md).
+[gridforge-notes.md](gridforge-notes.md).
 
-# THE TENETS (DRAFT, adapted from TenForge's; for David to settle)
+# THE TENETS (DRAFT, adapted from TenSense's; for David to settle)
 
 1. **Geometry and materials in, solved and trustworthy results out.**
    Set-up, solve and hand-off; everything else only augments them.
@@ -49,11 +50,11 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   separate program behind one door: a `toolkit.json` manifest and a job
   folder (`docs/specs/toolkits-v1.md`, DRAFT). No in-process plugins. A
   surrogate's results are labelled as predictions everywhere.
-- **Independent kit**: TenForge and SurView hand files across; no code is
+- **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,
   Quick 3D or Data Visualization), VTK, CMake.
-- **`fs_core` is headless**: Qt Core and VTK's data model only; a
+- **`gf_core` is headless**: Qt Core and VTK's data model only; a
   configure-time guard and the `core_is_headless` test enforce it.
 - **GPL tools are run, never linked**: ccx and cgx (GPL-2.0 only), Gmsh
   (GPL-2.0-or-later), OpenFOAM (GPL-3.0-or-later).
@@ -69,7 +70,7 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
 
 ## How this project is run
 
-TenForge's and SurView's regime, carried over.
+TenSense's and SurView's regime, carried over.
 
 ```bash
 tools/run-tests.sh                              # the one command
@@ -87,17 +88,17 @@ git config core.hooksPath tools/git-hooks       # once per clone
   with an independently known answer. Solver output used as a fixture is
   written by a released solver and kept with the deck that made it.
 - Walkthrough tests never open a window on the desktop (they put
-  themselves on a private X server, as TenForge's do).
+  themselves on a private X server, as TenSense's do).
 - **No em-dashes, ever**: `tools/check-no-em-dashes.sh`, in the hook and
   first in CI.
 
 ## Layout
 
 ```
-src/core/   fs_core   the solver-neutral model and the toolkit door, headless
+src/core/   gf_core   the solver-neutral model and the toolkit door, headless
 toolkits/   the shipped toolkits' manifests (calculix, openfoam)
-src/gui/    fs_gui    the window; FluidStress
-src/cli/    fs-study  the same work without a window
+src/gui/    gf_gui    the window; GridForge
+src/cli/    gf-study  the same work without a window
 tests/      one executable per subject; fixtures/ committed data
 docs/survey/  the 2026-11-14 survey and its research notes
 docs/specs/   file contracts (study file, results hand-off): to be written

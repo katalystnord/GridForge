@@ -1,5 +1,5 @@
 {
-  "format": "fluidstress-toolkit",
+  "format": "gridforge-toolkit",
   "version": "1.0",
   "id": "calculix",
   "name": "CalculiX",
@@ -14,7 +14,7 @@
       "trust": "solved"
     }
   ],
-  "command": ["fs-calculix", "{job}"],
+  "command": ["gf-calculix", "{job}"],
   "requires": [{"program": "ccx"}],
   "notices": []
 }

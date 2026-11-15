@@ -1,10 +1,10 @@
-# FluidStress (working name)
+# GridForge
 
 Open simulation set-up between FreeCAD and ParaView: mesh, set up, run
 and hand over CalculiX analyses, and later OpenFOAM® cases, natively on
 Linux. Geometry comes in from FreeCAD as files; results go out to
 ParaView as files. Nonlinear solids first: plasticity, with materials
-measured by TenForge.
+measured by TenSense.
 
 **Status: skeleton (2026-11-14).** Nothing to use yet. What it should be,
 and why, is in [docs/survey/](docs/survey/README.md); the plan in
@@ -23,7 +23,7 @@ tools/run-tests.sh
 LGPL-2.1-or-later. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 CalculiX, Gmsh and OpenFOAM are separate programs under their own
-licences (GPL); FluidStress runs them and reads and writes their files,
+licences (GPL); GridForge runs them and reads and writes their files,
 and does not include their code.
 
 ---

@@ -35,11 +35,9 @@ search (PRV, EUIPO, USPTO come before any choice).
 |---|---|---|---|---|---|
 | **SpanWorks** | spans FreeCAD to ParaView; a structure's span; "a spanner in the works" | 1 (a C# "Span" workshop, unrelated) | free | held (no page) | Web: nothing named SpanWorks. "-Works" echoes SOLIDWORKS' old add-ons (COSMOSWorks, FloWorks), a mild family likeness to Dassault, not a conflict found |
 | **Spanverk** (or Spannverk) | the same, in Swedish; *spänn* is tension too | 0 (both spellings) | free | none (.se none) | German "Spannwerk" is a machine-tool clamp |
-| **Sundverk** | the works on the strait between two shores; *sund* = sound, healthy | 0 | free | none | sundverk.se is held (empty page) |
 | **Strainloom** | weaves geometry and toolkits together | 0 | free | none | English, says what it does |
 | **Smidverk** | forge works, a sibling to TenForge | 0 | free | none | |
 | **Flodverk** | river or flow works (the CFD side) | 0 | free | none | |
-| **Kraftsund** | force strait | 0 | free | none | |
 | **Strömbro** (`strombro`) | current bridge | 0 | free | none | Strömbron, a Stockholm viaduct |
 | **Lastverk** | load works | 0 | free | none | English readers may read "last" |
 | **Stressloom** | as Strainloom | 0 | free | none | |
@@ -68,7 +66,7 @@ TMview (2026-11-12), and credits in other projects' policy rows. My
 advice: keep TenForge, and let the new app rhyme with it rather than
 the other way round. Two ways to rhyme:
 
-- **The "-verk" family**: Spanverk, Sundverk, Smidverk sit with TenForge
+- **The "-verk" family**: Spanverk, Smidverk sit with TenForge
   as Swedish-rooted siblings (forge and verk are both workshops).
 - **The "-Forge" pair**: FloForge (or similar) and TenForge as a matched
   test-and-simulate pair; the Forge names checked so far are crowded or
@@ -110,7 +108,6 @@ for solids and fluids alike.
 | Name | Result |
 |---|---|
 | **Gridverk** | clean: 0 repositories, PyPI free, no .com or .io, no web hit |
-| **Gridsund** | clean: 0 repositories, PyPI free, no .com or .io, no web hit |
 | **Straingrid** | 0 repositories, PyPI free, no web hit; .com held |
 | **Gridstrom** | 0 repositories, PyPI free, no web hit; .com held |
 | **Gridloom** | 7 repositories; .com held |
@@ -119,3 +116,26 @@ for solids and fluids alike.
 | GridForge, GridSmith, GridSpan, GridFab, FlowGrid, GridFlow, FluxGrid | out: PyPI taken or crowded (36 to 194 repositories) |
 | StressGrid, GridYard, GridWright, GridBro, SpanGrid, ForceGrid, LoadGrid, GridKraft, YieldGrid | a few repositories and the .com held |
 | Rutverk (Swedish *rutnät*, grid) | clean on the screen, less natural |
+
+## Dropped by David (2026-11-14)
+
+- Every "-sund-" name (Sundverk, Kraftsund, Gridsund, Sundsmed, Solvsund).
+- Kraftverk: better suited to TenForge's world than this app's (and close
+  to the band Kraftwerk's marks). Lattisimo: one letter from Nestlé's
+  Lattissima. GridForge, PowerGrid, PostGrid: taken or crowded.
+
+## Decided (2026-11-15)
+
+David: **GridForge** for this app, and TenForge renamed **TenSense**
+(tension sensing, as SurView is surface view).
+
+What is known about GridForge (checked 2026-11-14), for the trademark
+search to start from:
+
+- US filing 99871866, GRIDFORGE, GridForge, Inc. (Pittsburgh), class 9,
+  goods "transformers", intent to use, published 2026-11-17: electrical
+  hardware, not software, but the same class.
+- Power-grid namesakes use the word; gridforge.com and gridforge.org,
+  PyPI and npm are taken; gridforge.se was free; gridforge.io had
+  expired and was in its grace period.
+
