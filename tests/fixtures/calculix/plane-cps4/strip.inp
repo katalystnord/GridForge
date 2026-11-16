@@ -1,0 +1,40 @@
+** Strip in tension, CPS4 (plane stress), written by ../strips.py.
+** Units: mm, N, MPa. Steel, E = 210000 MPa, nu = 0.3.
+** x = 0 held in x, x = 100 moved 0.1 mm in x.
+*NODE, NSET=NALL
+1, 0.00, 0.00, 0.00
+2, 25.00, 0.00, 0.00
+3, 50.00, 0.00, 0.00
+4, 75.00, 0.00, 0.00
+5, 100.00, 0.00, 0.00
+6, 0.00, 10.00, 0.00
+7, 25.00, 10.00, 0.00
+8, 50.00, 10.00, 0.00
+9, 75.00, 10.00, 0.00
+10, 100.00, 10.00, 0.00
+*ELEMENT, TYPE=CPS4, ELSET=EALL
+1, 1, 2, 7, 6
+2, 2, 3, 8, 7
+3, 3, 4, 9, 8
+4, 4, 5, 10, 9
+*NSET, NSET=X0
+1, 6
+*NSET, NSET=XL
+5, 10
+*MATERIAL, NAME=STEEL
+*ELASTIC
+210000.0, 0.3
+*SOLID SECTION, ELSET=EALL, MATERIAL=STEEL
+1.0
+*BOUNDARY
+X0, 1, 1, 0.0
+1, 2, 2, 0.0
+*STEP
+*STATIC
+*BOUNDARY
+XL, 1, 1, 0.1
+*NODE FILE
+U, RF
+*EL FILE
+S, E
+*END STEP

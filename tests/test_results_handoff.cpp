@@ -160,6 +160,29 @@ int misplacedCells(vtkUnstructuredGrid *g)
                                + n[2] * (a[2] - centre[2]);
             ok = ok && out > 0;
         }
+        if (cell->GetCellType() == VTK_QUADRATIC_EDGE) {
+            // A quadratic edge is its own edge: its third node sits halfway.
+            const auto a = point(g, cell->GetPointId(0)), b = point(g, cell->GetPointId(1)),
+                       m = point(g, cell->GetPointId(2));
+            for (int d = 0; d < 3; ++d)
+                ok = ok && std::abs(m[d] - (a[d] + b[d]) / 2) < 1e-9;
+        }
+        if (cell->GetCellDimension() == 2) {
+            // A surface cell's corners turn one way round: not twisted.
+            const int n = cell->GetCellType() == VTK_QUADRATIC_TRIANGLE || cell->GetCellType() == VTK_TRIANGLE ? 3 : 4;
+            std::array<double, 3> first{};
+            for (int k = 0; k < n; ++k) {
+                const auto a = point(g, cell->GetPointId(k)), b = point(g, cell->GetPointId((k + 1) % n)),
+                           e = point(g, cell->GetPointId((k + 2) % n));
+                const std::array<double, 3> u{b[0] - a[0], b[1] - a[1], b[2] - a[2]},
+                    v{e[0] - b[0], e[1] - b[1], e[2] - b[2]};
+                const std::array<double, 3> t{u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
+                                              u[0] * v[1] - u[1] * v[0]};
+                if (k == 0)
+                    first = t;
+                ok = ok && t[0] * first[0] + t[1] * first[1] + t[2] * first[2] > 0;
+            }
+        }
         for (int k = 0; k < cell->GetNumberOfEdges(); ++k) {
             vtkCell *edge = cell->GetEdge(k);
             if (edge->GetNumberOfPoints() != 3)
@@ -293,11 +316,11 @@ CASE(each_increment_becomes_a_time_point)
 CASE(an_element_type_not_yet_proven_is_refused_by_name)
 {
     FrdFile f = readFrd(fixture("bar-tension/bar.frd"));
-    f.elements[0].type = FrdElementType::Tr3;
+    f.elements[0].type = static_cast<FrdElementType>(13);  // every type the reader knows is mapped
     QString error;
     const ResultsSeries s = toSeries(f, "bar.frd", &error);
     CHECK(s.points.empty());
-    CHECK(error.contains("tr3") && error.contains("element 1"));
+    CHECK(error.contains("type 13") && error.contains("element 1"));
 }
 
 // A cube in uniform tension per element type (fixtures cube-*, written by
@@ -328,6 +351,46 @@ CASE(each_solid_element_type_lands_on_its_vtk_cell_in_place)
             CHECK(std::abs(disp->GetComponent(p, 2) - 1e-3 * x[2]) < 1e-9);
             CHECK(std::abs(disp->GetComponent(p, 0) + 3e-4 * x[0]) < 1e-9);
             CHECK(near(stress->GetComponent(p, 2), 210.0, 1e-4));
+        }
+    }
+}
+
+// Shells, plane elements and beams (fixtures shell-*, plane-cps4, beam-*,
+// written by strips.py): with OUTPUT=2D ccx writes them on the deck's own
+// nodes as surface and line cells; without it, shells as expanded solids.
+// Each lands on its VTK cell in place, with the hand answer (sxx 210 MPa,
+// ux = 1e-3 x), except ccx's own B32R: see beam-b32r/README.md.
+CASE(each_shell_plane_and_beam_element_lands_on_its_vtk_cell_in_place)
+{
+    const struct {
+        const char *frd;
+        int cell, count;
+        double sxx;
+    } types[] = {{"shell-s3/strip.frd", VTK_TRIANGLE, 8, 210.0},
+                 {"shell-s4/strip.frd", VTK_QUAD, 4, 210.0},
+                 {"shell-s6/strip.frd", VTK_QUADRATIC_TRIANGLE, 8, 210.0},
+                 {"shell-s8/strip.frd", VTK_QUADRATIC_QUAD, 4, 210.0},
+                 {"shell-s8-3d/strip.frd", VTK_QUADRATIC_HEXAHEDRON, 4, 210.0},
+                 {"plane-cps4/strip.frd", VTK_QUAD, 4, 210.0},
+                 {"beam-b31/strip.frd", VTK_LINE, 4, 210.0},
+                 {"beam-b32r/strip.frd", VTK_QUADRATIC_EDGE, 4, 202.279}};
+    for (const auto &t : types) {
+        std::printf("  %s\n", t.frd);
+        const ResultsSeries s = convert(t.frd);
+        vtkUnstructuredGrid *g = grid(s);
+        CHECK(g && g->GetNumberOfCells() == t.count);
+        for (vtkIdType c = 0; g && c < g->GetNumberOfCells(); ++c)
+            CHECK(g->GetCellType(c) == t.cell);
+        CHECK(g && misplacedCells(g) == 0);
+        vtkDataArray *disp = g ? g->GetPointData()->GetArray("DISP") : nullptr;
+        vtkDataArray *stress = g ? g->GetPointData()->GetArray("STRESS") : nullptr;
+        CHECK(disp && stress);
+        const bool exact = t.sxx == 210.0;
+        for (vtkIdType p = 0; disp && stress && p < g->GetNumberOfPoints(); ++p) {
+            const auto x = point(g, p);
+            if (exact)
+                CHECK(std::abs(disp->GetComponent(p, 0) - 1e-3 * x[0]) < 1e-9);
+            CHECK(near(stress->GetComponent(p, 0), t.sxx, exact ? 1e-4 : 1e-6));
         }
     }
 }
@@ -369,6 +432,16 @@ CASE(the_decks_named_sets_become_subsets_of_the_grids)
     CHECK((idsOf(s, "Pulled", true) == QList<int>{17, 18, 19, 20}));
     CHECK((idsOf(s, "Odd", false) == QList<int>{1, 3}));
     CHECK(s.provenance.contains("sets: 9, from bar.inp"));
+}
+
+// Without OUTPUT=2D a shell's results sit on nodes ccx made: the deck's
+// node sets find none of them, and the provenance says so.
+CASE(an_expanded_shell_keeps_its_element_sets_and_says_its_node_sets_are_lost)
+{
+    const ResultsSeries s = withSets("shell-s8-3d/strip.frd", "shell-s8-3d/strip.inp");
+    CHECK((idsOf(s, "EALL", false) == QList<int>{1, 2, 3, 4}));
+    CHECK(idsOf(s, "X0", true).isEmpty());
+    CHECK(s.provenance.contains("set X0: 3 of its 3 nodes are not in the results, left out"));
 }
 
 // A set may name nodes the results do not hold (ccx leaves out nodes no
@@ -475,7 +548,11 @@ CASE(the_numbers_match_what_cgx_shows)
     const char *fixtures[] = {"bar-tension/bar.frd",     "bar-binary/bar.frd",
                               "bar-increments/bar.frd",  "cantilever-te10/cantilever.frd",
                               "cube-he20/cube.frd",      "cube-te4/cube.frd",
-                              "cube-pe6/cube.frd",       "cube-pe15/cube.frd"};
+                              "cube-pe6/cube.frd",       "cube-pe15/cube.frd",
+                              "shell-s3/strip.frd",      "shell-s4/strip.frd",
+                              "shell-s6/strip.frd",      "shell-s8/strip.frd",
+                              "shell-s8-3d/strip.frd",   "plane-cps4/strip.frd",
+                              "beam-b31/strip.frd",      "beam-b32r/strip.frd"};
     // GridForge's array and component for each of cgx's columns.
     const std::map<QString, std::pair<const char *, int>> column = {
         {"D1", {"DISP", 0}},    {"D2", {"DISP", 1}},    {"D3", {"DISP", 2}},

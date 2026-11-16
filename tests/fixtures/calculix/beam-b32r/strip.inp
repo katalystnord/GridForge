@@ -1,0 +1,39 @@
+** Strip in tension, B32R (beam), written by ../strips.py.
+** Units: mm, N, MPa. Steel, E = 210000 MPa, nu = 0.3.
+** x = 0 held in x, x = 100 moved 0.1 mm in x.
+*NODE, NSET=NALL
+1, 0.00, 0.00, 0.00
+2, 12.50, 0.00, 0.00
+3, 25.00, 0.00, 0.00
+4, 37.50, 0.00, 0.00
+5, 50.00, 0.00, 0.00
+6, 62.50, 0.00, 0.00
+7, 75.00, 0.00, 0.00
+8, 87.50, 0.00, 0.00
+9, 100.00, 0.00, 0.00
+*ELEMENT, TYPE=B32R, ELSET=EALL
+1, 1, 2, 3
+2, 3, 4, 5
+3, 5, 6, 7
+4, 7, 8, 9
+*NSET, NSET=X0
+1
+*NSET, NSET=XL
+9
+*MATERIAL, NAME=STEEL
+*ELASTIC
+210000.0, 0.3
+*BEAM SECTION, ELSET=EALL, MATERIAL=STEEL, SECTION=RECT
+10.0, 1.0
+0.0, 0.0, 1.0
+*BOUNDARY
+1, 1, 6, 0.0
+*STEP
+*STATIC
+*BOUNDARY
+XL, 1, 1, 0.1
+*NODE FILE, OUTPUT=2D
+U, RF
+*EL FILE, OUTPUT=2D
+S, E
+*END STEP

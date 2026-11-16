@@ -204,6 +204,26 @@ CASE(a_cube_in_he20_reads_as_the_file_orders_its_nodes)
     }
 }
 
+// With OUTPUT=2D, ccx writes S6, S8 and B32R as tr6, qu8 and be3 (types
+// 8, 10, 12) on the deck's nodes; be3 as end, end, middle.
+CASE(shells_and_beams_written_in_2d_read_as_the_file_orders_them)
+{
+    const struct {
+        const char *frd;
+        FrdElementType type;
+        std::vector<int> first;
+    } files[] = {{"shell-s6/strip.frd", FrdElementType::Tr6, {1, 3, 21, 2, 12, 11}},
+                 {"shell-s8/strip.frd", FrdElementType::Qu8, {1, 3, 21, 19, 2, 12, 20, 10}},
+                 {"beam-b32r/strip.frd", FrdElementType::Be3, {1, 3, 2}}};
+    for (const auto &t : files) {
+        const FrdFile f = readFrd(fixture(t.frd));
+        CHECK(f.ok());
+        if (!f.ok())
+            std::printf("  (%s: %s)\n", t.frd, qPrintable(f.error));
+        CHECK(!f.elements.empty() && f.elements[0].type == t.type && f.elements[0].nodes == t.first);
+    }
+}
+
 // Timoshenko: P L^3 / 3 E I + P L / (5/6 G A) = 0.19196 mm; the mesh
 // gives 0.18983, 1.1 % under it.
 CASE(the_cantilever_tip_deflects_as_beam_theory_says)

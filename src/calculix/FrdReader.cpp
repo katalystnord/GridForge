@@ -81,9 +81,12 @@ int nodesPerElement(int type)
     case 4: return 20;  // he20 (ccx's C3D20 and C3D20R, fixture cube-he20)
     case 5: return 15;  // pe15
     case 6: return 10;  // te10 (ccx's C3D10, fixture cantilever-te10)
-    case 7: return 3;   // tr3
-    case 9: return 4;   // qu4
-    case 11: return 2;  // be2
+    case 7: return 3;   // tr3 (S3, CPS3 with OUTPUT=2D; fixture shell-s3)
+    case 8: return 6;   // tr6 (S6; shell-s6)
+    case 9: return 4;   // qu4 (S4, CPS4; shell-s4, plane-cps4)
+    case 10: return 8;  // qu8 (S8; shell-s8)
+    case 11: return 2;  // be2 (B31; beam-b31)
+    case 12: return 3;  // be3 (B32R, end, end, middle; beam-b32r)
     default: return 0;
     }
 }

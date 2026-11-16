@@ -30,7 +30,9 @@ namespace {
 // nodes before the top edges', where VTK has them after. C3D6 is mirrored:
 // VTK's linear wedge wants its face (0, 1, 2) to face out, while its
 // quadratic wedge, like ccx, wants (0, 2, 1) to (vtkWedge::GetFaceArray
-// against vtkQuadraticWedge's, VTK 9.5). (Fixtures
+// against vtkQuadraticWedge's, VTK 9.5). Shells, plane elements and beams
+// written with OUTPUT=2D (tr3, tr6, qu4, qu8, be2, be3) are in VTK's order
+// as written, be3 included (end, end, middle). (Fixtures shell-*, beam-*,
 // bar-tension, cantilever-te10, cube-*; test
 // each_solid_element_type_lands_on_its_vtk_cell_in_place).
 struct CellMap {
@@ -57,8 +59,20 @@ const CellMap &cellFor(FrdElementType t)
                               {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15}};
     static const CellMap pe15{VTK_QUADRATIC_WEDGE,
                               {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 9, 10, 11}};
+    static const CellMap tr3{VTK_TRIANGLE, identity(3)};
+    static const CellMap tr6{VTK_QUADRATIC_TRIANGLE, identity(6)};
+    static const CellMap qu4{VTK_QUAD, identity(4)};
+    static const CellMap qu8{VTK_QUADRATIC_QUAD, identity(8)};
+    static const CellMap be2{VTK_LINE, identity(2)};
+    static const CellMap be3{VTK_QUADRATIC_EDGE, identity(3)};
     switch (t) {
     case FrdElementType::He8: return he8;
+    case FrdElementType::Tr3: return tr3;
+    case FrdElementType::Tr6: return tr6;
+    case FrdElementType::Qu4: return qu4;
+    case FrdElementType::Qu8: return qu8;
+    case FrdElementType::Be2: return be2;
+    case FrdElementType::Be3: return be3;
     case FrdElementType::Te4: return te4;
     case FrdElementType::Pe6: return pe6;
     case FrdElementType::Te10: return te10;
@@ -68,7 +82,7 @@ const CellMap &cellFor(FrdElementType t)
     }
 }
 
-const char *typeName(FrdElementType t)
+QString typeName(FrdElementType t)
 {
     switch (t) {
     case FrdElementType::He8: return "he8";
@@ -78,10 +92,13 @@ const char *typeName(FrdElementType t)
     case FrdElementType::Pe15: return "pe15";
     case FrdElementType::Te10: return "te10";
     case FrdElementType::Tr3: return "tr3";
+    case FrdElementType::Tr6: return "tr6";
     case FrdElementType::Qu4: return "qu4";
+    case FrdElementType::Qu8: return "qu8";
     case FrdElementType::Be2: return "be2";
+    case FrdElementType::Be3: return "be3";
     }
-    return "?";
+    return QString("type %1").arg(int(t));
 }
 
 const char *kVonMises = "von Mises stress (derived)";

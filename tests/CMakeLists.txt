@@ -170,6 +170,19 @@ set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
 #     tolerance;
 #   PS2 and PS3 swapped: the cantilever red.
 
+# NEGATIVE CHECKS, 2026-11-16, shells, plane elements and beams (fixtures
+# shell-*, plane-cps4, beam-*, from strips.py): the reader and hand-off
+# cases written first, red (types 8, 10, 12 unknown to the reader; tr3 and
+# qu4 not mapped). The expanded-shell set case was green from the start (it
+# records what the set code already did). Then each mapping broken, the
+# test run, restored:
+#   qu4 twisted, qu8 and tr6 middles turned: the strip case red; the
+#     twisted qu4 only by the new corner-turn check (green without it);
+#   be3 as end, middle, end: survived at first (a quadratic edge has no
+#     edges, so no midpoint was checked); the edge's own midpoint check
+#     added, and it is red.
+# The strips also match cgx 2.21 at every node (cgx-reference.txt).
+
 # The build stamp is taken at every build, not at configure time: files
 # written by GridForge carry it as provenance.
 add_test(NAME the_build_reported_is_the_source_built

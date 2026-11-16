@@ -1,0 +1,24 @@
+ ELEMENT            1 with label "S8      " and with nodes:
+          1          3         21         19          2         12         20         10
+  is expanded into a "C3D20 L " element with topology:
+         28         34         76         70         30         36         78         72         31         58
+         73         55         33         60         75         57         29         35         77         71
+
+ ELEMENT            2 with label "S8      " and with nodes:
+          3          5         23         21          4         14         22         12
+  is expanded into a "C3D20 L " element with topology:
+         34         40         82         76         36         42         84         78         37         61
+         79         58         39         63         81         60         35         41         83         77
+
+ ELEMENT            3 with label "S8      " and with nodes:
+          5          7         25         23          6         16         24         14
+  is expanded into a "C3D20 L " element with topology:
+         40         46         88         82         42         48         90         84         43         64
+         85         61         45         66         87         63         41         47         89         83
+
+ ELEMENT            4 with label "S8      " and with nodes:
+          7          9         27         25          8         18         26         16
+  is expanded into a "C3D20 L " element with topology:
+         46         52         94         88         48         54         96         90         49         67
+         91         64         51         69         93         66         47         53         95         89
+

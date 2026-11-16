@@ -9,8 +9,9 @@
 // Read so far, each proven by a fixture written by ccx 2.23: the long ASCII
 // format (FORMAT 1, *NODE FILE), the binary one (*NODE OUTPUT: nodes in
 // float64, elements as int32, results in float32), several increments in
-// one file, and the elements he8, he20, te4, te10, pe6 and pe15. Refused
-// by name until a fixture proves them: the short ASCII format, other binary formats, more than six values
+// one file, and every element type the cgx manual lists: he8, he20, te4,
+// te10, pe6, pe15, and, from shells, plane elements and beams, tr3, tr6,
+// qu4, qu8, be2, be3. Refused by name until a fixture proves them: the short ASCII format, other binary formats, more than six values
 // per node in ASCII, material-dependent data, element types not listed.
 
 #include <QString>
@@ -28,7 +29,8 @@ struct FrdNode {
 // Element types by the number the file uses (cgx manual, "Element Types";
 // te10 from ccx's own file). Only the numbers confirmed are accepted.
 enum class FrdElementType {
-    He8 = 1, Pe6 = 2, Te4 = 3, He20 = 4, Pe15 = 5, Te10 = 6, Tr3 = 7, Qu4 = 9, Be2 = 11
+    He8 = 1, Pe6 = 2, Te4 = 3, He20 = 4, Pe15 = 5, Te10 = 6, Tr3 = 7, Tr6 = 8, Qu4 = 9,
+    Qu8 = 10, Be2 = 11, Be3 = 12
 };
 
 struct FrdElement {

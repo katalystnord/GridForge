@@ -30,8 +30,10 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 - `.frd` reader, ASCII and binary, own C++ (cgx manual chapter 11 as the
   specification; FreeCAD's LGPL reader as a reference). Done 2026-11-16:
   long ASCII and ccx's binary, several increments; he8, he20, te4, te10,
-  pe6 and pe15 mapped to ParaView cells, each proven by a fixture; the
-  other element types refused until one proves their node order.
+  pe6 and pe15, and tr3, tr6, qu4, qu8, be2, be3 (shells and beams with
+  OUTPUT=2D, plane elements always) mapped to ParaView cells, each proven
+  by a fixture. Without OUTPUT=2D ccx writes shells and beams as expanded
+  solids on nodes of its own, so the deck's node sets are lost (said).
 - Writer: VTKHDF time series with named sets as blocks; `.vtu` + `.pvd`
   fallback. Derived von Mises and principal stresses, said as derived.
   Done 2026-11-16: one `.vtkhdf` (every time point; Model, NodeSets,
@@ -43,7 +45,7 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   `.inp` decks, each with an independently known answer (a bar in
   tension, a cantilever); one binary, one with several increments.
   Done 2026-11-16: bar-tension, bar-sets, bar-increments, bar-binary,
-  cantilever-te10, cube-he20, cube-te4, cube-pe6, cube-pe15.
+  cantilever-te10, cube-* (4), shell-* (5), plane-cps4, beam-* (2).
 - Exit: ParaView 6.x opens our output with every variable and set; the
   same numbers as cgx shows for the fixtures. Offer the reader upstream
   (ParaView plugin or beside ccx2paraview).
@@ -51,7 +53,7 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   point, variable and set. Open: ParaView 6.2 (VTK 9.7.1) drops field
   data on the blocks of a VTKHDF collection, so the provenance is in the
   file but not shown there (it is in the `.vtu` fallback); to raise with
-  Kitware. The numbers match cgx 2.21's at every node of the eight result
+  Kitware. The numbers match cgx 2.21's at every node of the sixteen result
   fixtures, raw and derived (test the_numbers_match_what_cgx_shows; cgx's
   values committed beside each fixture). Offering the reader upstream is
   David's call.
