@@ -139,3 +139,11 @@ search to start from:
   PyPI and npm are taken; gridforge.se was free; gridforge.io had
   expired and was in its grace period.
 
+
+## Trademark check (2026-11-16)
+
+TMview (`gridforge`, `grid forge`) and WIPO's Global Brand Database: no
+EUIPO, PRV or WIPO mark. GridForge is clear for us. Elsewhere, all for
+other goods: Romania M 2025 10055 (batteries, registered); US 99871866
+(transformers), 50177874 (power-grid monitoring), 99794737 FORGEGRID
+(machine-shop software); Korea 4020260153177/8 (software, pending).
