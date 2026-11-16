@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <unordered_map>
+#include <vector>
 
 namespace gf::calculix {
 
@@ -23,16 +24,47 @@ using gf::core::TimePoint;
 
 namespace {
 
-// The VTK cell for each .frd element type a fixture has proven, with the
-// node order unchanged: ccx's C3D8 and C3D10 orders are VTK's hexahedron
-// and quadratic tetrahedron orders (fixtures bar-tension, cantilever-te10;
-// test every_cell_has_its_nodes_where_vtk_expects_them).
-int vtkCellFor(FrdElementType t)
+// The VTK cell for each .frd element type a fixture has proven, and where
+// each of VTK's nodes sits in the file's list. ccx writes C3D8, C3D10 and
+// C3D4 in VTK's order. C3D20 and C3D15 come with the vertical edges' middle
+// nodes before the top edges', where VTK has them after. C3D6 is mirrored:
+// VTK's linear wedge wants its face (0, 1, 2) to face out, while its
+// quadratic wedge, like ccx, wants (0, 2, 1) to (vtkWedge::GetFaceArray
+// against vtkQuadraticWedge's, VTK 9.5). (Fixtures
+// bar-tension, cantilever-te10, cube-*; test
+// each_solid_element_type_lands_on_its_vtk_cell_in_place).
+struct CellMap {
+    int cell = -1;
+    std::vector<int> order;  // VTK node k is the file's node order[k]
+};
+
+std::vector<int> identity(int n)
 {
+    std::vector<int> v(size_t(n), 0);
+    for (int k = 0; k < n; ++k)
+        v[size_t(k)] = k;
+    return v;
+}
+
+const CellMap &cellFor(FrdElementType t)
+{
+    static const CellMap none;
+    static const CellMap he8{VTK_HEXAHEDRON, identity(8)};
+    static const CellMap te4{VTK_TETRA, identity(4)};
+    static const CellMap pe6{VTK_WEDGE, {0, 2, 1, 3, 5, 4}};
+    static const CellMap te10{VTK_QUADRATIC_TETRA, identity(10)};
+    static const CellMap he20{VTK_QUADRATIC_HEXAHEDRON,
+                              {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15}};
+    static const CellMap pe15{VTK_QUADRATIC_WEDGE,
+                              {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 9, 10, 11}};
     switch (t) {
-    case FrdElementType::He8: return VTK_HEXAHEDRON;
-    case FrdElementType::Te10: return VTK_QUADRATIC_TETRA;
-    default: return -1;
+    case FrdElementType::He8: return he8;
+    case FrdElementType::Te4: return te4;
+    case FrdElementType::Pe6: return pe6;
+    case FrdElementType::Te10: return te10;
+    case FrdElementType::He20: return he20;
+    case FrdElementType::Pe15: return pe15;
+    default: return none;
     }
 }
 
@@ -42,6 +74,7 @@ const char *typeName(FrdElementType t)
     case FrdElementType::He8: return "he8";
     case FrdElementType::Pe6: return "pe6";
     case FrdElementType::Te4: return "te4";
+    case FrdElementType::He20: return "he20";
     case FrdElementType::Pe15: return "pe15";
     case FrdElementType::Te10: return "te10";
     case FrdElementType::Tr3: return "tr3";
@@ -130,15 +163,16 @@ ResultsSeries toSeries(const FrdFile &frd, const QString &source, QString *error
     elementIds->SetName("element id");
     materials->SetName("material");
     for (const FrdElement &e : frd.elements) {
-        const int cell = vtkCellFor(e.type);
-        if (cell < 0) {
+        const CellMap &map = cellFor(e.type);
+        if (map.cell < 0) {
             *error = QString("element %1 is a %2, which is not mapped to a ParaView cell yet "
                              "(no fixture has proven its node order)")
                          .arg(e.id).arg(typeName(e.type));
             return {};
         }
         std::vector<vtkIdType> ids;
-        for (int id : e.nodes) {
+        for (int k : map.order) {
+            const int id = e.nodes[size_t(k)];
             const auto it = index.find(id);
             if (it == index.end()) {
                 *error = QString("element %1 uses node %2, which the file does not hold")
@@ -147,7 +181,7 @@ ResultsSeries toSeries(const FrdFile &frd, const QString &source, QString *error
             }
             ids.push_back(it->second);
         }
-        mesh->InsertNextCell(cell, vtkIdType(ids.size()), ids.data());
+        mesh->InsertNextCell(map.cell, vtkIdType(ids.size()), ids.data());
         elementIds->InsertNextValue(e.id);
         materials->InsertNextValue(e.material);
     }

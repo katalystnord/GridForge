@@ -185,6 +185,25 @@ CASE(a_cantilever_in_te10_reads_as_480_ten_node_tetrahedra)
         CHECK(e.type == FrdElementType::Te10 && e.nodes.size() == 10);
 }
 
+// Twenty-node hexahedra: ccx writes C3D20 as type 4, and not in the deck's
+// order: after the bottom edges' middle nodes come the vertical edges',
+// then the top edges' (deck element 1: 28-31 bottom, 32-35 top, 36-39
+// vertical). The reader keeps the file's order; the converter maps it.
+CASE(a_cube_in_he20_reads_as_the_file_orders_its_nodes)
+{
+    const FrdFile f = readFrd(fixture("cube-he20/cube.frd"));
+    CHECK(f.ok());
+    if (!f.ok())
+        std::printf("  (%s)\n", qPrintable(f.error));
+    CHECK(f.elements.size() == 8);
+    if (!f.elements.empty()) {
+        const FrdElement &e = f.elements[0];
+        CHECK(e.type == FrdElementType::He20);
+        CHECK((e.nodes == std::vector<int>{1, 2, 5, 4, 10, 11, 14, 13, 28, 29, 30, 31,
+                                           36, 37, 38, 39, 32, 33, 34, 35}));
+    }
+}
+
 // Timoshenko: P L^3 / 3 E I + P L / (5/6 G A) = 0.19196 mm; the mesh
 // gives 0.18983, 1.1 % under it.
 CASE(the_cantilever_tip_deflects_as_beam_theory_says)

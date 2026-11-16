@@ -75,6 +75,15 @@ add_test(NAME frd_reader_reads_what_ccx_wrote COMMAND test_frd_reader)
 #     truncated-binary case red;
 #   binary results read big-endian: the binary numbers case red.
 
+# NEGATIVE CHECKS, 2026-11-16, he20, te4, pe6, pe15 (fixtures cube-*): the
+# reader case and the hand-off case written first, red (type 4 refused by
+# the reader; te4, pe6, pe15 refused by the converter). Then each mapping
+# undone, the test run, restored:
+#   he20 in the file's order: the hand-off case red (midside nodes off);
+#   pe15 in the file's order: red the same way;
+#   pe6 not mirrored: red (VTK's linear wedge faces the other way);
+#   te4 mirrored: red.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

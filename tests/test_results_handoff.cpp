@@ -130,7 +130,12 @@ int misplacedCells(vtkUnstructuredGrid *g)
     for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
         vtkCell *cell = g->GetCell(c);
         std::array<double, 3> centre{};
-        const int corners = cell->GetCellType() == VTK_QUADRATIC_TETRA ? 4 : cell->GetNumberOfPoints();
+        int corners = cell->GetNumberOfPoints();
+        switch (cell->GetCellType()) {
+        case VTK_QUADRATIC_TETRA: corners = 4; break;
+        case VTK_QUADRATIC_WEDGE: corners = 6; break;
+        case VTK_QUADRATIC_HEXAHEDRON: corners = 8; break;
+        }
         for (int k = 0; k < corners; ++k)
             for (int d = 0; d < 3; ++d)
                 centre[d] += point(g, cell->GetPointId(k))[d] / corners;
@@ -280,11 +285,43 @@ CASE(each_increment_becomes_a_time_point)
 CASE(an_element_type_not_yet_proven_is_refused_by_name)
 {
     FrdFile f = readFrd(fixture("bar-tension/bar.frd"));
-    f.elements[0].type = FrdElementType::Pe6;
+    f.elements[0].type = FrdElementType::Tr3;
     QString error;
     const ResultsSeries s = toSeries(f, "bar.frd", &error);
     CHECK(s.points.empty());
-    CHECK(error.contains("pe6") && error.contains("element 1"));
+    CHECK(error.contains("tr3") && error.contains("element 1"));
+}
+
+// A cube in uniform tension per element type (fixtures cube-*, written by
+// cubes.py): each type lands on its VTK cell with every node in place, and
+// the numbers are the hand answer (szz 210 MPa, uz = 1e-3 z, ux = -3e-4 x).
+CASE(each_solid_element_type_lands_on_its_vtk_cell_in_place)
+{
+    const struct {
+        const char *frd;
+        int cell, count;
+    } types[] = {{"cube-he20/cube.frd", VTK_QUADRATIC_HEXAHEDRON, 8},
+                 {"cube-te4/cube.frd", VTK_TETRA, 48},
+                 {"cube-pe6/cube.frd", VTK_WEDGE, 16},
+                 {"cube-pe15/cube.frd", VTK_QUADRATIC_WEDGE, 16}};
+    for (const auto &t : types) {
+        std::printf("  %s\n", t.frd);
+        const ResultsSeries s = convert(t.frd);
+        vtkUnstructuredGrid *g = grid(s);
+        CHECK(g && g->GetNumberOfCells() == t.count);
+        for (vtkIdType c = 0; g && c < g->GetNumberOfCells(); ++c)
+            CHECK(g->GetCellType(c) == t.cell);
+        CHECK(g && misplacedCells(g) == 0);
+        vtkDataArray *disp = g ? g->GetPointData()->GetArray("DISP") : nullptr;
+        vtkDataArray *stress = g ? g->GetPointData()->GetArray("STRESS") : nullptr;
+        CHECK(disp && stress);
+        for (vtkIdType p = 0; disp && stress && p < g->GetNumberOfPoints(); ++p) {
+            const auto x = point(g, p);
+            CHECK(std::abs(disp->GetComponent(p, 2) - 1e-3 * x[2]) < 1e-9);
+            CHECK(std::abs(disp->GetComponent(p, 0) + 3e-4 * x[0]) < 1e-9);
+            CHECK(near(stress->GetComponent(p, 2), 210.0, 1e-4));
+        }
+    }
 }
 
 CASE(a_series_is_written_as_vtu_files_and_a_pvd_that_lists_them)

@@ -78,6 +78,7 @@ int nodesPerElement(int type)
     case 1: return 8;   // he8
     case 2: return 6;   // pe6
     case 3: return 4;   // te4
+    case 4: return 20;  // he20 (ccx's C3D20 and C3D20R, fixture cube-he20)
     case 5: return 15;  // pe15
     case 6: return 10;  // te10 (ccx's C3D10, fixture cantilever-te10)
     case 7: return 3;   // tr3
