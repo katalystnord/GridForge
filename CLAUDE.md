@@ -47,7 +47,9 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   user selects, and more follow (Python, AI surrogates such as an ANN
   standing in for FEM). Every toolkit, the shipped ones included, is a
   separate program behind one door: a `toolkit.json` manifest and a job
-  folder (`docs/specs/toolkits-v1.md`, DRAFT). No in-process plugins. A
+  folder (`docs/specs/toolkits-v1.md`, DRAFT). Every toolkit is optional and
+  installable (David, 2026-11-16). Python has full access to the program
+  through a local API the program serves, out of process, never embedded. No in-process plugins. A
   surrogate's results are labelled as predictions everywhere.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.

@@ -1,6 +1,6 @@
 # Toolkits, version 1
 
-**Status: DRAFT, for David's review (2026-11-14).**
+**Status: DRAFT, for David's review (2026-11-14; updated 2026-11-16).**
 
 David, 2026-11-14: OpenFOAM® and CalculiX are toolkits the user selects,
 and more will follow: Python, and AI models (for example an ANN that
@@ -18,7 +18,9 @@ A toolkit is anything that does one **stage** of a study:
 | `derive` | results (and measurements) | more results | a Python post-processing script, measured against predicted |
 
 A toolkit may offer several stages (OpenFOAM meshes with snappyHexMesh and
-solves). The study says which toolkit does each stage, and may run the
+solves). David, 2026-11-16: every toolkit is **optional and installable**,
+CalculiX, OpenFOAM® and Python included. The program runs without any;
+it says which stages have no toolkit yet and how to get one. The study says which toolkit does each stage, and may run the
 same study with two solve toolkits to compare them (CalculiX against a
 surrogate, or both against a SurView measurement).
 
@@ -138,7 +140,9 @@ SIGKILL), and the window never waits on it.
 
 ## 6. Surrogates (AI models)
 
-A trained network that stands in for a finite-element analysis is a
+David, 2026-11-16: small ANN models for FEM- and CFD-like calculations
+come next after the solvers. A trained network that stands in for a
+finite-element or a flow analysis is a
 `solve` toolkit with `"trust": "surrogate"`. It must also state, in
 `results.json`:
 
@@ -154,19 +158,29 @@ solved run of the same study can be put beside it in one click. The
 model's runtime (ONNX Runtime, PyTorch, ...) lives in the toolkit's
 process, never in ours.
 
-## 7. Python
+## 7. Python: full access, optional
 
-Python enters in two ways, both through files:
+David, 2026-11-16: Python is a first-class way to script GridForge, with
+full access to the program, but optional and installed as a toolkit.
 
-- **As a toolkit**: a folder with `toolkit.json` whose command is
-  `["python3", "solve.py", "{job}"]`, for any stage. A reference toolkit
-  with a small Python library for the job folder (read `job.json` and the
-  mesh, write results, report progress) is shipped as an example.
-- **Driving the application**: `gf-study` runs a study file without a
-  window, so a Python script (or any program) can build study files and
-  run them, for parameter studies or for training a surrogate.
+- **The program serves its whole model through a local API**: open and
+  save a study; read and change geometry groups, mesh, materials, steps,
+  loads and supports; offer and run toolkits; follow a run; read results;
+  and, in the window, select, show and ask. Both `gf-study` and the
+  running window serve it, on a local socket only. Everything the window
+  can do, the API can do.
+- **The Python toolkit** brings a client library for that API and a
+  console, and the job-folder library for writing `solve` or `derive`
+  toolkits in Python (section 1). Installing it is what makes Python
+  appear in the program; without it nothing is missing but Python.
+- **Out of process.** Python runs in its own process, so its version,
+  its packages and its crashes stay its own, and the window never waits
+  on a script. The API is language-neutral; any program can use it.
+- **Parameter studies and surrogates** use the same API: a script builds
+  variants of a study, runs them through CalculiX or OpenFOAM®, and
+  collects the results as a training set (section 6).
 
-No Python interpreter is embedded in the application.
+No Python interpreter is embedded in the application (tenet 6).
 
 ## 8. What the first toolkits declare
 
@@ -190,8 +204,8 @@ the progress protocol, parameter schemas.
 
 ## 10. Open questions for David
 
-1. Python: is the first need a user's own solver or post-processing
-   (toolkit), or scripting the application (`gf-study`), or both?
+1. The API's transport and shape: JSON-RPC over a local socket is the
+   first candidate; to be specified before the window (Phase 3).
 2. The surrogate: should the application also help make one (run a
    parameter study with CalculiX, collect the training set), or only run
    one made elsewhere?
