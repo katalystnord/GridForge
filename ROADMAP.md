@@ -51,8 +51,10 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   point, variable and set. Open: ParaView 6.2 (VTK 9.7.1) drops field
   data on the blocks of a VTKHDF collection, so the provenance is in the
   file but not shown there (it is in the `.vtu` fallback); to raise with
-  Kitware. The cgx comparison waits for cgx on this machine. Offering
-  the reader upstream is David's call.
+  Kitware. The numbers match cgx 2.21's at every node of the eight result
+  fixtures, raw and derived (test the_numbers_match_what_cgx_shows; cgx's
+  values committed beside each fixture). Offering the reader upstream is
+  David's call.
 
 ## Phase 2: Study model, deck writer, running ccx (M)
 

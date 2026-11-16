@@ -160,6 +160,16 @@ set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
 # reader drops field data on every block of a collection, even from a file
 # its own writer made (checked: a plain grid keeps it).
 
+# NEGATIVE CHECKS, 2026-11-16, against cgx (fixtures */cgx-reference.txt,
+# from cgx 2.21 by cgx-reference.py): written against the finished code,
+# so first seen failing on the tolerance itself (uniaxial PS2 = 0 shown by
+# cgx as 0.000001: single precision, now allowed as 4.8e-7 of the tensor's
+# size). Then each rule broken, the test run, restored:
+#   SYZ and SZX swapped before deriving: the cantilever red (2720 values);
+#   von Mises 1e-4 relative off: every fixture red, at about 50 times the
+#     tolerance;
+#   PS2 and PS3 swapped: the cantilever red.
+
 # The build stamp is taken at every build, not at configure time: files
 # written by GridForge carry it as provenance.
 add_test(NAME the_build_reported_is_the_source_built

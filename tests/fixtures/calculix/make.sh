@@ -4,7 +4,8 @@
 # deck changes. ccx comes from FreeCAD's Flatpak (2.23 on 2026-11-16), or
 # from CCX if set (CCX=/usr/bin/ccx tests/fixtures/calculix/make.sh).
 # cantilever-te10/cantilever.inp is itself written by its deck.py, and the
-# cube-*/cube.inp decks by cubes.py.
+# cube-*/cube.inp decks by cubes.py. After a .frd changes, its
+# cgx-reference.txt is written again by cgx-reference.py (needs cgx).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 for deck in "$here"/*/*.inp; do

@@ -32,6 +32,7 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <map>
 #include <vector>
 
 using namespace gf::calculix;
@@ -463,6 +464,76 @@ CASE(a_vtkhdf_file_that_cannot_be_written_is_refused_by_name)
     QString error;
     CHECK(!gf::core::writeVtkHdf(increments(), "/proc/no-such-dir/bar.vtkhdf", &error));
     CHECK(error.contains("/proc/no-such-dir/bar.vtkhdf"));
+}
+
+// What ParaView is given matches what cgx shows, node by node: the solver's
+// displacements and stresses, and the derived von Mises and principal
+// stresses against cgx's own (fixtures */cgx-reference.txt, written by
+// cgx-reference.py with cgx 2.21; six decimals, as cgx prints them).
+CASE(the_numbers_match_what_cgx_shows)
+{
+    const char *fixtures[] = {"bar-tension/bar.frd",     "bar-binary/bar.frd",
+                              "bar-increments/bar.frd",  "cantilever-te10/cantilever.frd",
+                              "cube-he20/cube.frd",      "cube-te4/cube.frd",
+                              "cube-pe6/cube.frd",       "cube-pe15/cube.frd"};
+    // GridForge's array and component for each of cgx's columns.
+    const std::map<QString, std::pair<const char *, int>> column = {
+        {"D1", {"DISP", 0}},    {"D2", {"DISP", 1}},    {"D3", {"DISP", 2}},
+        {"SXX", {"STRESS", 0}}, {"SYY", {"STRESS", 1}}, {"SZZ", {"STRESS", 2}},
+        {"SXY", {"STRESS", 3}}, {"SYZ", {"STRESS", 4}}, {"SZX", {"STRESS", 5}},
+        {"Mises", {"von Mises stress (derived)", 0}},
+        {"PS1", {"principal stresses (derived)", 0}},
+        {"PS2", {"principal stresses (derived)", 1}},
+        {"PS3", {"principal stresses (derived)", 2}}};
+    for (const char *frd : fixtures) {
+        const ResultsSeries s = convert(frd);
+        vtkUnstructuredGrid *g = s.points.empty() ? nullptr : s.points.back().grid.Get();
+        QFile ref(QFileInfo(fixture(frd)).dir().filePath("cgx-reference.txt"));
+        CHECK(g && ref.open(QIODevice::ReadOnly | QIODevice::Text));
+        QStringList header;
+        int rows = 0, off = 0;
+        double worst = 0;
+        while (g && !ref.atEnd()) {
+            const QStringList f = QString(ref.readLine()).split(' ', Qt::SkipEmptyParts);
+            if (f.isEmpty() || f[0].startsWith('#'))
+                continue;
+            if (header.isEmpty()) {
+                header = f;
+                for (QString &h : header)
+                    h = h.trimmed();
+                continue;
+            }
+            ++rows;
+            // cgx derives in single precision, so an eigenvalue it shows is
+            // off by a few float epsilons of the tensor's size, not of its
+            // own (uniaxial: PS2 = 0 shown as 0.000001 at 210 MPa).
+            double size = 0;
+            for (qsizetype c = 1; c < f.size() && c < header.size(); ++c)
+                if (header[c] == "Mises" || header[c].startsWith("PS"))
+                    size = std::max(size, std::abs(f[c].toDouble()));
+            for (qsizetype c = 1; c < f.size() && c < header.size(); ++c) {
+                const auto it = column.find(header[c]);
+                const double want = f[c].toDouble();
+                const double got = it == column.end()
+                                       ? NAN
+                                       : value(g, it->second.first, f[0].toInt(), it->second.second);
+                const bool derived = header[c] == "Mises" || header[c].startsWith("PS");
+                // Six decimals as printed; derived values within 4 float
+                // epsilons of the tensor's size.
+                const double tolerance = 5.1e-7 + (derived ? 4.8e-7 * size : 1e-6 * std::abs(want));
+                const double diff = std::abs(got - want);
+                worst = std::max(worst, diff / tolerance);
+                if (!(diff <= tolerance)) {
+                    if (off < 6)
+                        std::printf("    node %s %s: cgx %s, GridForge %.9g\n", qPrintable(f[0]),
+                                    qPrintable(header[c]), qPrintable(f[c].trimmed()), got);
+                    ++off;
+                }
+            }
+        }
+        std::printf("  %s: %d nodes, %d values off, worst at %.2g of the tolerance\n", frd, rows, off, worst);
+        CHECK(rows == g->GetNumberOfPoints() && header.size() == 14 && off == 0);
+    }
 }
 
 CASE(a_series_is_written_as_vtu_files_and_a_pvd_that_lists_them)
