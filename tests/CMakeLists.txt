@@ -44,3 +44,20 @@ add_test(NAME toolkits_are_read_offered_and_refused COMMAND test_toolkits)
 #   requirements ignored: the missing-programs case red;
 #   the toolkit's own folder not searched for its program: the
 #     missing-programs and command cases red.
+
+# CalculiX results: the .frd reader against files written by ccx 2.23, each
+# with an answer known by hand (fixtures/calculix/*/README.md).
+add_executable(test_frd_reader test_frd_reader.cpp)
+target_link_libraries(test_frd_reader PRIVATE gf_calculix)
+target_compile_definitions(test_frd_reader PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME frd_reader_reads_what_ccx_wrote COMMAND test_frd_reader)
+# NEGATIVE CHECKS, 2026-11-16, frd reader: the 10 cases written first, all
+# red against a stub (20 checks). Then each rule undone, the test run,
+# restored:
+#   data values read one column off: displacement and stress red (the
+#     reaction alone stays green: a space before a positive number hides
+#     the shift, so the negative -3.00000E-03 is what catches it);
+#   a computed component (ALL, IEXIST 1) taken as supplied: five cases red;
+#   unknown element types accepted: the unknown-type case red;
+#   node y read into z: the mesh case red.

@@ -29,6 +29,15 @@ foreach(lib IN LISTS gf_core_links)
     endif()
 endforeach()
 
+# --- gf_calculix: the CalculiX back end, headless ------------------------------
+# Reads what ccx writes (.frd first). ccx itself is GPL-2.0-only and is run,
+# never linked: nothing here comes from its source.
+add_library(gf_calculix STATIC
+    calculix/FrdReader.cpp
+)
+target_include_directories(gf_calculix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(gf_calculix PUBLIC Qt6::Core)
+
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
