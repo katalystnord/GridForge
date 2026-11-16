@@ -8,6 +8,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 for deck in "$here"/*/*.inp; do
+    grep -qi '^\*STEP' "$deck" || continue   # an included part (bar-sets/nodes.inp), or refused
     dir=$(dirname "$deck"); job=$(basename "$deck" .inp)
     cd "$dir"
     if [ -n "${CCX:-}" ]; then

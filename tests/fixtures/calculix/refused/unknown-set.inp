@@ -1,0 +1,8 @@
+** Refused: the set Ends names a set no block defines (Pushed).
+*NODE, NSET=Nall
+1, 0.0, 0.0, 0.0
+2, 10.0, 0.0, 0.0
+*NSET, NSET=Pulled
+2
+*NSET, NSET=Ends
+Pulled, Pushed

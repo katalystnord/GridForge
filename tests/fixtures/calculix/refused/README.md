@@ -9,3 +9,9 @@ broken file is refused with its line rather than read wrongly.
 - `truncated-binary.frd`: the first 1000 bytes of `../bar-binary/bar.frd`;
   the node records start at byte 806 and are 28 bytes each, so the file
   ends inside node 7 (6 of 20 read; node 7 would start at byte 974).
+
+Refused decks (hand-written, 2026-11-16), for the named-set reader:
+
+- `unknown-set.inp`: the set `Ends` lists a set no block defines
+  (`Pushed`, line 8).
+- `missing-include.inp`: `*INCLUDE` names a file that does not exist.

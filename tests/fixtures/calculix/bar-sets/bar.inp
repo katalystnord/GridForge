@@ -1,0 +1,45 @@
+** Bar in tension with named sets: as bar-tension, with its sets written in
+** the ways ccx accepts: an included file, NSET= and ELSET= on the data
+** keywords, sets split over two blocks, GENERATE (with and without a step),
+** sets made of other sets (a node listed twice is kept once), a set
+** continued over two lines, mixed case.
+** Units: mm, N, MPa. Steel, E = 210000 MPa, nu = 0.3.
+*INCLUDE, INPUT=nodes.inp
+*Element, type=C3D8, elset=Bar
+1, 1, 2, 3, 4, 5, 6, 7, 8
+2, 5, 6, 7, 8, 9, 10, 11, 12
+*ELEMENT, TYPE=C3D8, ELSET=Bar
+3, 9, 10, 11, 12, 13, 14, 15, 16
+4, 13, 14, 15, 16, 17, 18, 19, 20
+*ELSET, ELSET=Odd, GENERATE
+1, 3, 2
+*Elset, elset=Top
+4
+*NSET, NSET=Fixed, GENERATE
+1, 4
+*NSET, NSET=Pulled
+17, 18, 19, 20
+*NSET, NSET=Ends
+Fixed, Pulled, 1
+*NSET, NSET=X0
+1, 4, 5, 8, 9, 12, 13, 16, 17, 20
+*NSET, NSET=Y0
+1, 2, 5, 6, 9, 10, 13, 14,
+17, 18
+*MATERIAL, NAME=STEEL
+*ELASTIC
+210000.0, 0.3
+*SOLID SECTION, ELSET=Bar, MATERIAL=STEEL
+*BOUNDARY
+FIXED, 3, 3, 0.0
+x0, 1, 1, 0.0
+Y0, 2, 2, 0.0
+*STEP
+*STATIC
+*BOUNDARY
+Pulled, 3, 3, 0.1
+*NODE FILE
+U, RF
+*EL FILE
+S, E
+*END STEP

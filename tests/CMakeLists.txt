@@ -84,6 +84,21 @@ add_test(NAME frd_reader_reads_what_ccx_wrote COMMAND test_frd_reader)
 #   pe6 not mirrored: red (VTK's linear wedge faces the other way);
 #   te4 mirrored: red.
 
+# Named sets from the deck: the .frd has none.
+add_executable(test_inp_sets test_inp_sets.cpp)
+target_link_libraries(test_inp_sets PRIVATE gf_calculix)
+target_compile_definitions(test_inp_sets PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME named_sets_are_read_from_the_deck COMMAND test_inp_sets)
+# NEGATIVE CHECKS, 2026-11-16, named sets: the 8 cases written first, all
+# red against a stub. Then each rule undone, the test run, restored:
+#   an element's second line taken as a new element: the two-line case red;
+#   names looked up by case: four cases red; set names inside a set by
+#     case: three red; includes found from the working folder: six red;
+#   GENERATE's step ignored, ids kept twice: both survived at first (step 1,
+#     no overlap in the deck); the deck now has GENERATE 1, 3, 2 and Ends
+#     lists node 1 again, and both are red.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)
