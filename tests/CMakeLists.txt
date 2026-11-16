@@ -61,3 +61,16 @@ add_test(NAME frd_reader_reads_what_ccx_wrote COMMAND test_frd_reader)
 #   a computed component (ALL, IEXIST 1) taken as supplied: five cases red;
 #   unknown element types accepted: the unknown-type case red;
 #   node y read into z: the mesh case red.
+# NEGATIVE CHECKS, 2026-11-16, te10, increments and binary: the 8 new
+# cases run against the ASCII-only reader: seven red (te10 refused, binary
+# refused; the tip-displacement case red too, from a test bug: 0.025 * 3 is
+# not 0.075 in floating point, now four literals). The eighth, the datasets
+# of each increment, was green from the start: the reader already kept
+# repeated datasets. Then each new rule undone, the test run, restored:
+#   binary node y and z swapped: the binary mesh case red;
+#   binary results one component off: the binary numbers case red;
+#   a -3 expected after binary nodes: both binary cases red;
+#   te10 taken as 4 nodes: the te10 case red;
+#   a binary error placed by line, not by the record's byte: the
+#     truncated-binary case red;
+#   binary results read big-endian: the binary numbers case red.

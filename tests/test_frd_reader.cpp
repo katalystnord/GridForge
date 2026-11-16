@@ -5,6 +5,7 @@
 
 #include "calculix/FrdReader.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -44,6 +45,24 @@ QString fixture(const char *rel) { return QString(GF_FIXTURES) + "/calculix/" + 
 const FrdFile &bar()
 {
     static const FrdFile f = readFrd(fixture("bar-tension/bar.frd"));
+    return f;
+}
+
+const FrdFile &cantilever()
+{
+    static const FrdFile f = readFrd(fixture("cantilever-te10/cantilever.frd"));
+    return f;
+}
+
+const FrdFile &increments()
+{
+    static const FrdFile f = readFrd(fixture("bar-increments/bar.frd"));
+    return f;
+}
+
+const FrdFile &binary()
+{
+    static const FrdFile f = readFrd(fixture("bar-binary/bar.frd"));
     return f;
 }
 
@@ -147,6 +166,141 @@ CASE(the_reaction_on_the_moved_end_is_21000_newton)
     CHECK(near(sum, 21000.0, 1e-9));
 }
 
+// Quadratic tetrahedra: ccx writes C3D10 as type 6, nodes in the deck's
+// order (cantilever-te10/README.md has the beam theory).
+CASE(a_cantilever_in_te10_reads_as_480_ten_node_tetrahedra)
+{
+    const FrdFile &f = cantilever();
+    CHECK(f.ok());
+    if (!f.ok())
+        std::printf("  (%s)\n", qPrintable(f.error));
+    CHECK(f.nodes.size() == 1025);
+    CHECK(f.elements.size() == 480);
+    if (!f.elements.empty()) {
+        const FrdElement &e = f.elements[0];
+        CHECK(e.type == FrdElementType::Te10);
+        CHECK((e.nodes == std::vector<int>{1, 2, 5, 14, 190, 191, 192, 193, 194, 195}));
+    }
+    for (const FrdElement &e : f.elements)
+        CHECK(e.type == FrdElementType::Te10 && e.nodes.size() == 10);
+}
+
+// Timoshenko: P L^3 / 3 E I + P L / (5/6 G A) = 0.19196 mm; the mesh
+// gives 0.18983, 1.1 % under it.
+CASE(the_cantilever_tip_deflects_as_beam_theory_says)
+{
+    const FrdFile &f = cantilever();
+    const FrdDataset *d = f.dataset("DISP");
+    double sum = 0;
+    int count = 0;
+    for (const FrdNode &n : f.nodes)
+        if (n.z == 100.0) {
+            sum += at(d, n.id, "D2");
+            ++count;
+        }
+    CHECK(count == 25);
+    CHECK(near(sum / count, 0.19196, 0.02));
+}
+
+// M c / I at mid-span: 5000 N mm * 5 mm / 833.33 mm4 = 30 MPa, tension
+// on the side y = 0 (the load is in +y); the reaction is the load.
+CASE(the_cantilever_bends_and_reacts_as_beam_theory_says)
+{
+    const FrdFile &f = cantilever();
+    const FrdDataset *s = f.dataset("STRESS");
+    const FrdDataset *r = f.dataset("FORC");
+    for (const FrdNode &n : f.nodes) {
+        if (n.z == 50.0 && n.x == 5.0 && n.y == 0.0)
+            CHECK(near(at(s, n.id, "SZZ"), 30.0, 0.015));
+        if (n.z == 50.0 && n.x == 5.0 && n.y == 10.0)
+            CHECK(near(at(s, n.id, "SZZ"), -30.0, 0.015));
+    }
+    double reaction = 0;
+    for (const FrdNode &n : f.nodes)
+        if (n.z == 0.0)
+            reaction += at(r, n.id, "F2");
+    CHECK(near(reaction, -100.0, 1e-5));
+}
+
+// Four fixed increments: each writes all five datasets; the 100C step
+// field counts increments and 1PSTEP holds (running count, increment, step).
+CASE(each_increment_of_the_bar_is_its_own_set_of_datasets)
+{
+    const FrdFile &f = increments();
+    CHECK(f.ok());
+    if (!f.ok())
+        std::printf("  (%s)\n", qPrintable(f.error));
+    CHECK(f.datasets.size() == 20);
+    for (int n = 0; n < 4; ++n) {
+        const FrdDataset *d = f.dataset("DISP", n);
+        CHECK(d && d->step == n + 1 && d->value == 0.25 * (n + 1));
+    }
+    const FrdDataset *second = f.dataset("DISP", 1);
+    CHECK(second && second->parameters.size() == 1
+          && second->parameters.value(0).simplified() == "STEP 6 2 1");
+    CHECK(f.dataset("DISP", 4) == nullptr);
+}
+
+// The end is moved: 0.025 mm a increment, exactly; the reaction grows
+// with it, 5250 N a increment within NLGEOM's 0.2 %.
+CASE(the_bar_moves_and_reacts_increment_by_increment)
+{
+    const FrdFile &f = increments();
+    const double tip[] = {0.025, 0.05, 0.075, 0.1};
+    for (int n = 0; n < 4; ++n) {
+        CHECK(at(f.dataset("DISP", n), 20, "D3") == tip[n]);
+        double sum = 0;
+        for (int node : {17, 18, 19, 20})
+            sum += at(f.dataset("FORC", n), node, "F3");
+        CHECK(near(sum, 5250.0 * (n + 1), 2e-3));
+    }
+}
+
+// Binary: the same bar as bar-tension, nodes in float64, results in
+// float32 (bar-binary/README.md has the layout).
+CASE(a_binary_bar_reads_as_the_same_mesh)
+{
+    const FrdFile &f = binary();
+    CHECK(f.ok());
+    if (!f.ok())
+        std::printf("  (%s)\n", qPrintable(f.error));
+    CHECK(f.nodes.size() == 20 && f.elements.size() == 4 && f.datasets.size() == 5);
+    const FrdNode *n = f.node(20);
+    CHECK(n && n->x == 0.0 && n->y == 10.0 && n->z == 100.0);
+    if (f.elements.size() == 4)
+        CHECK((f.elements[3].nodes == std::vector<int>{13, 14, 15, 16, 17, 18, 19, 20}));
+}
+
+CASE(a_binary_bar_holds_the_ascii_bars_numbers_unrounded)
+{
+    const FrdDataset *d = binary().dataset("DISP");
+    CHECK(at(d, 20, "D2") == double(-3.0e-3f));
+    CHECK(at(binary().dataset("STRESS"), 1, "SZZ") == double(209.99159240722656f));
+    for (const QString name : {"DISP", "STRESS", "TOSTRAIN", "FORC"}) {
+        const FrdDataset *a = bar().dataset(name);
+        const FrdDataset *b = binary().dataset(name);
+        CHECK(a && b && a->suppliedCount() == b->suppliedCount() && a->nodeIds == b->nodeIds);
+        if (!a || !b || a->values.size() != b->values.size())
+            continue;
+        // Five digits written: within half a unit in the fifth of the
+        // largest value in the dataset (the near-zero ones are noise).
+        double largest = 0;
+        for (double v : a->values)
+            largest = std::max(largest, std::abs(v));
+        for (size_t i = 0; i < a->values.size(); ++i)
+            CHECK(std::abs(a->values[i] - b->values[i]) <= 5e-6 * largest);
+    }
+}
+
+CASE(a_binary_file_that_ends_early_is_refused_with_its_byte)
+{
+    const FrdFile f = readFrd(fixture("refused/truncated-binary.frd"));
+    CHECK(!f.ok());
+    CHECK(f.error.contains("byte 974") && f.error.contains("6 of 20"));
+    if (f.ok() || !f.error.contains("byte 974"))
+        std::printf("  (%s)\n", qPrintable(f.error));
+}
+
 CASE(a_file_that_ends_early_is_refused_with_its_line)
 {
     const FrdFile f = readFrd(fixture("refused/truncated.frd"));
@@ -175,6 +329,6 @@ int main()
         f();
         std::printf("%s %s\n", failures == before ? "PASS" : "FAIL", name);
     }
-    std::printf("%zu cases, %d failed\n", cases().size(), failures);
+    std::printf("%zu cases, %d checks failed\n", cases().size(), failures);
     return failures == 0 ? 0 : 1;
 }

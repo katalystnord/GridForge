@@ -6,9 +6,12 @@
 // Nothing here converts, derives or renames: that is the writer's job, and
 // it says so (tenet 9).
 //
-// Read so far: the long ASCII format (FORMAT 1), which ccx 2.23 writes.
-// Refused by name until a fixture from ccx proves them: the short ASCII and
-// binary formats, more than six values per node, material-dependent data.
+// Read so far, each proven by a fixture written by ccx 2.23: the long ASCII
+// format (FORMAT 1, *NODE FILE), the binary one (*NODE OUTPUT: nodes in
+// float64, elements as int32, results in float32), and several increments
+// in one file. Refused by name until a fixture proves them: the short ASCII
+// format, other binary formats, more than six values per node in ASCII,
+// material-dependent data, element types not listed below.
 
 #include <QString>
 #include <QStringList>
@@ -22,9 +25,11 @@ struct FrdNode {
     double x = 0, y = 0, z = 0;
 };
 
-// Element types by the number the file uses (cgx manual, "Element Types").
-// Only the numbers confirmed there are accepted.
-enum class FrdElementType { He8 = 1, Pe6 = 2, Te4 = 3, Pe15 = 5, Tr3 = 7, Qu4 = 9, Be2 = 11 };
+// Element types by the number the file uses (cgx manual, "Element Types";
+// te10 from ccx's own file). Only the numbers confirmed are accepted.
+enum class FrdElementType {
+    He8 = 1, Pe6 = 2, Te4 = 3, Pe15 = 5, Te10 = 6, Tr3 = 7, Qu4 = 9, Be2 = 11
+};
 
 struct FrdElement {
     int id = 0;
@@ -46,8 +51,9 @@ struct FrdDataset {
     QString name;             // "DISP", "STRESS", "TOSTRAIN", "FORC", ...
     double value = 0;         // the step's time, frequency or load factor
     int analysisType = 0;     // ICTYPE in 100C: 0 static, 1 time step, 2 frequency, ...
-    int step = 0;             // NUMSTP
-    QStringList parameters;   // the 1P records before it, as written ("STEP 1 1 1")
+    int step = 0;             // NUMSTP; ccx counts increments here (1, 2, ...)
+    QStringList parameters;   // the 1P records before it, as written; ccx's
+                              // "STEP 6 2 1" is (dataset count, increment, step)
     std::vector<FrdComponent> components;
     std::vector<int> nodeIds;
     std::vector<double> values;  // per node, one value per supplied component

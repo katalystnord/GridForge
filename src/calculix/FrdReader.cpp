@@ -1,6 +1,7 @@
 #include "calculix/FrdReader.h"
 
 #include <QFile>
+#include <QtEndian>
 
 #include <algorithm>
 
@@ -18,6 +19,13 @@
 //   -5   (1X,I2,2X,8A1,5I5,8A1)                name 5..12, menu, ictype, ind1, ind2, iexist
 //   -1   data (1X,I2,I10,6E12.5)               id 3..12, values from 13, 6 a line
 // Values sit in fixed columns: "0.00000E+00-3.00000E-03" is two numbers.
+//
+// Binary (read byte by byte from ccx 2.23's *NODE OUTPUT file, fixture
+// bar-binary): the headers stay ASCII lines; the records under a block
+// header are little-endian binary with no -3 after them.
+//   nodes, format 3     int32 id, float64 x y z
+//   elements, format 2  int32 id, type, group, material, node ids
+//   results, format 2   int32 node id, float32 per supplied component
 
 namespace gf::calculix {
 
@@ -71,6 +79,7 @@ int nodesPerElement(int type)
     case 2: return 6;   // pe6
     case 3: return 4;   // te4
     case 5: return 15;  // pe15
+    case 6: return 10;  // te10 (ccx's C3D10, fixture cantilever-te10)
     case 7: return 3;   // tr3
     case 9: return 4;   // qu4
     case 11: return 2;  // be2
@@ -80,7 +89,7 @@ int nodesPerElement(int type)
 
 class Reader {
 public:
-    explicit Reader(QStringList lines) : lines_(std::move(lines)) {}
+    explicit Reader(QByteArray data) : data_(std::move(data)) {}
 
     FrdFile read()
     {
@@ -109,13 +118,37 @@ public:
     }
 
 private:
+    // The next ASCII line, without its line end.
     bool next()
     {
-        if (at_ >= lines_.size())
+        if (pos_ >= data_.size())
             return false;
-        line_ = lines_[at_++];
+        qsizetype end = data_.indexOf('\n', pos_);
+        if (end < 0)
+            end = data_.size();
+        line_ = QString::fromLatin1(data_.mid(pos_, end - pos_));
+        if (line_.endsWith('\r'))
+            line_.chop(1);
+        pos_ = end + 1;
+        ++lineNo_;
+        recordAt_ = -1;
         return true;
     }
+    // The next binary record of `size` bytes; null if the file ends first.
+    const char *record(qsizetype size, const QString &where)
+    {
+        recordAt_ = pos_;
+        if (data_.size() - pos_ < size) {
+            fail("the file ends inside " + where);
+            return nullptr;
+        }
+        const char *p = data_.constData() + pos_;
+        pos_ += size;
+        return p;
+    }
+    static int int32(const char *p) { return qFromLittleEndian<qint32>(p); }
+    static double float64(const char *p) { return qFromLittleEndian<double>(p); }
+    static double float32(const char *p) { return qFromLittleEndian<float>(p); }
     bool nextOr(const QString &where)
     {
         if (next())
@@ -126,7 +159,8 @@ private:
     void fail(const QString &what)
     {
         if (f_.ok())
-            f_.error = QString("line %1: %2").arg(at_).arg(what);
+            f_.error = recordAt_ < 0 ? QString("line %1: %2").arg(lineNo_).arg(what)
+                                     : QString("byte %1: %2").arg(recordAt_).arg(what);
     }
     QString field(int from, int width) const { return line_.mid(from, width).trimmed(); }
     bool integer(int from, int width, int *out, bool blankIsZero = false)
@@ -160,15 +194,17 @@ private:
         fail(QString("expected a %1 record").arg(k));
         return false;
     }
-    bool longFormat(int from, int width)
+    // The block header's format: 1 (long ASCII), or the one binary format
+    // ccx writes for this block. Anything else is refused by name.
+    bool format(int binary, const char *block, int *out)
     {
-        int format = 0;
-        if (!integer(from, width, &format))
+        if (!integer(73, 2, out))
             return false;
-        if (format == 1)
+        if (*out == 1 || *out == binary)
             return true;
-        fail(format == 0 ? "the short ASCII format is not read yet"
-                         : QString("format %1 (binary) is not read yet").arg(format));
+        fail(*out == 0 ? QString("%1 in the short ASCII format (0) are not read yet").arg(block)
+                       : QString("%1 in format %2 are not read yet (1 and %3 are)")
+                             .arg(block).arg(*out).arg(binary));
         return false;
     }
     bool blockEnd(const QString &where)
@@ -178,36 +214,53 @@ private:
 
     void readNodes()
     {
-        int count = 0;
-        if (!integer(24, 12, &count) || !longFormat(73, 2))
+        int count = 0, fmt = 0;
+        if (!integer(24, 12, &count) || !format(3, "nodes", &fmt))
             return;
         for (int i = 0; i < count; ++i) {
-            if (!nextOr(QString("the node block (%1 of %2 nodes)").arg(i).arg(count))
-                || !key("-1"))
-                return;
+            const QString where = QString("the node block (%1 of %2 nodes)").arg(i).arg(count);
             FrdNode n;
+            if (fmt == 3) {
+                const char *p = record(28, where);
+                if (!p)
+                    return;
+                n = {int32(p), float64(p + 4), float64(p + 12), float64(p + 20)};
+                f_.nodes.push_back(n);
+                continue;
+            }
+            if (!nextOr(where) || !key("-1"))
+                return;
             if (!integer(3, 10, &n.id) || !real(13, 12, &n.x) || !real(25, 12, &n.y)
                 || !real(37, 12, &n.z))
                 return;
             f_.nodes.push_back(n);
         }
-        blockEnd("the node block");
+        if (fmt == 1)
+            blockEnd("the node block");
     }
 
     void readElements()
     {
-        int count = 0;
-        if (!integer(24, 12, &count) || !longFormat(73, 2))
+        int count = 0, fmt = 0;
+        if (!integer(24, 12, &count) || !format(2, "elements", &fmt))
             return;
         for (int i = 0; i < count; ++i) {
             const QString where = QString("the element block (%1 of %2 elements)").arg(i).arg(count);
-            if (!nextOr(where) || !key("-1"))
-                return;
             FrdElement e;
             int type = 0;
-            if (!integer(3, 10, &e.id) || !integer(13, 5, &type) || !integer(18, 5, &e.group)
-                || !integer(23, 5, &e.material))
+            if (fmt == 2) {
+                const char *p = record(16, where);
+                if (!p)
+                    return;
+                e.id = int32(p);
+                type = int32(p + 4);
+                e.group = int32(p + 8);
+                e.material = int32(p + 12);
+            } else if (!nextOr(where) || !key("-1") || !integer(3, 10, &e.id)
+                       || !integer(13, 5, &type) || !integer(18, 5, &e.group)
+                       || !integer(23, 5, &e.material)) {
                 return;
+            }
             const int want = nodesPerElement(type);
             if (want == 0) {
                 fail(QString("element %1 has type %2, which is no element type this reader "
@@ -215,6 +268,15 @@ private:
                 return;
             }
             e.type = FrdElementType(type);
+            if (fmt == 2) {
+                const char *p = record(4 * want, where);
+                if (!p)
+                    return;
+                for (int k = 0; k < want; ++k)
+                    e.nodes.push_back(int32(p + 4 * k));
+                f_.elements.push_back(std::move(e));
+                continue;
+            }
             while (int(e.nodes.size()) < want) {
                 if (!nextOr(where) || !key("-2"))
                     return;
@@ -227,16 +289,17 @@ private:
             }
             f_.elements.push_back(std::move(e));
         }
-        blockEnd("the element block");
+        if (fmt == 1)
+            blockEnd("the element block");
     }
 
     void readDataset()
     {
         FrdDataset d;
-        int count = 0;
+        int count = 0, fmt = 0;
         if (!real(12, 12, &d.value) || !integer(24, 12, &count)
             || !integer(56, 2, &d.analysisType, true) || !integer(58, 5, &d.step)
-            || !longFormat(73, 2))
+            || !format(2, "results", &fmt))
             return;
         d.parameters = parameters_;
         parameters_.clear();
@@ -266,6 +329,19 @@ private:
             d.components.push_back(c);
         }
         const int per = d.suppliedCount();
+        if (fmt == 2) {
+            for (int i = 0; i < count; ++i) {
+                const char *p = record(4 + 4 * per, QString("%1 (%2 of %3 nodes)")
+                                                         .arg(d.name).arg(i).arg(count));
+                if (!p)
+                    return;
+                d.nodeIds.push_back(int32(p));
+                for (int k = 0; k < per; ++k)
+                    d.values.push_back(float32(p + 4 + 4 * k));
+            }
+            f_.datasets.push_back(std::move(d));
+            return;
+        }
         if (per > 6) {
             fail(QString("%1: more than six values per node are not read yet").arg(d.name));
             return;
@@ -290,8 +366,10 @@ private:
         f_.datasets.push_back(std::move(d));
     }
 
-    QStringList lines_;
-    int at_ = 0;  // lines read so far; the current line's number
+    QByteArray data_;
+    qsizetype pos_ = 0;        // the next byte to read
+    int lineNo_ = 0;           // ASCII lines read so far; the current line's number
+    qsizetype recordAt_ = -1;  // where the current binary record starts; -1 on a line
     QString line_;
     QStringList parameters_;
     FrdFile f_;
@@ -307,13 +385,7 @@ FrdFile readFrd(const QString &path)
         f.error = QString("cannot open %1: %2").arg(path, file.errorString());
         return f;
     }
-    QStringList lines = QString::fromLatin1(file.readAll()).split('\n');
-    for (QString &l : lines)
-        if (l.endsWith('\r'))
-            l.chop(1);
-    if (!lines.isEmpty() && lines.last().isEmpty())
-        lines.removeLast();
-    return Reader(std::move(lines)).read();
+    return Reader(file.readAll()).read();
 }
 
 } // namespace gf::calculix
