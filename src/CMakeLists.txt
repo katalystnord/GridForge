@@ -7,9 +7,11 @@
 add_library(gf_core STATIC
     core/ApplicationInfo.cpp
     core/Toolkit.cpp
+    core/Stress.cpp
+    core/ResultsSeries.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel)
+target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
 
 execute_process(COMMAND git describe --always --dirty --abbrev=12
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -30,13 +32,15 @@ foreach(lib IN LISTS gf_core_links)
 endforeach()
 
 # --- gf_calculix: the CalculiX back end, headless ------------------------------
-# Reads what ccx writes (.frd first). ccx itself is GPL-2.0-only and is run,
-# never linked: nothing here comes from its source.
+# Reads what ccx writes (.frd first) and hands it to the core as grids. ccx
+# itself is GPL-2.0-only and is run, never linked: nothing here comes from
+# its source.
 add_library(gf_calculix STATIC
     calculix/FrdReader.cpp
+    calculix/FrdToVtk.cpp
 )
 target_include_directories(gf_calculix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(gf_calculix PUBLIC Qt6::Core)
+target_link_libraries(gf_calculix PUBLIC gf_core)
 
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
@@ -51,4 +55,4 @@ target_link_libraries(GridForge PRIVATE gf_gui)
 
 # --- gf-study: the same work without a window ----------------------------------
 add_executable(gf-study cli/main.cpp)
-target_link_libraries(gf-study PRIVATE gf_core)
+target_link_libraries(gf-study PRIVATE gf_core gf_calculix)

@@ -28,13 +28,21 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 ## Phase 1: CalculiX results to ParaView (M)
 
 - `.frd` reader, ASCII and binary, own C++ (cgx manual chapter 11 as the
-  specification; FreeCAD's LGPL reader as a reference).
+  specification; FreeCAD's LGPL reader as a reference). Done 2026-11-16:
+  long ASCII and ccx's binary, several increments; he8 and te10 mapped to
+  ParaView cells, the other element types refused until a fixture proves
+  their node order.
 - Writer: VTKHDF time series with named sets as blocks; `.vtu` + `.pvd`
   fallback. Derived von Mises and principal stresses, said as derived.
-- `gf-study convert job.frd` on the command line.
+  Done 2026-11-16: `.vtu` + `.pvd` with the derived stresses and the
+  provenance in every file. Still to do: VTKHDF, and named sets (they
+  live in the `.inp`, not the `.frd`: they arrive with the deck reader).
+- `gf-study convert job.frd` on the command line. Done 2026-11-16.
 - Fixtures: `.frd` files written by a released ccx from small committed
   `.inp` decks, each with an independently known answer (a bar in
   tension, a cantilever); one binary, one with several increments.
+  Done 2026-11-16: bar-tension, cantilever-te10, bar-increments,
+  bar-binary.
 - Exit: ParaView 6.x opens our output with every variable and set; the
   same numbers as cgx shows for the fixtures. Offer the reader upstream
   (ParaView plugin or beside ccx2paraview).

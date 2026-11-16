@@ -74,3 +74,40 @@ add_test(NAME frd_reader_reads_what_ccx_wrote COMMAND test_frd_reader)
 #   a binary error placed by line, not by the record's byte: the
 #     truncated-binary case red;
 #   binary results read big-endian: the binary numbers case red.
+
+# Derived stress quantities against hand answers.
+add_executable(test_stress test_stress.cpp)
+target_link_libraries(test_stress PRIVATE gf_core)
+add_test(NAME derived_stresses_match_hand_answers COMMAND test_stress)
+
+# The hand-off to ParaView: .frd to VTK grids, then .vtu files and a .pvd.
+add_executable(test_results_handoff test_results_handoff.cpp)
+target_link_libraries(test_results_handoff PRIVATE gf_calculix)
+target_compile_definitions(test_results_handoff PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME results_reach_paraview_as_ccx_wrote_them COMMAND test_results_handoff)
+
+# gf-study convert: a .frd in, a .pvd series out, said on the terminal.
+add_test(NAME cli_converts_a_frd_to_a_pvd_series
+    COMMAND gf-study convert ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/bar-increments/bar.frd
+            -o ${CMAKE_CURRENT_BINARY_DIR}/convert-out)
+set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out/bar\\.pvd \\(4 time points, 20 nodes, 4 elements\\)")
+# NEGATIVE CHECKS, 2026-11-16, stress and hand-off: all cases written
+# first, red against stubs (stress 13 checks; hand-off 33; the CLI with no
+# convert command). Then each rule undone, the suite run, restored:
+#   he8 top and bottom swapped, te10 midside nodes 5 and 6 swapped: the
+#     node-placement case red;
+#   principal values with yz replaced by zx: the stress test red;
+#   derived stress with yy and zz, or yz and zx, swapped: survived at
+#     first (the bar is uniaxial, and permuting axes keeps its invariants);
+#     now the cantilever's invariant case is red for both;
+#   the writer not adding the provenance itself: survived at first (the
+#     converter puts it on the grids); now the writer's own case is red;
+#   the converter not putting it on the grids: the provenance case red;
+#   a time point per dataset: the increments and CLI tests red;
+#   the .pvd timestep written as the index: the writer case red;
+#   no convert command: the CLI test red.
+# Opened in ParaView 6.2.0 (Flatpak pvpython), 2026-11-16: bar-increments'
+# four time points (tip uz 0.025 to 0.1), the cantilever's 480 quadratic
+# tetrahedra, every array by name, the provenance.
