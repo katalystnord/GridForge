@@ -318,14 +318,119 @@ rearrangement of A that a user can make, not a second program.
 
 ---
 
+## 5b. CMB in depth: a pre-processor inside ParaView
+
+CMB's modelbuilder is ParaView's client with SMTK plugins: the closest
+existing thing to GridForge's position. Read from source (CMB, SMTK and aeva
+clones, commits in [S37] to [S39]); no program was built or run.
+
+**Window.** The default dock layout is code, not a `.ui` file
+(`modelbuilder/mbLayoutSpec.cxx`): left, SMTK's attribute editor, ParaView's
+Properties and Information, tabbed together, 400 px wide; right, the SMTK
+resource tree, 200 px; bottom, ParaView's Output Messages, hidden [S37a].
+Tabs sit North on both sides (`cmbMainWindow.cxx` line 232). ParaView's
+Pipeline Browser, Sources, Filters and Animation are hidden until the user
+turns on a "post-processing mode" (`togglePostProcessingMode`, lines 437 to
+520) [S37b]. So CMB is a ParaView with the pipeline put away, and the
+attribute editor takes the Properties slot.
+
+**Attributes from templates.** All simulation input is an SMTK *attribute
+resource* described by an XML template (`.sbt`): a *Definition* fixes the
+named *Items* (Double, Int, String, references, with defaults, ranges,
+enumerations, units such as `Units="meters"` [S38i]) and may inherit a base type ("deflection, temperature,
+and voltage boundary condition definitions might all inherit a Dirichlet
+boundary condition definition"); an *Attribute* is one instance of it
+[S38a]. The editing panels "are automatically produced by SMTK at runtime,
+based on the XML file(s)"; default values show on a yellow background,
+changed values on white [S38a]. Items can be marked advanced
+(`AdvanceLevels`) and filtered by *categories* [S38b].
+
+**Boundary conditions on model entities.** An attribute is *associated* with
+geometric model entities through an `AssociationsDef`, which limits what may
+be picked (`MembershipMask` edge, or `<Accepts>` with a filter such as
+`face`) and how many [S38b]. SMTK's own `elasticity.sbt` is a small solid
+mechanics example: an `elasticity` material (Poisson's ratio limited to
+-1 to 0.5, Young's modulus), a `constraint` on faces with a direction enum
+(All, X, Y, Z, XY, XZ, YZ) and a `load` on faces with three force
+components [S38c]. The *Attribute View* lists the attributes of the chosen
+types with New, Copy and Delete buttons, a search box, and an association
+widget with *Available* and *Current* lists (title "Model Boundary and
+Attribute Associations"); `RequireAllAssociated` makes an unassigned entity
+invalid [S38b].
+
+**Analyses, not steps.** An SMTK *analysis* is "a resource of categories":
+choosing an analysis (or a sub-analysis; `Exclusive` forces one) switches
+on the categories, and so the items, that it needs [S38b]. It selects what
+physics is set up; it is not a load step. No step or load-history concept
+was found in the attribute, simulation or task chapters (grep for "step");
+time appears only as ordinary items of a template, for example
+`nsteps` and `term` in a `simulationtime` definition in
+`HydraTemplateV1.sbt` [S38d]. A *Group View* lays child views out tiled,
+tabbed or in collapsible group boxes; `elasticity.sbt`'s top level is a
+tabbed group of Elasticity, Constraints and Loads [S38b, S38c].
+
+**Operations.** Everything that changes a resource is an operation whose
+parameters are themselves an attribute. The *operation toolbox* is a
+searchable grid of buttons filtered by the current selection; a click runs
+an operation that needs nothing beyond its associations, a long click opens
+the *parameter editor*, a separate panel "to allow users with small displays
+... arrange them separately"; Ctrl+Space focuses the search [S38e]. aeva's
+guide describes the same panel with a "limit by selection" checkbox and
+toolbar shortcuts [S39].
+
+**Export to a solver.** File, Export Simulation... runs a user-chosen Python
+file: `pqSMTKExportSimulationBehavior.cxx` adds that action to the File menu,
+opens a file dialog for `*.py`,
+imports it as an operation, shows its parameters in a modal "Simulation
+Export Dialog", runs it, and reports "Export failed. Please see output log"
+on failure [S38f]. The script gets an `ExportSpec` (simulation attributes,
+an attribute resource of file locations, and an object for querying the
+model or mesh) and writes "whatever files are needed to run the simulation";
+Kitware recommends Python for this "than a large C++ code base to write what
+is usually a flat text file" [S38g, S40]. Job submission is a *task* in
+SMTK's task system (task graph with dependencies and states, examples
+including "exporting a simulation input deck, submitting a simulation job")
+[S38h]; a CMB job monitor was not found in these trees: not checked.
+
+**What this implies for GridForge.**
+
+1. *Study tree*: CMB splits geometry (resource tree, right) from simulation
+   data (attribute editor, left). Proposal A's one tree is the opposite
+   choice; CMB's evidence is that the split works when the data has no
+   steps. GridForge has steps, so keep one tree with BCs under steps.
+2. *Properties dock*: SMTK confirms the pattern: generated from a
+   declarative definition, defaults visibly different from edited values,
+   advanced items hidden, a search box, invalid items flagged, an
+   association field with Available and Current. GridForge's study-file
+   items should carry the same metadata (label, unit, range, enum,
+   default, advanced, which entity kinds may be assigned) so one generic
+   editor serves CalculiX and OpenFOAM® alike; that fits the toolkit
+   manifest door better than hand-built forms. SMTK's code itself is not
+   taken (tenet 3; and its panels need ParaView's `pqApplicationCore`
+   [S38e]).
+3. *Steps table*: SMTK has nothing to copy here; Abaqus's objects-by-steps
+   table stays the model. An SMTK-style *analysis* (physics selection that
+   hides irrelevant fields) is a separate, useful idea for a step's
+   procedure (static, frequency, heat) choosing which items show.
+4. *Operations*: the selection-filtered, searchable toolbox with a separate
+   parameter panel is a good fit for mesh and set operations, and the long
+   click "edit before run" is worth keeping.
+5. *Export*: CMB delegates the deck to a Python script in a modal dialog.
+   GridForge writes the `.inp` itself, keeps it, and shows it in the Deck
+   dock (tenets 9, 10); the toolkit door is the out-of-process counterpart of
+   CMB's export script.
+
+---
+
 ## 6. Not checked
 
 PrePoMax, Abaqus, Mecway and ElmerGUI: whether panes dock. Mecway toolbars
 and solver window layout. SALOME's default dock positions and the SMESH
 operation dialogs' placement. AsterStudy beyond the left column and Run
-Parameters box. Current modelbuilder's default dock placement. Abaqus/CAE
-release of the UCLouvain mirror. ParaView's Fusion default (from the brief).
-No program was run.
+Parameters box. Abaqus/CAE release of the UCLouvain mirror. ParaView's
+Fusion default (from the brief). Kitware's simulation-workflows repository
+of real templates and export scripts (https://gitlab.kitware.com/cmb/simulation-workflows
+returned 403). A job monitor in CMB. No program was run.
 
 ---
 
@@ -369,3 +474,7 @@ No program was run.
 - [S34] Understanding Data (Information panel): https://docs.paraview.org/en/latest/UsersGuide/understandingData.html
 - [S35] https://gitlab.kitware.com/paraview/paraview/-/blob/master/Clients/ParaView/ParaViewMainWindow.ui and `ParaViewMainWindow.cxx` (lines 100 to 200)
 - [S36] Displaying Data, Multiple views: https://docs.paraview.org/en/latest/UsersGuide/displayingData.html
+- [S37] CMB, https://gitlab.kitware.com/cmb/cmb commit c2cc2c3a2c69 (2026-11-05): [S37a] `modelbuilder/mbLayoutSpec.cxx`; [S37b] `cmb/cmbMainWindow.cxx` (lines 232 to 254, 395 to 541)
+- [S38] SMTK, https://gitlab.kitware.com/cmb/smtk commit 6ada5c69e8c4 (2026-11-09): [S38a] `doc/userguide/attribute/concepts.rst`; [S38b] `doc/userguide/attribute/file-syntax.rst` (Category, Analysis, AssociationsDef, Views sections); [S38c] `data/attribute/attribute_collection/elasticity.sbt`; [S38d] `data/attribute/attribute_collection/HydraTemplateV1.sbt` (lines 1460 to 1471); [S38e] `doc/userguide/extension/paraview/panels.rst`; [S38f] `smtk/extension/paraview/appcomponents/pqSMTKExportSimulationBehavior.cxx`; [S38g] `doc/userguide/simulation/index.rst`; [S38h] `doc/userguide/task/concepts.rst`; [S38i] `data/attribute/attribute_collection/unitsExample.sbt`
+- [S39] aeva, https://gitlab.kitware.com/aeva/aeva commit c978fab2bb5d (2026-11-07): `doc/userguide/aeva-cmb.rst` (Operations panel)
+- [S40] SMTK's Simulation System: https://smtk.readthedocs.io/en/latest/userguide/simulation/index.html
