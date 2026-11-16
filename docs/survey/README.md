@@ -11,6 +11,13 @@ what users ask for), [formats.md](formats.md) (the file at every edge) and
 the ecosystem). They were researched by sub-agents; the claims this page
 leans on hardest were checked again by hand, and are marked so.
 
+Added 2026-11-16, under the GridForge name: [gui-layouts.md](gui-layouts.md)
+(how ten pre- and post-processors arrange their windows, and a proposed
+layout for GridForge) and [kitware-icons.md](kitware-icons.md) (the icons
+across Kitware's software, their licences, who reuses ParaView's, and a
+house style for ours). Researched by sub-agents; the icon counts and the
+licence text were checked again by hand against ParaView's source.
+
 ## The gap, in one paragraph
 
 On Linux there is no open, maintained, standalone pre-processor for
