@@ -16,8 +16,8 @@ hand) before there is any window.
 - Written specs, reviewed by David before code: toolkits (v1, drafted
   2026-11-14), the study file (v1) and
   the results hand-off (v1: what a VTKHDF/.pvd from us holds).
-- The name: GridForge (David, 2026-11-15); a trademark check before
-  relying on it (US filing 99871866 first).
+- The name: GridForge (David, 2026-11-15); trademark check done
+  2026-11-16, clear in the EU, Sweden and WIPO.
 - Exit: CI green; tenets settled; specs approved.
 
 Toolkits (David, 2026-11-14): CalculiX and OpenFOAM® are selectable

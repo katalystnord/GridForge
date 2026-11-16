@@ -5,9 +5,8 @@ OpenFOAM® later. Katalyst Nord. Licence LGPL-2.1-or-later.
 
 **Named GridForge on 2026-11-15** (David; the working name was
 FluidStress). Code uses the `gf` prefix. The survey (`docs/survey/`) keeps
-the working name it was written under. Before going public: a trademark
-check, starting with US filing 99871866 (GRIDFORGE, GridForge, Inc.,
-class 9, intent to use) found 2026-11-14.
+the working name it was written under. Trademark check done
+2026-11-16: clear in the EU, Sweden and WIPO (`docs/survey/names.md`).
 
 The survey that shaped it: [docs/survey/](docs/survey/README.md). The
 plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
