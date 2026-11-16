@@ -13,15 +13,17 @@ add_library(gf_core STATIC
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
 
-execute_process(COMMAND git describe --always --dirty --abbrev=12
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                OUTPUT_VARIABLE GF_BUILD OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET)
-if(NOT GF_BUILD)
-    set(GF_BUILD "unknown")
-endif()
-target_compile_definitions(gf_core PRIVATE GF_VERSION="${PROJECT_VERSION}"
-                                           GF_BUILD="${GF_BUILD}")
+# The build stamp (git describe) is taken at every build, not at configure
+# time: the files GridForge writes carry it as provenance.
+set(GF_BUILD_STAMP ${CMAKE_CURRENT_BINARY_DIR}/BuildStamp.cpp)
+add_custom_target(gf_build_stamp
+    COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_SOURCE_DIR} -DOUT=${GF_BUILD_STAMP}
+            -P ${CMAKE_SOURCE_DIR}/tools/build-stamp.cmake
+    BYPRODUCTS ${GF_BUILD_STAMP}
+    COMMENT "Build stamp")
+target_sources(gf_core PRIVATE ${GF_BUILD_STAMP})
+add_dependencies(gf_core gf_build_stamp)
+target_compile_definitions(gf_core PRIVATE GF_VERSION="${PROJECT_VERSION}")
 
 # Guard: the core never reaches for widgets or rendering.
 get_target_property(gf_core_links gf_core LINK_LIBRARIES)

@@ -10,6 +10,6 @@ namespace gf::core {
 QString applicationName();
 QString applicationSubtitle();
 QString applicationVersion();
-QString applicationBuild();  // git describe at configure time; "unknown" outside git
+QString applicationBuild();  // git describe at build time; "unknown" outside git
 
 } // namespace gf::core

@@ -36,8 +36,9 @@ int convert(const QString &input, const QString &outDir)
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
         return 1;
     }
-    std::printf("wrote %s (%zu time points, %zu nodes, %zu elements)\n",
-                qPrintable(written.first()), series.points.size(), frd.nodes.size(),
+    const size_t n = series.points.size();
+    std::printf("wrote %s (%zu time point%s, %zu nodes, %zu elements)\n",
+                qPrintable(written.first()), n, n == 1 ? "" : "s", frd.nodes.size(),
                 frd.elements.size());
     for (const QString &line : series.provenance)
         std::printf("  %s\n", qPrintable(line));

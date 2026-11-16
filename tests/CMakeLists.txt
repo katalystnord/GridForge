@@ -111,3 +111,13 @@ set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
 # Opened in ParaView 6.2.0 (Flatpak pvpython), 2026-11-16: bar-increments'
 # four time points (tip uz 0.025 to 0.1), the cantilever's 480 quadratic
 # tetrahedra, every array by name, the provenance.
+
+# The build stamp is taken at every build, not at configure time: files
+# written by GridForge carry it as provenance.
+add_test(NAME the_build_reported_is_the_source_built
+    COMMAND ${CMAKE_COMMAND} -DCLI=$<TARGET_FILE:gf-study> -DSRC=${CMAKE_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/check-build-stamp.cmake)
+# NEGATIVE CHECK, 2026-11-16, build stamp: written against the configure-
+# time stamp, with an empty commit made and dropped again, building without
+# reconfiguring: red ("reports build 53764798fb71-dirty, but the source
+# is" the new commit). With the build-time stamp, the same: green.
