@@ -11,7 +11,8 @@ add_library(gf_core STATIC
     core/ResultsSeries.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
+target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel
+    VTK::CommonExecutionModel VTK::IOXML VTK::IOHDF)
 
 # The build stamp (git describe) is taken at every build, not at configure
 # time: the files GridForge writes carry it as provenance.

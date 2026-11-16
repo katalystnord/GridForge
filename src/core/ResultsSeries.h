@@ -20,8 +20,18 @@ struct TimePoint {
     vtkSmartPointer<vtkUnstructuredGrid> grid;
 };
 
+// A named part of the model, from the solver's deck: a node set by its
+// points, an element set by its cells (indices into every time point's
+// grid, which all share one mesh).
+struct NamedSet {
+    QString name;
+    bool nodes = true;
+    std::vector<vtkIdType> members;
+};
+
 struct ResultsSeries {
     std::vector<TimePoint> points;
+    std::vector<NamedSet> sets;
     QStringList provenance;  // "solver: CalculiX Version 2.23", ...; written into every file
 };
 
@@ -29,5 +39,11 @@ struct ResultsSeries {
 // Returns the paths written, or an empty list with *error set.
 QStringList writeVtuSeries(const ResultsSeries &series, const QString &dir, const QString &base,
                            QString *error);
+
+// Writes one VTKHDF file holding every time point: the whole model as the
+// block Model, each set as a block under NodeSets (vertices at its points)
+// or ElementSets (its cells), each with the point data and provenance.
+// False with *error set if it cannot.
+bool writeVtkHdf(const ResultsSeries &series, const QString &path, QString *error);
 
 } // namespace gf::core

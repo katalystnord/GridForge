@@ -32,7 +32,9 @@ find_package(jsoncpp QUIET)
 find_package(VTK REQUIRED COMPONENTS
     CommonCore
     CommonDataModel
+    CommonExecutionModel      # the time series as a pipeline source, for the VTKHDF writer
     IOXML                     # .vtu/.pvd out, for ParaView and PyVista
+    IOHDF                     # .vtkhdf out: one file, every time point, sets as blocks
     RenderingCore
     RenderingOpenGL2
     InteractionStyle

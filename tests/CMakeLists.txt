@@ -111,12 +111,18 @@ target_compile_definitions(test_results_handoff PRIVATE
     GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 add_test(NAME results_reach_paraview_as_ccx_wrote_them COMMAND test_results_handoff)
 
-# gf-study convert: a .frd in, a .pvd series out, said on the terminal.
-add_test(NAME cli_converts_a_frd_to_a_pvd_series
+# gf-study convert: a .frd in, one .vtkhdf out with the sets of the deck
+# beside it (or, with --pvd, a .vtu series), said on the terminal.
+add_test(NAME cli_converts_a_frd_to_vtkhdf_with_the_decks_sets
     COMMAND gf-study convert ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/bar-increments/bar.frd
             -o ${CMAKE_CURRENT_BINARY_DIR}/convert-out)
+set_tests_properties(cli_converts_a_frd_to_vtkhdf_with_the_decks_sets PROPERTIES
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out/bar\\.vtkhdf \\(4 time points, 20 nodes, 4 elements, 6 sets from bar\\.inp\\)")
+add_test(NAME cli_converts_a_frd_to_a_pvd_series
+    COMMAND gf-study convert ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/bar-increments/bar.frd
+            -o ${CMAKE_CURRENT_BINARY_DIR}/convert-out-pvd --pvd)
 set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
-    PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out/bar\\.pvd \\(4 time points, 20 nodes, 4 elements\\)")
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out-pvd/bar\\.pvd \\(4 time points, 20 nodes, 4 elements, no sets: a \\.vtu series has no blocks\\)")
 # NEGATIVE CHECKS, 2026-11-16, stress and hand-off: all cases written
 # first, red against stubs (stress 13 checks; hand-off 33; the CLI with no
 # convert command). Then each rule undone, the suite run, restored:
@@ -135,6 +141,24 @@ set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
 # Opened in ParaView 6.2.0 (Flatpak pvpython), 2026-11-16: bar-increments'
 # four time points (tip uz 0.025 to 0.1), the cantilever's 480 quadratic
 # tetrahedra, every array by name, the provenance.
+
+# NEGATIVE CHECKS, 2026-11-16, sets and VTKHDF: the 5 hand-off cases and
+# the CLI test written first, red against stubs (no sets, "not written
+# yet"). Then each rule undone, the test run, restored:
+#   the writer always giving the first time point: the VTKHDF case red;
+#   no provenance added by the writer: the provenance case red;
+#   node sets as poly-vertices, not vertices: the VTKHDF case red;
+#   a set's point data taken from the wrong points: the VTKHDF case red;
+#   members missing from the results not said: that case red;
+#   set ids taken as places (id - 1): survived at first (every fixture is
+#     numbered 1 to n); the renumbered-bar case is now red.
+# Opened in ParaView 6.2.0 (Flatpak pvpython, its VTK 9.7.1), 2026-11-16:
+# bar-increments' four time points (DISP z 0.025 to 0.1), every array, the
+# assembly with Model, NodeSets (NALL, FIXED, PULLED, X0, Y0), ElementSets
+# (EALL). NOT seen there: the provenance. It is in the file (each block's
+# FieldData, with per-step offsets; VTK 9.5 reads it back), but VTK 9.7.1's
+# reader drops field data on every block of a collection, even from a file
+# its own writer made (checked: a plain grid keeps it).
 
 # The build stamp is taken at every build, not at configure time: files
 # written by GridForge carry it as provenance.

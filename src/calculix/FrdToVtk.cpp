@@ -241,4 +241,46 @@ ResultsSeries toSeries(const FrdFile &frd, const QString &source, QString *error
     return series;
 }
 
+void addSets(ResultsSeries &series, const InpSets &sets, const QString &deck)
+{
+    if (series.points.empty())
+        return;
+    vtkUnstructuredGrid *g = series.points.front().grid;
+    std::unordered_map<int, vtkIdType> point, cell;
+    if (auto *ids = vtkIntArray::SafeDownCast(g->GetPointData()->GetArray("node id")))
+        for (vtkIdType p = 0; p < ids->GetNumberOfTuples(); ++p)
+            point[ids->GetValue(p)] = p;
+    if (auto *ids = vtkIntArray::SafeDownCast(g->GetCellData()->GetArray("element id")))
+        for (vtkIdType c = 0; c < ids->GetNumberOfTuples(); ++c)
+            cell[ids->GetValue(c)] = c;
+
+    QStringList notes;
+    for (const InpSet &in : sets.sets) {
+        const auto &index = in.nodes ? point : cell;
+        gf::core::NamedSet out{in.name, in.nodes, {}};
+        for (int id : in.ids) {
+            const auto it = index.find(id);
+            if (it != index.end())
+                out.members.push_back(it->second);
+        }
+        const size_t missing = in.ids.size() - out.members.size();
+        if (missing > 0)
+            notes << QString("set %1: %2 of its %3 %4 are not in the results, left out")
+                         .arg(in.name)
+                         .arg(missing)
+                         .arg(in.ids.size())
+                         .arg(in.nodes ? "nodes" : "elements");
+        series.sets.push_back(std::move(out));
+    }
+    series.provenance << QString("sets: %1, from %2").arg(sets.sets.size()).arg(deck) << notes;
+
+    // The grids carry the provenance too; they share one array, so replace it.
+    vtkNew<vtkStringArray> provenance;
+    provenance->SetName("provenance");
+    for (const QString &line : series.provenance)
+        provenance->InsertNextValue(line.toStdString());
+    for (gf::core::TimePoint &t : series.points)
+        t.grid->GetFieldData()->AddArray(provenance);
+}
+
 } // namespace gf::calculix

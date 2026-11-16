@@ -4,6 +4,7 @@
 // derived, and carry their provenance into the files.
 
 #include "calculix/FrdToVtk.h"
+#include "calculix/InpSets.h"
 
 #include <QDir>
 #include <QFile>
@@ -19,6 +20,12 @@
 #include <vtkNew.h>
 #include <vtkPointData.h>
 #include <vtkStringArray.h>
+#include <vtkCompositeDataSet.h>
+#include <vtkDataAssembly.h>
+#include <vtkHDFReader.h>
+#include <vtkInformation.h>
+#include <vtkPartitionedDataSetCollection.h>
+#include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkXMLUnstructuredGridReader.h>
 
 #include <array>
@@ -322,6 +329,140 @@ CASE(each_solid_element_type_lands_on_its_vtk_cell_in_place)
             CHECK(near(stress->GetComponent(p, 2), 210.0, 1e-4));
         }
     }
+}
+
+// The deck's named sets (bar-sets/README.md lists them by hand) become
+// subsets of the grids: a node set by its points, an element set by its
+// cells.
+ResultsSeries withSets(const char *frd, const char *inp)
+{
+    ResultsSeries s = convert(frd);
+    const InpSets sets = readInpSets(fixture(inp));
+    if (!sets.ok())
+        std::printf("  (%s)\n", qPrintable(sets.error));
+    addSets(s, sets, QFileInfo(fixture(inp)).fileName());
+    return s;
+}
+
+QList<int> idsOf(const ResultsSeries &s, const char *name, bool nodes)
+{
+    QList<int> out;
+    vtkUnstructuredGrid *g = grid(s);
+    for (const gf::core::NamedSet &set : s.sets)
+        if (g && set.name == name && set.nodes == nodes) {
+            auto *ids = vtkIntArray::SafeDownCast(nodes ? g->GetPointData()->GetArray("node id")
+                                                        : g->GetCellData()->GetArray("element id"));
+            for (vtkIdType m : set.members)
+                out << (ids ? ids->GetValue(m) : -1);
+        }
+    return out;
+}
+
+CASE(the_decks_named_sets_become_subsets_of_the_grids)
+{
+    const ResultsSeries s = withSets("bar-sets/bar.frd", "bar-sets/bar.inp");
+    QStringList names;
+    for (const gf::core::NamedSet &set : s.sets)
+        names << set.name;
+    CHECK(names == QStringList({"Nall", "Bar", "Odd", "Top", "Fixed", "Pulled", "Ends", "X0", "Y0"}));
+    CHECK((idsOf(s, "Pulled", true) == QList<int>{17, 18, 19, 20}));
+    CHECK((idsOf(s, "Odd", false) == QList<int>{1, 3}));
+    CHECK(s.provenance.contains("sets: 9, from bar.inp"));
+}
+
+// A set may name nodes the results do not hold (ccx leaves out nodes no
+// element uses): they are left out, and the provenance says so.
+CASE(set_members_the_results_lack_are_left_out_and_said)
+{
+    ResultsSeries s = convert("bar-tension/bar.frd");
+    InpSets sets;
+    sets.sets.push_back({"Reference", true, {20, 99, 100}});
+    addSets(s, sets, "deck.inp");
+    CHECK((idsOf(s, "Reference", true) == QList<int>{20}));
+    CHECK(s.provenance.contains("set Reference: 2 of its 3 nodes are not in the results, left out"));
+}
+
+// Sets name nodes and elements by id, not by place: the bar renumbered
+// (ids times ten, as a mesher with gaps would) keeps its sets.
+CASE(sets_follow_ids_however_the_mesh_is_numbered)
+{
+    FrdFile f = readFrd(fixture("bar-sets/bar.frd"));
+    for (FrdNode &n : f.nodes)
+        n.id *= 10;
+    for (FrdElement &e : f.elements) {
+        e.id *= 10;
+        for (int &n : e.nodes)
+            n *= 10;
+    }
+    for (FrdDataset &d : f.datasets)
+        for (int &n : d.nodeIds)
+            n *= 10;
+    QString error;
+    ResultsSeries s = toSeries(f, "bar.frd", &error);
+    InpSets sets = readInpSets(fixture("bar-sets/bar.inp"));
+    for (InpSet &set : sets.sets)
+        for (int &id : set.ids)
+            id *= 10;
+    addSets(s, sets, "bar.inp");
+    CHECK((idsOf(s, "Pulled", true) == QList<int>{170, 180, 190, 200}));
+    CHECK((idsOf(s, "Odd", false) == QList<int>{10, 30}));
+}
+
+// One .vtkhdf file: every time point, the whole model as the block Model,
+// each set as a block under NodeSets or ElementSets, the provenance in each.
+CASE(a_series_is_written_as_one_vtkhdf_file_with_its_sets_as_blocks)
+{
+    const ResultsSeries s = withSets("bar-increments/bar.frd", "bar-increments/bar.inp");
+    QTemporaryDir dir;
+    QString error;
+    const QString path = dir.filePath("bar.vtkhdf");
+    CHECK(gf::core::writeVtkHdf(s, path, &error));
+    if (!error.isEmpty())
+        std::printf("  (%s)\n", qPrintable(error));
+
+    vtkNew<vtkHDFReader> reader;
+    reader->SetFileName(qPrintable(path));
+    reader->UpdateInformation();
+    vtkInformation *info = reader->GetOutputInformation(0);
+    const int steps = info->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+    const double *times = info->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+    CHECK(steps == 4);
+    for (int k = 0; times && k < steps && k < 4; ++k)
+        CHECK(times[k] == 0.25 * (k + 1));
+
+    reader->UpdateTimeStep(0.75);
+    auto *c = vtkPartitionedDataSetCollection::SafeDownCast(reader->GetOutputDataObject(0));
+    vtkDataAssembly *a = c ? c->GetDataAssembly() : nullptr;
+    CHECK(a);
+    auto block = [&](const char *path) -> vtkUnstructuredGrid * {
+        if (!a)
+            return nullptr;
+        const int node = a->GetFirstNodeByPath(
+            (QString("/") + a->GetRootNodeName() + "/" + path).toUtf8().constData());
+        const auto sets = node < 0 ? std::vector<unsigned int>{} : a->GetDataSetIndices(node, false);
+        return sets.size() == 1 ? vtkUnstructuredGrid::SafeDownCast(c->GetPartition(sets[0], 0))
+                                : nullptr;
+    };
+    vtkUnstructuredGrid *model = block("Model");
+    vtkUnstructuredGrid *pulled = block("NodeSets/PULLED");
+    vtkUnstructuredGrid *eall = block("ElementSets/EALL");
+    CHECK(model && model->GetNumberOfPoints() == 20 && model->GetNumberOfCells() == 4);
+    CHECK(value(model, "DISP", 20, 2) == 0.075);
+    CHECK(pulled && pulled->GetNumberOfPoints() == 4 && pulled->GetNumberOfCells() == 4);
+    for (vtkIdType k = 0; pulled && k < pulled->GetNumberOfCells(); ++k)
+        CHECK(pulled->GetCellType(k) == VTK_VERTEX);
+    CHECK(value(pulled, "DISP", 17, 2) == 0.075);
+    CHECK(value(pulled, "von Mises stress (derived)", 17, 0) > 0);
+    CHECK(eall && eall->GetNumberOfCells() == 4 && misplacedCells(eall) == 0);
+    for (vtkUnstructuredGrid *g : {model, pulled, eall})
+        CHECK(fieldStrings(g, "provenance") == s.provenance);
+}
+
+CASE(a_vtkhdf_file_that_cannot_be_written_is_refused_by_name)
+{
+    QString error;
+    CHECK(!gf::core::writeVtkHdf(increments(), "/proc/no-such-dir/bar.vtkhdf", &error));
+    CHECK(error.contains("/proc/no-such-dir/bar.vtkhdf"));
 }
 
 CASE(a_series_is_written_as_vtu_files_and_a_pvd_that_lists_them)
