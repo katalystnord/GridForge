@@ -68,6 +68,8 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,
   cancel.
+  Started 2026-11-16: the `.sta` and `.cvg` parsers (`JobProgress`), with
+  cutbacks and a line ccx is still writing (fixture cantilever-cutbacks).
 - Meshing: Gmsh as a process, `.msh` 4.1, physical groups to sets.
 - Exit: a plastic dogbone from a study file to ParaView with no hand edits,
   checked against a known answer.

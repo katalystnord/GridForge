@@ -99,6 +99,20 @@ add_test(NAME named_sets_are_read_from_the_deck COMMAND test_inp_sets)
 #     no overlap in the deck); the deck now has GENERATE 1, 3, 2 and Ends
 #     lists node 1 again, and both are red.
 
+# A running job's progress: the .sta and .cvg ccx appends to.
+add_executable(test_job_progress test_job_progress.cpp)
+target_link_libraries(test_job_progress PRIVATE gf_calculix)
+target_compile_definitions(test_job_progress PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME job_progress_is_read_as_ccx_writes_it COMMAND test_job_progress)
+# NEGATIVE CHECKS, 2026-11-16, job progress: the 6 cases written first,
+# five red against a stub (the sixth, the two files agreeing, held with
+# both empty). Then each rule undone, the test run, restored:
+#   the U mark ignored or left on the attempt: five cases red;
+#   an unfinished last line read as a row: the running-file case red;
+#   force and displacement columns swapped: the residuals case red;
+#   one .cvg header line too few: two cases red.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)
