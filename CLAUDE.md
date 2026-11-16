@@ -55,6 +55,9 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,
   Quick 3D or Data Visualization), VTK, CMake.
+  Kept over newer toolkits such as egui (David, 2026-11-16): engineering
+  software lives in decades, so the stack must too. The look is earned by
+  design (Fusion, palette, spacing, our icon style), not by the toolkit.
 - **`gf_core` is headless**: Qt Core and VTK's data model only; a
   configure-time guard and the `core_is_headless` test enforce it.
 - **GPL tools are run, never linked**: ccx and cgx (GPL-2.0 only), Gmsh
