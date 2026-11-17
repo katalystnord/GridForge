@@ -67,7 +67,7 @@ set name, is section 4; how it reaches the step is part of that.)
 
 ### 2.2 Out of date, and running again
 
-After a step runs, its **run record** (`steps/<id>/run.json`) keeps a
+After a step runs, its **run record** (`steps/<id>/runs/<n>/run.json`) keeps a
 fingerprint of what it was made from:
 
 - the hash of every input file;
@@ -275,12 +275,15 @@ names faces by number; the written one by group.)
 
 ## 5. Settled with the approval (2026-11-17)
 
-1. Units: mm-N-s and m-N-s only in version 1.
+1. Units: mm-N-s and m-N-s only in version 1 (David, 2026-11-17).
 2. A displacement given in a step is shown as a load and written as
    ccx's `*BOUNDARY` (4.6).
 3. `"nonlinear geometry"` turns on by itself when a plastic material is
-   used, and the deck's comments say it did; a step may turn it off.
+   used, and the deck's comments say it did; a step may turn it off
+   (David, 2026-11-17: automatic).
 4. Files are hashed (SHA-256) when written; after that, a file whose
    size and time are unchanged is taken as unchanged. A full check
    hashes everything again, on request.
-5. A step keeps its latest outputs and the run record of every run.
+5. A step keeps the outputs of every run, as a history, each run in its
+   own folder (`steps/<id>/runs/<n>/`, with its run record), and says
+   which is the latest (David, 2026-11-17).

@@ -45,6 +45,16 @@ add_test(NAME toolkits_are_read_offered_and_refused COMMAND test_toolkits)
 #   the toolkit's own folder not searched for its program: the
 #     missing-programs and command cases red.
 
+# A study's set-up read from study.json and checked (study spec, section 4).
+add_executable(test_setup test_setup.cpp)
+target_link_libraries(test_setup PRIVATE gf_core)
+add_test(NAME the_setup_is_read_and_checked COMMAND test_setup)
+# NEGATIVE CHECKS, 2026-11-17, set-up: the 5 cases written first, all red
+# against a stub (32 checks). Then each rule broken, the test run,
+# restored: a solid given two materials allowed; units defaulted when
+# missing; any direction name taken; a group of faces given a material;
+# y read as z; face 0 accepted: each red.
+
 # CalculiX results: the .frd reader against files written by ccx 2.23, each
 # with an answer known by hand (fixtures/calculix/*/README.md).
 add_executable(test_frd_reader test_frd_reader.cpp)
