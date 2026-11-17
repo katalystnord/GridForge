@@ -1,0 +1,97 @@
+{
+  "format": "gridforge-study",
+  "version": "1.0",
+  "steps": [
+    {
+      "id": "part",
+      "kind": "input",
+      "file": "dogbone.step"
+    },
+    {
+      "id": "mesh",
+      "kind": "mesh",
+      "by": "gridforge",
+      "inputs": {
+        "geometry": "part.file"
+      },
+      "parameters": {
+        "maxSize": 3,
+        "order": 2
+      }
+    },
+    {
+      "id": "solve",
+      "kind": "solve",
+      "by": {
+        "toolkit": "calculix"
+      },
+      "inputs": {
+        "mesh": "mesh.mesh"
+      },
+      "parameters": {
+        "kind": "structural.static"
+      }
+    }
+  ],
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Dogbone": {
+        "solids": [
+          1
+        ]
+      },
+      "Fixed grip": {
+        "faces": [
+          12
+        ]
+      },
+      "Pulled grip": {
+        "faces": [
+          6
+        ]
+      }
+    },
+    "materials": {
+      "Measured steel": {
+        "card": "materials/tensense-ro.FCMat",
+        "plastic": "materials/tensense-ro-plastic.inp",
+        "values": {
+          "PoissonRatio": 0.3
+        }
+      }
+    },
+    "assign": {
+      "Dogbone": "Measured steel"
+    },
+    "supports": [
+      {
+        "group": "Fixed grip",
+        "fixed": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "Pull",
+        "kind": "static",
+        "loads": [
+          {
+            "group": "Pulled grip",
+            "displacement": {
+              "x": 1.5,
+              "y": 0,
+              "z": 0
+            }
+          }
+        ],
+        "output": [
+          "displacement",
+          "reaction",
+          "stress",
+          "strain",
+          "plastic strain"
+        ]
+      }
+    ]
+  }
+}

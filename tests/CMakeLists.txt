@@ -69,6 +69,15 @@ add_test(NAME material_cards_are_read_in_the_studys_units COMMAND test_material_
 # red; a Poisson's ratio with a unit passed: survived at first (no card
 # had one); poisson-unit.FCMat added, now red.
 
+# A study read from study.json and checked (study spec, sections 1, 2).
+add_executable(test_study test_study.cpp)
+target_link_libraries(test_study PRIVATE gf_core)
+target_compile_definitions(test_study PRIVATE GF_EXAMPLES="${CMAKE_SOURCE_DIR}/examples")
+add_test(NAME a_study_is_read_and_checked COMMAND test_study)
+# NEGATIVE CHECKS, 2026-11-17, study and outline: the cases written first,
+# red against stubs. Then: a link's output not checked; a plastic step not
+# shown with large displacements: each red.
+
 # A solve stage's job folder: written from a set-up and mesh, read back.
 add_executable(test_job test_job.cpp)
 target_link_libraries(test_job PRIVATE gf_mesh)
