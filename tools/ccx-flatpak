@@ -7,4 +7,7 @@
 # The CalculiX adapter runs ccx in a job's work/ folder; the folder above it
 # (the job, with materials/) is shared with the Flatpak too. A path with
 # ".." in it is refused by Flatpak, so the parent is named outright.
-exec flatpak run --filesystem="$(dirname "$PWD")" --command=ccx org.freecad.FreeCAD "$@"
+# --die-with-parent: when a solve is cancelled the adapter stops this
+# process, and the sandbox with ccx in it must stop with it (without it,
+# ccx ran on to the end after a cancel; tried 2026-11-17).
+exec flatpak run --die-with-parent --filesystem="$(dirname "$PWD")" --command=ccx org.freecad.FreeCAD "$@"

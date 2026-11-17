@@ -20,6 +20,12 @@ if [ -n "${FAKE_CCX_FAIL:-}" ]; then
     [ "$FAKE_CCX_FAIL" = quiet ] || exit 201
 fi
 cat "$from/ccx.log"
+# FAKE_CCX_SLOW: the first increment written, then a long wait, as ccx
+# deep in a long solve (to be cancelled).
+if [ -n "${FAKE_CCX_SLOW:-}" ]; then
+    head -3 "$from/tension.sta" > "$job.sta"
+    exec sleep 60  # nothing after this runs: the slow mode is only ever cancelled
+fi
 cp "$from/tension.sta" "$job.sta"
 cp "$from/tension.cvg" "$job.cvg"
 cp "$from/tension.frd" "$job.frd"

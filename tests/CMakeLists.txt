@@ -85,8 +85,9 @@ add_executable(test_calculix_adapter test_calculix_adapter.cpp)
 target_link_libraries(test_calculix_adapter PRIVATE gf_mesh)
 target_compile_definitions(test_calculix_adapter PRIVATE
     GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-    GF_ADAPTER="$<TARGET_FILE:gf-calculix>")
-add_dependencies(test_calculix_adapter gf-calculix)
+    GF_ADAPTER="$<TARGET_FILE:gf-calculix>"
+    GF_STUDY="$<TARGET_FILE:gf-study>")
+add_dependencies(test_calculix_adapter gf-calculix gf-study)
 add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
 # NEGATIVE CHECKS, 2026-11-17, the adapter: the 6 cases written first, all
 # red against a stub. Then each rule broken, the tests run, restored:
@@ -97,6 +98,14 @@ add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
 #   failure first wrote no results either); it now writes them, now red;
 #   the plastic block's path not seen from work/: no build at first (an
 #   empty if); kept, a plastic job added, now red.
+# NEGATIVE CHECKS, 2026-11-17, cancel: both cases written first, red (the
+# adapter and gf-study killed outright). Then each rule broken: the
+# adapter ignoring SIGTERM: red; gf-study not passing the cancel on:
+# survived at first (its 10 s SIGKILL still stopped everything in time);
+# the toolkit's own "cancelled: ... after step 1, increment 1" within 9 s
+# is now required, red. By hand with FreeCAD's Flatpak ccx: ccx ran on to
+# the end after a cancel until tools/ccx-flatpak used --die-with-parent;
+# since, it stops (job.sta frozen at the increment said).
 # NEGATIVE CHECKS, 2026-11-17, single precision: the writer case changed
 # first (float arrays, values to single precision, the provenance line),
 # red against the double writer; then the conversion skipped: red.

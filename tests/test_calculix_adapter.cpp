@@ -12,6 +12,7 @@
 #include "mesh/Mesher.h"
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -25,14 +26,15 @@
 #include <vtkNew.h>
 #include <vtkPartitionedDataSetCollection.h>
 
+#include <csignal>
 #include <cstdio>
 #include <functional>
 #include <vector>
 
 using namespace gf::core;
 
-#if !defined(GF_FIXTURES) || !defined(GF_ADAPTER)
-#error "GF_FIXTURES and GF_ADAPTER must be defined"
+#if !defined(GF_FIXTURES) || !defined(GF_ADAPTER) || !defined(GF_STUDY)
+#error "GF_FIXTURES, GF_ADAPTER and GF_STUDY must be defined"
 #endif
 
 namespace {
@@ -237,6 +239,73 @@ CASE(a_plastic_block_is_included_from_where_ccx_runs)
     CHECK(text.contains("*INCLUDE, INPUT=../materials/Steel-plastic.inp\n"));
     CHECK(QFileInfo(QDir(dir.path()).filePath("work/../materials/Steel-plastic.inp")).isFile());
     CHECK(text.contains("*STEP, NLGEOM"));
+}
+
+// Starts `program args` with the stand-in ccx made slow; returns once a
+// line holding `ready` has been printed (or 20 s have passed).
+struct Slow {
+    QProcess p;
+    QByteArray out;
+    bool start(const QString &program, const QStringList &args, const QByteArray &ready)
+    {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("GF_CCX", fake);
+        env.insert("FAKE_CCX_FROM", fixtures + "/calculix/box-setup");
+        env.insert("FAKE_CCX_SLOW", "1");
+        p.setProcessEnvironment(env);
+        p.start(program, args);
+        for (int k = 0; k < 200 && !out.contains(ready); ++k) {
+            p.waitForReadyRead(100);
+            out += p.readAllStandardOutput();
+        }
+        return out.contains(ready);
+    }
+    void finish(int ms)
+    {
+        p.waitForFinished(ms);
+        out += p.readAllStandardOutput();
+    }
+};
+
+CASE(a_solve_is_cancelled_by_sigterm_and_says_so)
+{
+    // The application stops a toolkit with SIGTERM (toolkits spec, 5):
+    // the adapter stops ccx, keeps its files, says where it had got to,
+    // leaves no results and exits with 3.
+    QTemporaryDir dir;
+    makeJob(dir.path());
+    Slow s;
+    CHECK(s.start(GF_ADAPTER, {dir.path()}, "step 1, increment 1"));
+    QElapsedTimer clock;
+    clock.start();
+    s.p.terminate();
+    s.finish(15000);
+    CHECK(s.p.state() == QProcess::NotRunning && clock.elapsed() < 10000);
+    CHECK(s.p.exitStatus() == QProcess::NormalExit && s.p.exitCode() == 3);
+    CHECK(s.out.contains(R"("text":"cancelled: ccx stopped after step 1, increment 1")"));
+    const QDir d(dir.path());
+    CHECK(!d.exists("results/results.vtkhdf"));
+    CHECK(d.exists("work/job.inp") && d.exists("work/job.sta"));  // kept
+}
+
+CASE(ctrl_c_cancels_a_solve_from_the_command_line)
+{
+    QTemporaryDir dir;
+    Slow s;
+    CHECK(s.start(GF_STUDY,
+                  {"solve", fixtures + "/calculix/box-setup/tension.json", fixtures + "/step/box.step", "--size",
+                   "5", "--order", "2", "-o", dir.path()},
+                  "step 1, increment 1"));
+    QElapsedTimer clock;
+    clock.start();
+    ::kill(static_cast<pid_t>(s.p.processId()), SIGINT);
+    s.finish(15000);
+    CHECK(s.p.state() == QProcess::NotRunning);
+    CHECK(s.p.exitCode() == 3);
+    // The toolkit asked, not killed: it said where ccx had got to, at once.
+    CHECK(s.out.contains("cancelled: ccx stopped after step 1, increment 1"));
+    CHECK(clock.elapsed() < 9000);
+    CHECK(!QDir(dir.path()).exists("results/results.vtkhdf"));
 }
 
 CASE(no_ccx_is_said_before_anything_runs)

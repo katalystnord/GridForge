@@ -43,6 +43,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QSaveFile>
 
@@ -50,6 +51,7 @@
 #include <vtkDoubleArray.h>
 #include <vtkNew.h>
 
+#include <csignal>
 #include <cstdio>
 
 namespace {
@@ -217,6 +219,9 @@ bool prepare(const QString &setupFile, const QString &part, const QString &size,
     return true;
 }
 
+volatile std::sig_atomic_t interrupted = 0;
+extern "C" void onInterrupt(int) { interrupted = 1; }
+
 int solve(const QString &setupFile, const QString &part, const QString &size, const QString &order,
           const QString &jobDir)
 {
@@ -259,6 +264,11 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     std::printf("solving with %s (%s)\n", qPrintable(toolkit->name), qPrintable(command.join(' ')));
     std::fflush(stdout);
 
+    // Ctrl+C cancels: the toolkit is sent SIGTERM (toolkits spec, 5), and
+    // SIGKILL if it has not stopped 10 s later.
+    struct sigaction interrupt = {};
+    interrupt.sa_handler = onInterrupt;
+    sigaction(SIGINT, &interrupt, nullptr);
     QProcess process;
     process.setProcessChannelMode(QProcess::ForwardedErrorChannel);
     process.start(command.first(), command.mid(1));
@@ -284,7 +294,18 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
             std::printf("  %s\n", line.constData());  // kept, as the spec says: anything else is the log
         std::fflush(stdout);
     };
+    bool stopping = false;
+    QElapsedTimer sinceStop;
     while (process.state() != QProcess::NotRunning) {
+        if (interrupted && !stopping) {
+            std::printf("  cancelling: %s asked to stop\n", qPrintable(toolkit->name));
+            std::fflush(stdout);
+            process.terminate();
+            stopping = true;
+            sinceStop.start();
+        }
+        if (stopping && sinceStop.elapsed() > 10000)
+            process.kill();
         process.waitForReadyRead(200);
         pending += process.readAllStandardOutput();
         qsizetype nl;
@@ -296,6 +317,10 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     pending += process.readAllStandardOutput();
     for (const QByteArray &line : pending.split('\n'))
         show(line);
+    if (stopping || process.exitCode() == 3) {
+        std::printf("cancelled; the job's files are kept in %s\n", qPrintable(QDir(jobDir).absolutePath()));
+        return 3;
+    }
     if (process.exitCode() != 0 || result.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s stopped with exit code %d\n", qPrintable(toolkit->name), process.exitCode());
         return 1;

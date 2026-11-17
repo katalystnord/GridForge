@@ -80,13 +80,14 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   dogbone from a study file to ParaView with no hand edits
   (examples/dogbone-plastic, ccx 2.23). Fields stored in single
   precision (199 MB to 133 MB on the dogbone); sets keep their fields
-  (David, 2026-11-17). Still to do: cancel, and the window.
+  (David, 2026-11-17). Cancel: Ctrl+C in gf-study, SIGTERM to the
+  toolkit, ccx stopped (in FreeCAD's Flatpak too), its files kept.
 - The job folder and the progress protocol (toolkits spec, sections 4
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,
-  cancel.
-  Started 2026-11-16: the `.sta` and `.cvg` parsers (`JobProgress`), with
-  cutbacks and a line ccx is still writing (fixture cantilever-cutbacks).
+  cancel. Done 2026-11-17 (the bullet above); the `.sta` and `.cvg`
+  parsers (`JobProgress`, 2026-11-16) with cutbacks and a line ccx is
+  still writing (fixture cantilever-cutbacks).
 - Meshing, first in Phase 2 (David, 2026-11-17): GridForge's own mesh
   core, `gf_mesh`, around a linked Netgen built from our fork
   (github.com/katalystnord/netgen: master tracks NGSolve, gridforge-dev

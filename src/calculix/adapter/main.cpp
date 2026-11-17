@@ -12,7 +12,11 @@
 // ccx's own files stay in work/ (tenet 10).
 //
 // ccx is the program GF_CCX names, else "ccx" on PATH. Exit codes: 0
-// solved; 1 ccx failed; 2 the job could not be started.
+// solved; 1 ccx failed; 2 the job could not be started; 3 cancelled.
+//
+// Cancelling (the application sends SIGTERM): ccx is stopped (SIGTERM,
+// then SIGKILL after 5 s), its files stay in work/, no results are
+// written, and the last line says where it had got to.
 //
 // ccx is GPL-2.0-only and is run, never linked.
 
@@ -37,9 +41,13 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
+#include <csignal>
 #include <cstdio>
 
 namespace {
+
+volatile std::sig_atomic_t cancelled = 0;
+extern "C" void onTerm(int) { cancelled = 1; }
 
 void say(const QJsonObject &message)
 {
@@ -50,7 +58,7 @@ void say(const QJsonObject &message)
 
 int refuse(const QString &why, int code)
 {
-    say({{"type", "log"}, {"level", "error"}, {"text", why}});
+    say({{"type", "log"}, {"level", code == 3 ? "info" : "error"}, {"text", why}});
     return code;
 }
 
@@ -71,6 +79,9 @@ QByteArray readAll(const QString &path)
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
+    struct sigaction term = {};
+    term.sa_handler = onTerm;
+    sigaction(SIGTERM, &term, nullptr);
     if (argc != 2)
         return refuse("usage: gf-calculix JOB", 2);
     const QDir job(QString::fromLocal8Bit(argv[1]));
@@ -116,15 +127,15 @@ int main(int argc, char *argv[])
     // Progress, from what ccx appends as it goes.
     const int steps = std::max<int>(1, static_cast<int>(setup.steps.size()));
     size_t staSeen = 0, cvgSeen = 0;
+    QString reached;  // the last increment done, for a cancel
     auto follow = [&] {
         const gf::calculix::StaFile sta = gf::calculix::parseSta(readAll(work.filePath("job.sta")));
         for (; staSeen < sta.rows.size(); ++staSeen) {
             const auto &row = sta.rows[staSeen];
             if (!row.converged)
                 continue;
-            say({{"type", "progress"},
-                 {"fraction", std::min(1.0, row.totalTime / steps)},
-                 {"text", QString("step %1, increment %2").arg(row.step).arg(row.increment)}});
+            reached = QString("step %1, increment %2").arg(row.step).arg(row.increment);
+            say({{"type", "progress"}, {"fraction", std::min(1.0, row.totalTime / steps)}, {"text", reached}});
         }
         const gf::calculix::CvgFile cvg = gf::calculix::parseCvg(readAll(work.filePath("job.cvg")));
         for (; cvgSeen < cvg.rows.size(); ++cvgSeen)
@@ -136,8 +147,20 @@ int main(int argc, char *argv[])
                               .arg(cvg.rows[cvgSeen].increment)
                               .arg(cvg.rows[cvgSeen].iteration)}});
     };
-    while (!process.waitForFinished(200))
+    while (!process.waitForFinished(200)) {
         follow();
+        if (cancelled) {
+            process.terminate();
+            if (!process.waitForFinished(5000)) {
+                process.kill();
+                process.waitForFinished(5000);
+            }
+            follow();
+            return refuse(reached.isEmpty() ? QString("cancelled: before ccx finished its first increment")
+                                            : "cancelled: ccx stopped after " + reached,
+                          3);
+        }
+    }
     follow();
 
     const QString log = QString::fromUtf8(readAll(work.filePath("ccx.log")));

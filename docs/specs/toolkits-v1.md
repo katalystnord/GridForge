@@ -140,7 +140,10 @@ The toolkit writes **one JSON object per line** to standard output:
 
 Anything else on standard output or error is kept as the log. Exit code 0
 is success. The application can stop it at any time (SIGTERM, then
-SIGKILL), and the window never waits on it.
+SIGKILL), and the window never waits on it. On SIGTERM a toolkit stops
+its own solver, keeps its work files, writes no results, says where it
+had got to, and exits with 3 (cancelled). A toolkit running its solver
+in a sandbox (a Flatpak) makes sure the sandbox stops too.
 
 ## 6. Surrogates (AI models)
 
