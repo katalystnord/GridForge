@@ -146,8 +146,13 @@ in ember orange, ember selections, a graphite view. Editing in
 Properties (core/StudyEdit): the mesh's size and order, loads and
 displacement supports, material values given in the study; Apply (lit in
 ember) writes study.json after the same checks as reading it, Reset
-undoes; the mesh is kept unless its recipe, geometry or groups changed.
-Next: picking faces, the Steps and Deck docks.
+undoes; the mesh is kept unless its recipe or geometry changed (a
+group changed only makes its sets again). Picking faces (2026-11-17): a
+click on the mesh picks a geometry face (gf_mesh's outer surface knows
+each triangle's face), Ctrl+click adds or takes out, the picked faces lit
+in ember; named in Properties, Make group writes them to study.json. A
+group selected in the tree lights its faces. Next: the Steps and Deck
+docks, the deformed shape.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

@@ -23,6 +23,11 @@
 
 #include <QFutureWatcher>
 #include <QMainWindow>
+#include <QPoint>
+
+#include <vtkSmartPointer.h>
+
+#include <vector>
 
 class QComboBox;
 class QDockWidget;
@@ -38,6 +43,7 @@ class QFormLayout;
 class vtkRenderer;
 class vtkActor;
 class vtkScalarBarActor;
+class vtkPolyData;
 
 namespace gf::gui {
 
@@ -47,6 +53,7 @@ struct MeshDone {
     gf::core::ResultsSeries mesh;
     QString error;
     int opening = 0;
+    size_t ownSets = 0;  // the mesh's own sets (Face<n>, Solid<n>) come first; the groups' after
 };
 
 class MainWindow : public QMainWindow
@@ -77,10 +84,17 @@ public:
     // Where the colour legend's box starts, as a fraction of the view's
     // width: at 0.86, or further left so its title (which VTK centres over
     // the box) ends 8 pixels inside the view.
+    // The mesh as the next run gets it, with the groups' sets.
+    const gf::core::ResultsSeries &mesh() const { return m_mesh; }
+
     static double legendLeft(double viewPixels, double boxPixels, double titlePixels);
 
 signals:
     void meshReady();
+
+protected:
+    // A click in the view (pressed and let go without moving) picks a face.
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void buildActions();
@@ -102,6 +116,10 @@ private:
     void updateBanner();
     void applyEdits();
     QString selectedKey() const;
+    void pickAt(const QPoint &at, bool add);
+    void lightFaces(const std::vector<int> &faces);
+    void showPicked();
+    void makeGroup();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -119,6 +137,10 @@ private:
     vtkActor *m_meshActor = nullptr;     // owned by the renderer while shown
     vtkActor *m_resultsActor = nullptr;
     vtkScalarBarActor *m_scalarBar = nullptr;
+    vtkSmartPointer<vtkPolyData> m_surface;  // the mesh as shown, each triangle with its geometry face
+    size_t m_meshOwnSets = 0;
+    std::vector<int> m_picked;  // faces picked in the view, in order
+    QPoint m_pressedAt{-1, -1};
 
     QVTKOpenGLNativeWidget *m_view = nullptr;
     vtkRenderer *m_renderer = nullptr;

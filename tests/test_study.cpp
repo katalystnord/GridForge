@@ -316,6 +316,40 @@ CASE(an_edit_the_study_cannot_take_is_refused_and_the_file_kept)
     CHECK(f.readAll() == before);
 }
 
+CASE(picked_faces_become_a_named_group_in_the_study)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    // Picked in any order, a face twice: kept once each, in order.
+    CHECK(addFaceGroup(folder, "  Grip faces ", {7, 3, 7}, &error) && error.isEmpty());
+    const Study s = readStudy(folder, &error);
+    const Group *g = s.setup.group("Grip faces");
+    CHECK(error.isEmpty() && g && g->faces == std::vector<int>({3, 7}) && g->solids.empty());
+    CHECK(s.setup.group("Fixed grip") && s.setup.group("Fixed grip")->faces == std::vector<int>({12}));
+}
+
+CASE(a_group_without_a_name_faces_or_a_name_of_its_own_is_refused)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QFile f(QDir(folder).filePath("study.json"));
+    f.open(QIODevice::ReadOnly);
+    const QByteArray before = f.readAll();
+    f.close();
+    QString error;
+    CHECK(!addFaceGroup(folder, " ", {1}, &error));
+    CHECK(error == "a group needs a name");
+    CHECK(!addFaceGroup(folder, "Fixed grip", {1}, &error));
+    CHECK(error == "there is a group named Fixed grip already");
+    CHECK(!addFaceGroup(folder, "New", {}, &error));
+    CHECK(error == "no faces picked");
+    CHECK(!addFaceGroup(folder, "New", {0}, &error));
+    CHECK(error == "faces are numbered from 1");
+    f.open(QIODevice::ReadOnly);
+    CHECK(f.readAll() == before);
+}
+
 CASE(a_folder_without_a_study_is_said)
 {
     QTemporaryDir dir;

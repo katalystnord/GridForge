@@ -5,6 +5,7 @@
 //
 //   test_main_window_walkthrough [--screenshot FILE]   also saves the window
 
+#include "core/Study.h"
 #include "gui/MainWindow.h"
 #include "gui/Style.h"
 #include "gui/Tone.h"
@@ -105,6 +106,40 @@ QString propertyValue(QWidget *properties, const QString &label)
     }
     return {};
 }
+// Where a point of the model is drawn in the view, in the view's own
+// coordinates (Qt's: y down).
+QPoint onScreen(MainWindow &w, double x, double y, double z)
+{
+    auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+    vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
+    view->renderWindow()->Render();
+    r->SetWorldPoint(x, y, z, 1);
+    r->WorldToDisplay();
+    double d[3];
+    r->GetDisplayPoint(d);
+    const double k = view->devicePixelRatioF();
+    return QPoint(int(d[0] / k), int(view->height() - d[1] / k));
+}
+
+// Whether the view shows ember (picked, lit) around a point: most of a
+// 9 x 9 patch (a mesh edge may cross it) with red well over green and blue
+// in proportion, as ember (226, 92, 29) is however it is lit, and the
+// light grey of the bare mesh is not.
+bool emberAt(MainWindow &w, const QPoint &at)
+{
+    auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+    const QImage image = view->grabFramebuffer();
+    const double k = view->devicePixelRatioF();
+    int ember = 0;
+    for (int dx = -4; dx <= 4; ++dx)
+        for (int dy = -4; dy <= 4; ++dy) {
+            const QColor c = image.pixelColor(int(at.x() * k) + dx, int(at.y() * k) + dy);
+            if (c.red() > 1.6 * c.green() + 8 && c.red() > 2.5 * c.blue() + 8)
+                ++ember;
+        }
+    return ember > 81 / 2;
+}
+
 } // namespace
 
 class MainWindowWalkthrough : public QObject
@@ -448,6 +483,98 @@ private slots:
         QVERIFY(w.openStudy(study));
         QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
             "Note on run 1: PE below 0 at 3 node values"));
+    }
+
+    void a_face_clicked_in_the_view_is_picked_and_made_a_group()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QVERIFY(w.openStudy(folder));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        auto *props = w.findChild<QWidget *>("properties");
+        // The box is 10 x 20 x 30 mm; seen from +x +y +z, its face x = 10
+        // (face 2, the study's "Pulled") and its top z = 30 are in view.
+        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        QVERIFY(!emberAt(w, side));
+        QTest::mouseClick(view, Qt::LeftButton, {}, side);
+        QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));
+        QVERIFY(emberAt(w, side));
+        QVERIFY(!emberAt(w, top));
+        // Ctrl+click adds a face; the other face stays picked.
+        QTest::mouseClick(view, Qt::LeftButton, Qt::ControlModifier, top);
+        const QString both = propertyValue(props, "Picked");
+        QVERIFY2(both.startsWith("faces ") && both.contains("2") && both.count(',') == 1, qPrintable(both));
+        QVERIFY(emberAt(w, side) && emberAt(w, top));
+        // Ctrl+click on a picked face takes it out; again puts it back.
+        QTest::mouseClick(view, Qt::LeftButton, Qt::ControlModifier, top);
+        QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));
+        QVERIFY(!emberAt(w, top));
+        QTest::mouseClick(view, Qt::LeftButton, Qt::ControlModifier, top);
+        QCOMPARE(propertyValue(props, "Picked"), both);
+        if (!screenshot.isEmpty()) {
+            QTest::qWait(100);  // new rows are shown on the next pass of events
+            w.grab().save(screenshot.chopped(4) + "-picked.png");
+        }
+        // Named and made: in study.json, in the tree, and the mesh kept.
+        auto *name = w.findChild<QLineEdit *>("groupName");
+        QVERIFY(name);
+        QTest::keyClicks(name, "Pull and top");
+        QTest::mouseClick(w.findChild<QPushButton *>("makeGroup"), Qt::LeftButton);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QTreeWidgetItem *made = findItem(tree, "Pull and top");
+        QVERIFY(made);
+        QCOMPARE(made->text(1), both);
+        QString error;
+        QVERIFY(gf::core::readStudy(folder, &error).setup.group("Pull and top"));
+        QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
+        // The kept mesh has the new group's set, for the deck.
+        bool hasSet = false;
+        for (const gf::core::NamedSet &n : w.mesh().sets)
+            hasSet = hasSet || (n.name == "Pull and top" && n.nodes && !n.members.empty());
+        QVERIFY(hasSet);
+        QVERIFY(w.findChild<QAction *>("run")->isEnabled());
+        // Clicking where there is no model lets the pick go.
+        tree->setCurrentItem(nullptr);
+        QTest::mouseClick(view, Qt::LeftButton, {}, QPoint(5, 5));
+        QCOMPARE(propertyValue(props, "Picked"), QString());
+        QVERIFY(!emberAt(w, side));
+    }
+
+    void a_drag_turns_the_view_and_picks_nothing()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        const QPoint side = onScreen(w, 10, 10, 15);
+        QTest::mousePress(view, Qt::LeftButton, {}, side);
+        QTest::mouseMove(view, side + QPoint(40, 0));
+        QTest::mouseRelease(view, Qt::LeftButton, {}, side + QPoint(40, 0));
+        QCOMPARE(propertyValue(w.findChild<QWidget *>("properties"), "Picked"), QString());
+    }
+
+    void selecting_a_group_lights_its_faces_in_the_view()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(findItem(tree, "Pulled"));
+        QVERIFY(emberAt(w, side));
+        QVERIFY(!emberAt(w, top));
+        tree->setCurrentItem(findItem(tree, "Steel"));
+        QVERIFY(!emberAt(w, side));
     }
 
     void a_long_legend_title_moves_the_legend_into_the_view()

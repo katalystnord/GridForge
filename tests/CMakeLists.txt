@@ -74,6 +74,8 @@ add_executable(test_study test_study.cpp)
 target_link_libraries(test_study PRIVATE gf_core)
 target_compile_definitions(test_study PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 add_test(NAME a_study_is_read_and_checked COMMAND test_study)
+# NEGATIVE CHECK, 2026-11-17, addFaceGroup: both cases red against a stub
+# (6 checks).
 # NEGATIVE CHECKS, 2026-11-17, study and outline: the cases written first,
 # red against stubs. Then: a link's output not checked; a plastic step not
 # shown with large displacements: each red.
@@ -342,6 +344,17 @@ add_test(NAME geometry_is_meshed_the_same_every_time COMMAND test_mesher)
 
 # The mesh quality report: tetrahedra with measures known by hand, then
 # gf_mesh's meshes.
+# The mesh's outer surface, each triangle on its geometry face: the box's
+# six faces have areas known without a mesher (fixtures/step/README.md).
+add_executable(test_outer_surface test_outer_surface.cpp)
+target_link_libraries(test_outer_surface PRIVATE gf_mesh)
+target_compile_definitions(test_outer_surface PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME the_outer_surface_knows_its_geometry_faces COMMAND test_outer_surface)
+# NEGATIVE CHECK, 2026-11-17: red against a stub returning an empty surface
+# (8 checks). The flat-face check at first compared coordinates exactly;
+# loosened to 1e-9 mm before the first run, not after a failure.
+
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE gf_mesh)
 target_compile_definitions(test_mesh_quality PRIVATE
@@ -443,6 +456,14 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, picking faces: the cases red against no
+# picking at all (Picked empty, nothing lit); then each rule taken out, red:
+# a drag counted as a click; the groups back among the mesh's inputs (the
+# box meshed twice); the groups' sets not made again on the kept mesh (at
+# first green: the check had landed in another case; moved, then red);
+# Ctrl+click not taking a picked face out; a selected group not lit. The
+# ember check reads a 9 x 9 patch by proportion: one pixel read 159 119 106
+# on a mesh edge, and the dimly lit side 106 43 14.
 # NEGATIVE CHECKS, 2026-11-17, Properties after a run and the legend: the
 # study's "Runs" not refreshed when a run finishes: red ("none yet"); the
 # refresh made regardless of edits not yet applied: red (the typed value

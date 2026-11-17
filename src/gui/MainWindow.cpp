@@ -5,6 +5,7 @@
 #include "core/Job.h"
 #include "core/MaterialCard.h"
 #include "core/StudyEdit.h"
+#include "mesh/Surface.h"
 #include "core/StudyOutline.h"
 #include "core/Toolkit.h"
 #include "mesh/Groups.h"
@@ -31,9 +32,11 @@
 #include <QFont>
 #include <QPalette>
 #include <QProgressBar>
+#include <QMouseEvent>
 #include <QSignalBlocker>
 
 #include <algorithm>
+#include <array>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QToolBar>
@@ -56,6 +59,10 @@
 #include <vtkProperty.h>
 #include <vtkRenderer.h>
 #include <vtkScalarBarActor.h>
+#include <vtkCellPicker.h>
+#include <vtkCellData.h>
+#include <vtkUnsignedCharArray.h>
+#include <vtkPolyData.h>
 #include <vtkTextRenderer.h>
 #include <vtkCommand.h>
 #include <vtkTextProperty.h>
@@ -189,6 +196,7 @@ MainWindow::MainWindow(QWidget *parent)
     vtkNew<vtkLightKit> lights;  // a key, fill and back light, as ParaView's light kit
     lights->AddLightsToRenderer(renderer);
     m_view->setRenderWindow(window);
+    m_view->installEventFilter(this);
     column->addWidget(m_layouts);
     column->addWidget(m_view, 1);
     setCentralWidget(centre);
@@ -442,7 +450,8 @@ bool MainWindow::openStudy(const QString &path)
     // The mesh is kept when nothing it is made from changed (an edited load,
     // say): the same folder, geometry, mesh recipe and groups.
     auto meshInputs = [](const core::Study &s) {
-        QJsonObject o{{"folder", s.folder}, {"groups", s.setupJson["groups"]}};
+        // Not the groups: they are sets on the mesh, made again on it.
+        QJsonObject o{{"folder", s.folder}};
         for (const core::StudyStep *m : s.stepsOf("mesh"))
             o[m->id] = m->parameters;
         for (const core::StudyStep *i : s.stepsOf("input"))
@@ -473,13 +482,21 @@ bool MainWindow::openStudy(const QString &path)
     if (m_meshActor && !keepMesh) {
         m_meshActor->UnRegister(nullptr);
         m_meshActor = nullptr;
+        m_surface = nullptr;
     }
     m_layouts->setCurrentIndex(0);
     const QString earlier = latestResults();
     if (!earlier.isEmpty() && showResults(earlier))
         m_layouts->setCurrentIndex(0);  // the model first; the results are a tab away
+    m_picked.clear();
     if (keepMesh) {
         m_mesh = keptMesh;
+        // The groups' sets made again, as they are in the study now.
+        m_mesh.sets.resize(std::min(m_mesh.sets.size(), m_meshOwnSets));
+        QString groupProblem;
+        if (!mesh::addGroupSets(m_mesh, m_study.setup, &groupProblem))
+            say(tr("The groups do not fit the mesh: %1").arg(groupProblem), Tone::Problem);
+        lightFaces({});
         for (QTreeWidgetItem *item : m_tree->findItems(tr("Mesh"), Qt::MatchExactly)) {
             const mesh::Quality q = mesh::measure(m_mesh.points.front().grid);
             const QString detail = tr("%1 tetrahedra, %2 nodes; %3")
@@ -510,6 +527,18 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
         l->setWordWrap(true);
         return l;
     };
+    if (item) {
+        // A tree item replaces a pick; a group's faces are lit in the view.
+        m_picked.clear();
+        const QString key = item->data(0, Qt::UserRole).toString();
+        const core::Group *g = key.startsWith("group:") ? m_study.setup.group(key.mid(6)) : nullptr;
+        lightFaces(g ? g->faces : std::vector<int>{});
+    } else if (!m_picked.empty()) {
+        showPicked();
+        return;
+    } else {
+        lightFaces({});
+    }
     if (!item) {
         // Nothing selected: the study itself, and how to see more.
         if (m_study.folder.isEmpty()) {
@@ -529,7 +558,8 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
         const QString latest = latestResults();
         m_propertyForm->addRow(tr("Runs"), value(latest.isEmpty() ? tr("none yet")
                                                                   : tr("latest: run %1").arg(latest.section('/', -3, -3))));
-        m_propertyForm->addRow(value(tr("Select an item in the Study tree to see it here.")));
+        m_propertyForm->addRow(value(tr("Select an item in the Study tree to see it here. Click a face of the "
+                                        "mesh to pick it, Ctrl+click to pick more, and make them a group.")));
         return;
     }
     m_propertyForm->addRow(tr("Name"), value(item->text(0)));
@@ -605,6 +635,7 @@ void MainWindow::startMeshing()
         MeshDone done;
         done.opening = opening;
         done.mesh = mesh::meshStep(file, recipe, &done.error);
+        done.ownSets = done.mesh.sets.size();
         if (done.error.isEmpty())
             mesh::addGroupSets(done.mesh, setup, &done.error);
         return done;
@@ -624,14 +655,20 @@ void MainWindow::onMeshed()
         return;
     }
     m_mesh = done.mesh;
+    m_meshOwnSets = done.ownSets;
     vtkUnstructuredGrid *grid = m_mesh.points.front().grid;
     const mesh::Quality quality = mesh::measure(grid);
 
-    // The surface with its edges, as ParaView's "Surface With Edges".
-    vtkNew<vtkDataSetSurfaceFilter> surface;
-    surface->SetInputData(grid);
+    // The surface with its edges, as ParaView's "Surface With Edges": the
+    // outer faces of the elements, each knowing its geometry face, so a
+    // face can be picked and a group's faces lit (in ember).
+    m_surface = mesh::outerSurface(m_mesh);
     vtkNew<vtkPolyDataMapper> mapper;
-    mapper->SetInputConnection(surface->GetOutputPort());
+    mapper->SetInputData(m_surface);
+    mapper->SetScalarModeToUseCellData();
+    mapper->SetColorModeToDirectScalars();
+    mapper->ScalarVisibilityOn();
+    lightFaces(m_picked);
     vtkNew<vtkActor> actor;
     actor->SetMapper(mapper);
     // Light faces and soft edges, so the part reads on graphite.
@@ -873,6 +910,138 @@ QStringList MainWindow::paraviewCommand(const QString &file, bool paraviewOnPath
     if (flatpak)
         return {"flatpak", "run", "--filesystem=" + QFileInfo(file).absolutePath(), "org.paraview.ParaView", file};
     return {};
+}
+
+namespace {
+
+QString facesText(const std::vector<int> &faces)
+{
+    QStringList n;
+    for (int f : faces)
+        n << QString::number(f);
+    return (faces.size() == 1 ? QStringLiteral("face ") : QStringLiteral("faces ")) + n.join(", ");
+}
+
+} // namespace
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_view && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease)) {
+        auto *e = static_cast<QMouseEvent *>(event);
+        if (e->button() == Qt::LeftButton) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                m_pressedAt = e->position().toPoint();
+            } else if (m_pressedAt.x() >= 0) {
+                // Let go where it was pressed: a click, not a turn of the view.
+                if ((e->position().toPoint() - m_pressedAt).manhattanLength() < 4 && m_layouts->currentIndex() == 0)
+                    pickAt(e->position().toPoint(), e->modifiers() & Qt::ControlModifier);
+                m_pressedAt = {-1, -1};
+            }
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);  // the view still gets it
+}
+
+void MainWindow::pickAt(const QPoint &at, bool add)
+{
+    if (!m_surface || !m_meshActor)
+        return;
+    vtkNew<vtkCellPicker> picker;
+    picker->SetTolerance(0.0005);
+    picker->PickFromListOn();
+    picker->AddPickList(m_meshActor);
+    const double k = m_view->devicePixelRatioF();
+    int face = 0;
+    if (picker->Pick(at.x() * k, (m_view->height() - at.y()) * k, 0, m_renderer) && picker->GetCellId() >= 0) {
+        vtkDataArray *faces = m_surface->GetCellData()->GetArray("face");
+        if (faces && picker->GetCellId() < faces->GetNumberOfTuples())
+            face = int(faces->GetComponent(picker->GetCellId(), 0));
+    }
+    if (!add) {
+        m_picked = face > 0 ? std::vector<int>{face} : std::vector<int>{};
+    } else if (face > 0) {
+        // Ctrl+click: a face added, or taken out again.
+        const auto at = std::find(m_picked.begin(), m_picked.end(), face);
+        if (at == m_picked.end())
+            m_picked.push_back(face);
+        else
+            m_picked.erase(at);
+    }
+    // The pick, not a tree item, is what Properties shows now.
+    const QSignalBlocker quiet(m_tree);
+    m_tree->setCurrentItem(nullptr);
+    m_tree->clearSelection();
+    lightFaces(m_picked);
+    showProperties(nullptr);
+}
+
+void MainWindow::lightFaces(const std::vector<int> &faces)
+{
+    if (!m_surface)
+        return;
+    vtkDataArray *face = m_surface->GetCellData()->GetArray("face");
+    vtkNew<vtkUnsignedCharArray> colours;
+    colours->SetName("colours");
+    colours->SetNumberOfComponents(3);
+    colours->SetNumberOfTuples(m_surface->GetNumberOfCells());
+    for (vtkIdType c = 0; c < m_surface->GetNumberOfCells(); ++c) {
+        const int f = face ? int(face->GetComponent(c, 0)) : 0;
+        const bool lit = std::find(faces.begin(), faces.end(), f) != faces.end();
+        // Light grey so the part reads on graphite; ember where lit.
+        const QColor c3 = lit ? ember : QColor(219, 222, 227);
+        colours->SetTypedTuple(c, std::array<unsigned char, 3>{uchar(c3.red()), uchar(c3.green()), uchar(c3.blue())}.data());
+    }
+    m_surface->GetCellData()->SetScalars(colours);
+    m_view->renderWindow()->Render();
+}
+
+void MainWindow::showPicked()
+{
+    auto *picked = new QLabel(facesText(m_picked), m_properties);
+    picked->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_propertyForm->addRow(tr("Picked"), picked);
+    auto *name = new QLineEdit(m_properties);
+    name->setObjectName(QStringLiteral("groupName"));
+    name->setPlaceholderText(tr("a name for the group"));
+    m_propertyForm->addRow(tr("Group"), name);
+    auto *buttons = new QWidget(m_properties);
+    auto *row = new QHBoxLayout(buttons);
+    row->setContentsMargins(0, 6, 0, 6);
+    auto *make = new QPushButton(icon("pqApply"), tr("Make group"), buttons);
+    make->setObjectName(QStringLiteral("makeGroup"));
+    QPalette lit = make->palette();
+    lit.setColor(QPalette::Button, ember);
+    lit.setColor(QPalette::ButtonText, Qt::white);
+    make->setPalette(lit);
+    row->addWidget(make);
+    row->addStretch();
+    m_propertyForm->addRow(buttons);  // as Apply: its own width, on the left
+    auto *hint = new QLabel(tr("Ctrl+click adds a face or takes it out; a click where there is no model lets "
+                               "the pick go."),
+                            m_properties);
+    hint->setWordWrap(true);
+    m_propertyForm->addRow(hint);
+    connect(make, &QPushButton::clicked, this, &MainWindow::makeGroup);
+    connect(name, &QLineEdit::returnPressed, this, &MainWindow::makeGroup);
+}
+
+void MainWindow::makeGroup()
+{
+    auto *name = m_properties->findChild<QLineEdit *>(QStringLiteral("groupName"));
+    const QString named = name ? name->text().trimmed() : QString();
+    const std::vector<int> faces = m_picked;
+    QString error;
+    if (!core::addFaceGroup(m_study.folder, named, faces, &error)) {
+        say(tr("Cannot make the group: %1").arg(error), Tone::Problem);
+        return;
+    }
+    say(tr("Group %1 made of %2, in study.json").arg(named, facesText(faces)), Tone::Done);
+    openStudy(m_study.folder);
+    for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+        if ((*it)->data(0, Qt::UserRole).toString() == "group:" + named) {
+            m_tree->setCurrentItem(*it);
+            break;
+        }
 }
 
 double MainWindow::legendLeft(double viewPixels, double boxPixels, double titlePixels)

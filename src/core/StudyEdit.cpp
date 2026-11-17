@@ -6,6 +6,10 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 
+#include <algorithm>
+#include <functional>
+#include <set>
+
 namespace gf::core {
 
 namespace {
@@ -188,7 +192,12 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
     return root;
 }
 
-bool editStudy(const QString &folder, const QString &key, const Edit &edit, QString *error)
+namespace {
+
+// Reads <folder>/study.json, changes it, checks the result as readStudy
+// does, and writes it back; the file is left as it was on any fault.
+bool rewriteStudy(const QString &folder, const std::function<QJsonObject(const QJsonObject &, QString *)> &change,
+                  QString *error)
 {
     const QString path = QDir(folder).filePath("study.json");
     QFile in(path);
@@ -199,7 +208,7 @@ bool editStudy(const QString &folder, const QString &key, const Edit &edit, QStr
     }
     const QJsonObject before = QJsonDocument::fromJson(in.readAll()).object();
     in.close();
-    const QJsonObject after = withEdit(before, key, edit, error);
+    const QJsonObject after = change(before, error);
     if (after.isEmpty())
         return false;
     // Checked as a study is read, before anything is written.
@@ -219,6 +228,48 @@ bool editStudy(const QString &folder, const QString &key, const Edit &edit, QStr
     if (error)
         error->clear();
     return true;
+}
+
+} // namespace
+
+bool editStudy(const QString &folder, const QString &key, const Edit &edit, QString *error)
+{
+    return rewriteStudy(
+        folder, [&](const QJsonObject &study, QString *e) { return withEdit(study, key, edit, e); }, error);
+}
+
+bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error)
+{
+    const QString named = name.trimmed();
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            if (named.isEmpty())
+                return fail("a group needs a name");
+            if (faces.empty())
+                return fail("no faces picked");
+            if (*std::min_element(faces.begin(), faces.end()) < 1)
+                return fail("faces are numbered from 1");
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject groups = setup["groups"].toObject();
+            if (groups.contains(named))
+                return fail(QString("there is a group named %1 already").arg(named));
+            const std::set<int> once(faces.begin(), faces.end());
+            QJsonArray list;
+            for (int f : once)
+                list.append(f);
+            groups[named] = QJsonObject{{"faces", list}};
+            setup["groups"] = groups;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
 }
 
 } // namespace gf::core

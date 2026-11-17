@@ -43,4 +43,10 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
 // any of that fails.
 bool editStudy(const QString &folder, const QString &key, const Edit &edit, QString *error);
 
+// Adds a group of the geometry's faces (numbered from 1, as gf_mesh's
+// Face<n> sets) to <folder>/study.json, named as given less spaces at
+// either end. False with *error (and the file unchanged) without a name,
+// with a name a group has already, or without faces.
+bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error);
+
 } // namespace gf::core
