@@ -20,7 +20,9 @@
 #include <QMenuBar>
 #include <QCoreApplication>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QSignalBlocker>
@@ -675,6 +677,20 @@ bool MainWindow::showResults(const QString &resultsFile)
         i->setText(1, tr("run %1, %2 by %3").arg(run, r["trust"].toString(), r["solver"].toString()));
         i->setToolTip(1, resultsFile);
     }
+    // The job that made them, and what the results say about themselves
+    // (tenet 9: a value that cannot be, extrapolated by the solver).
+    if (!m_runner.running()) {
+        const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
+        if (!solves.empty()) {
+            m_solveStep = solves.front()->id;
+            const core::ToolkitSet toolkits = core::findToolkits({GF_SHIPPED_TOOLKITS});
+            const core::Toolkit *t = toolkits.find(solves.front()->by);
+            m_toolkitName = t ? t->name : solves.front()->by;
+            setJobState(tr("solved (run %1)").arg(run));
+        }
+    }
+    for (const QJsonValue &note : r["notes"].toArray())
+        say(tr("Note on run %1: %2").arg(run, note.toString()));
     {
         const QSignalBlocker quiet(m_colourBy);
         m_colourBy->clear();

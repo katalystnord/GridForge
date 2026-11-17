@@ -14,6 +14,9 @@
 #include <QDockWidget>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QElapsedTimer>
 #include <QFormLayout>
 #include <QLabel>
@@ -263,8 +266,42 @@ private slots:
         QVERIFY(again.openStudy(QDir(dir.path()).filePath("box-tension")));
         auto *tree = again.findChild<QTreeWidget *>("studyTree");
         QCOMPARE(findItem(tree, "Results")->text(1), QString("run 1, solved by CalculiX Version 2.23"));
+        QCOMPARE(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"));
         QCOMPARE(again.findChild<QTabBar *>("layouts")->currentIndex(), 0);  // the model first
         QVERIFY(again.findChild<QAction *>("lastIncrement")->isEnabled());
+    }
+
+    void the_results_notes_are_said_when_they_load()
+    {
+        // results.json's notes (a plastic strain below zero, extrapolated by
+        // ccx) are what the window must not hide (tenet 9).
+        stand_in_ccx(false);
+        QTemporaryDir dir;
+        const QString study = boxStudy(dir);
+        {
+            MainWindow w;
+            w.show();
+            QVERIFY(w.openStudy(study));
+            QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+            w.findChild<QAction *>("run")->trigger();
+            QTRY_COMPARE_WITH_TIMEOUT(findItem(w.findChild<QTreeWidget *>("studyTree"), "solve")->text(1),
+                                      QString("CalculiX, solved (run 1)"), 60000);
+        }
+        const QString report = QDir(study).filePath("steps/solve/runs/1/results/results.json");
+        QFile f(report);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        o["notes"] = QJsonArray{"PE below 0 at 3 node values in 1 of 1 time points (least -2.7e-05): ccx "
+                                "extrapolates it from the integration points to the nodes"};
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        f.write(QJsonDocument(o).toJson());
+        f.close();
+        MainWindow w;
+        w.show();
+        QVERIFY(w.openStudy(study));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Note on run 1: PE below 0 at 3 node values"));
     }
 
     void paraview_is_found_on_path_or_as_its_flatpak()

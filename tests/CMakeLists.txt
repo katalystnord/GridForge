@@ -438,6 +438,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, reopening (seen by David): the tree said
+# "not run" beside run 1's results, and the results' notes were not shown.
+# Both cases written with the fix; then the job's state and the notes
+# each left out: each red.
 # NEGATIVE CHECKS, 2026-11-17, results in the window: the reader's cases
 # and the window's results cases written first, red. Found on the way: the
 # window crashed at start (the actions' states set before the results
