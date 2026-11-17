@@ -142,8 +142,12 @@ coloured by plastic strain or von Mises stress (vectors as magnitudes)
 with ParaView's Cool to Warm and a legend; the increment buttons step
 through it; Open in ParaView hands the file over (paraview on PATH, else
 its Flatpak). The identity layer (David, 2026-11-17): the next-step banner
-in ember orange, ember selections, a graphite view. Next: editing in
-Properties, picking faces, the Steps and Deck docks.
+in ember orange, ember selections, a graphite view. Editing in
+Properties (core/StudyEdit): the mesh's size and order, loads and
+displacement supports, material values given in the study; Apply (lit in
+ember) writes study.json after the same checks as reading it, Reset
+undoes; the mesh is kept unless its recipe, geometry or groups changed.
+Next: picking faces, the Steps and Deck docks.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

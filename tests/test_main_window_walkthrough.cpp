@@ -22,6 +22,8 @@
 #include <QElapsedTimer>
 #include <QFormLayout>
 #include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QPlainTextEdit>
 #include <QStatusBar>
 #include <QTabBar>
@@ -246,6 +248,63 @@ private slots:
             view->renderWindow()->Render();
             QVERIFY(w.grab().save(screenshot));
         }
+    }
+
+    void a_load_is_edited_in_properties_and_applied_to_the_study()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString study = boxStudy(dir);
+        QVERIFY(w.openStudy(study));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(findItem(tree, "Displacement: Pulled"));
+        auto *props = w.findChild<QWidget *>("properties");
+        auto *x = props->findChild<QLineEdit *>("edit:x");
+        auto *apply = props->findChild<QPushButton *>("apply");
+        QVERIFY(x && apply);
+        QCOMPARE(x->text(), QString("0.01"));
+        QVERIFY(!apply->isEnabled());
+        x->selectAll();
+        QTest::keyClicks(x, "0.02");
+        QVERIFY(apply->isEnabled());
+        QCOMPARE(apply->palette().color(QPalette::Button), gf::gui::ember);  // lit, as ParaView's
+        QTest::mouseClick(apply, Qt::LeftButton);
+        // Applied to study.json, the tree updated, the same item selected,
+        // and the mesh kept (a load does not change it).
+        QFile f(QDir(study).filePath("study.json"));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(QString::fromUtf8(f.readAll()).contains("\"x\": 0.02"));
+        QCOMPARE(findItem(tree, "Displacement: Pulled")->text(1), QString("x 0.02 mm"));
+        QCOMPARE(tree->currentItem()->text(0), QString("Displacement: Pulled"));
+        QVERIFY(!w.meshing());
+        QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
+        QCOMPARE(w.findChild<QWidget *>("properties")->findChild<QLineEdit *>("edit:x")->text(), QString("0.02"));
+    }
+
+    void the_mesh_size_edited_remeshes_and_nonsense_is_refused()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(findItem(tree, "Mesh"));
+        auto *size = w.findChild<QWidget *>("properties")->findChild<QLineEdit *>("edit:maxSize");
+        QVERIFY(size);
+        size->selectAll();
+        QTest::keyClicks(size, "lots");
+        QTest::mouseClick(w.findChild<QWidget *>("properties")->findChild<QPushButton *>("apply"), Qt::LeftButton);
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Problem: Cannot apply: \"lots\" is not a number"));
+        size->selectAll();
+        QTest::keyClicks(size, "4");
+        QTest::mouseClick(w.findChild<QWidget *>("properties")->findChild<QPushButton *>("apply"), Qt::LeftButton);
+        QVERIFY(w.meshing());  // the recipe changed: meshed again
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        QVERIFY(findItem(tree, "Mesh")->text(1).endsWith("ready for a solver"));
     }
 
     void run_waits_for_the_mesh()

@@ -14,6 +14,7 @@ add_library(gf_core STATIC
     core/Job.cpp
     core/Study.cpp
     core/StudyOutline.cpp
+    core/StudyEdit.cpp
     core/JobRunner.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

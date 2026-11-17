@@ -2,6 +2,7 @@
 // example as written, then each fault refused, saying what and where.
 
 #include "core/Study.h"
+#include "core/StudyEdit.h"
 #include "core/StudyOutline.h"
 
 #include <QDir>
@@ -248,6 +249,71 @@ CASE(each_run_of_a_step_gets_its_own_folder)
     CHECK(two == QDir(dir.path()).filePath("steps/solve/runs/2") && QDir(two).exists());
     QDir(dir.path()).mkpath("steps/solve/runs/9");
     CHECK(nextRunFolder(s, "solve").endsWith("runs/10"));
+}
+
+// A copy of the dogbone study in `dir`, its path.
+QString copyDogbone(QTemporaryDir &dir)
+{
+    QDir(dir.path()).mkpath("materials");
+    for (const char *f : {"study.json", "dogbone.step", "materials/tensense-ro.FCMat", "materials/tensense-ro-plastic.inp"})
+        QFile::copy(dogbone + "/" + f, QDir(dir.path()).filePath(f));
+    return dir.path();
+}
+
+CASE(what_can_be_edited_is_offered_with_its_value_and_unit)
+{
+    QString error;
+    const Study s = readStudy(dogbone, &error);
+    auto fields = editableFields(s, "mesh:mesh");
+    CHECK(fields.size() == 2 && fields[0].name == "maxSize" && fields[0].label == "Largest element"
+          && fields[0].unit == "mm" && fields[0].value == 3.0);
+    CHECK(fields.size() == 2 && fields[1].name == "order" && fields[1].value == 2.0);
+    fields = editableFields(s, "load:0:0");  // Displacement: Pulled grip, x 1.5, y 0, z 0
+    CHECK(fields.size() == 3 && fields[0].name == "x" && fields[0].value == 1.5 && fields[0].unit == "mm");
+    CHECK(fields.size() == 3 && fields[2].name == "z" && fields[2].value == 0.0);
+    fields = editableFields(s, "material:Measured steel");
+    CHECK(fields.size() == 3 && fields[0].name == "YoungsModulus" && !fields[0].value
+          && fields[0].hint == "from its card" && fields[0].unit == "MPa");
+    CHECK(fields.size() == 3 && fields[1].name == "PoissonRatio" && fields[1].value == 0.3);
+    CHECK(editableFields(s, "group:Dogbone").empty());  // not editable here (yet)
+}
+
+CASE(an_edit_is_written_to_the_study_and_read_back)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    CHECK(editStudy(folder, "load:0:0", {{"x", 2.0}, {"y", std::nullopt}}, &error) && error.isEmpty());
+    Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty() && s.setup.steps[0].loads[0].displacement.x == 2.0);
+    CHECK(!s.setup.steps[0].loads[0].displacement.y);  // removed: free
+    CHECK(s.setup.steps[0].loads[0].displacement.z == 0.0);
+    CHECK(editStudy(folder, "mesh:mesh", {{"maxSize", 2.5}}, &error));
+    CHECK(readStudy(folder, &error).step("mesh")->parameters["maxSize"].toDouble() == 2.5);
+    CHECK(editStudy(folder, "material:Measured steel", {{"YoungsModulus", 205000.0}}, &error));
+    s = readStudy(folder, &error);
+    CHECK(s.setup.material("Measured steel")->values.at("YoungsModulus") == 205000);
+}
+
+CASE(an_edit_the_study_cannot_take_is_refused_and_the_file_kept)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QFile f(QDir(folder).filePath("study.json"));
+    f.open(QIODevice::ReadOnly);
+    const QByteArray before = f.readAll();
+    f.close();
+    QString error;
+    CHECK(!editStudy(folder, "mesh:mesh", {{"maxSize", -1.0}}, &error));
+    CHECK(error == "the largest element must be above 0");
+    CHECK(!editStudy(folder, "mesh:mesh", {{"order", 3.0}}, &error));
+    CHECK(error == "the order is 1 or 2");
+    CHECK(!editStudy(folder, "load:0:9", {{"x", 1.0}}, &error));
+    CHECK(error == "nothing to edit at load:0:9");
+    CHECK(!editStudy(folder, "load:0:0", {{"w", 1.0}}, &error));
+    CHECK(error == "load:0:0 has no w to edit");
+    f.open(QIODevice::ReadOnly);
+    CHECK(f.readAll() == before);
 }
 
 CASE(a_folder_without_a_study_is_said)

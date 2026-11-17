@@ -94,6 +94,8 @@ private:
     void showIncrement(int k);
     QString latestResults() const;
     void updateBanner();
+    void applyEdits();
+    QString selectedKey() const;
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -118,6 +120,7 @@ private:
     QTreeWidget *m_tree = nullptr;
     QWidget *m_properties = nullptr;
     QFormLayout *m_propertyForm = nullptr;
+    QString m_editKey;  // the item whose values the Properties fields edit
     QLabel *m_information = nullptr;
     QPlainTextEdit *m_messages = nullptr;
     QPlainTextEdit *m_job = nullptr;

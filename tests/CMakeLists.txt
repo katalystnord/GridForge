@@ -443,6 +443,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, editing in Properties: the core cases red
+# against a stub (it crashed on a missing value); the window's cases passed
+# at once, so: the mesh never kept: red (meshed twice); Apply never lit:
+# red.
 # NEGATIVE CHECKS, 2026-11-17, polish (seen by David): Properties shows the
 # study when nothing is selected (its case red first: empty, then Units
 # empty while the label was not yet filled); the Job dock keeps under 300

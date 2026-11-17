@@ -4,6 +4,7 @@
 #include "core/ApplicationInfo.h"
 #include "core/Job.h"
 #include "core/MaterialCard.h"
+#include "core/StudyEdit.h"
 #include "core/StudyOutline.h"
 #include "core/Toolkit.h"
 #include "mesh/Groups.h"
@@ -18,6 +19,8 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QMenuBar>
 #include <QCoreApplication>
 #include <QFile>
@@ -35,6 +38,8 @@
 #include <QTabBar>
 #include <QToolBar>
 #include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -427,6 +432,18 @@ bool MainWindow::openStudy(const QString &path)
         say(tr("Cannot open the study: %1").arg(error), Tone::Problem);
         return false;
     }
+    // The mesh is kept when nothing it is made from changed (an edited load,
+    // say): the same folder, geometry, mesh recipe and groups.
+    auto meshInputs = [](const core::Study &s) {
+        QJsonObject o{{"folder", s.folder}, {"groups", s.setupJson["groups"]}};
+        for (const core::StudyStep *m : s.stepsOf("mesh"))
+            o[m->id] = m->parameters;
+        for (const core::StudyStep *i : s.stepsOf("input"))
+            o["input:" + i->id] = i->file;
+        return o;
+    };
+    const bool keepMesh = !m_mesh.points.empty() && !m_meshPending && meshInputs(study) == meshInputs(m_study);
+    const core::ResultsSeries keptMesh = m_mesh;
     m_study = study;
     ++m_opening;
     m_meshProblem.clear();
@@ -446,7 +463,7 @@ bool MainWindow::openStudy(const QString &path)
     setWindowTitle(QStringLiteral("%1 - %2").arg(core::applicationName(), QDir(m_study.folder).dirName()));
     say(tr("Opened %1").arg(m_study.folder));
     m_results = ResultsFile();
-    if (m_meshActor) {
+    if (m_meshActor && !keepMesh) {
         m_meshActor->UnRegister(nullptr);
         m_meshActor = nullptr;
     }
@@ -454,7 +471,21 @@ bool MainWindow::openStudy(const QString &path)
     const QString earlier = latestResults();
     if (!earlier.isEmpty() && showResults(earlier))
         m_layouts->setCurrentIndex(0);  // the model first; the results are a tab away
-    startMeshing();
+    if (keepMesh) {
+        m_mesh = keptMesh;
+        for (QTreeWidgetItem *item : m_tree->findItems(tr("Mesh"), Qt::MatchExactly)) {
+            const mesh::Quality q = mesh::measure(m_mesh.points.front().grid);
+            const QString detail = tr("%1 tetrahedra, %2 nodes; %3")
+                                       .arg(m_mesh.points.front().grid->GetNumberOfCells())
+                                       .arg(m_mesh.points.front().grid->GetNumberOfPoints())
+                                       .arg(q.solverReady() ? tr("ready for a solver") : tr("NOT ready for a solver"));
+            item->setText(1, detail);
+            item->setToolTip(1, detail);
+        }
+        showLayer(m_layouts->currentIndex());
+    } else {
+        startMeshing();
+    }
     updateActions();
     return true;
 }
@@ -497,6 +528,46 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
     if (!item->text(1).isEmpty())
         m_propertyForm->addRow(tr("Value"), value(item->text(1)));
     m_propertyForm->addRow(tr("Kind"), value(item->data(0, Qt::UserRole + 1).toString()));
+
+    // What can be edited: a field each, Apply and Reset as ParaView's.
+    m_editKey = item->data(0, Qt::UserRole).toString();
+    const std::vector<core::EditableField> fields = core::editableFields(m_study, m_editKey);
+    if (fields.empty())
+        return;
+    auto *buttons = new QWidget(m_properties);
+    auto *row = new QHBoxLayout(buttons);
+    row->setContentsMargins(0, 6, 0, 6);
+    auto *apply = new QPushButton(icon("pqApply"), tr("Apply"), buttons);
+    apply->setObjectName(QStringLiteral("apply"));
+    apply->setEnabled(false);
+    auto *reset = new QPushButton(icon("pqCancel"), tr("Reset"), buttons);
+    reset->setObjectName(QStringLiteral("reset"));
+    reset->setEnabled(false);
+    row->addWidget(apply);
+    row->addWidget(reset);
+    row->addStretch();
+    m_propertyForm->addRow(buttons);
+    auto changed = [apply, reset] {
+        // As ParaView's Apply: lit up when there is something to apply.
+        QPalette lit = apply->palette();
+        lit.setColor(QPalette::Button, ember);
+        lit.setColor(QPalette::ButtonText, Qt::white);
+        apply->setPalette(lit);
+        apply->setEnabled(true);
+        reset->setEnabled(true);
+    };
+    for (const core::EditableField &f : fields) {
+        auto *edit = new QLineEdit(m_properties);
+        edit->setObjectName("edit:" + f.name);
+        edit->setText(f.value ? QString::number(*f.value, 'g', 12) : QString());
+        edit->setPlaceholderText(f.hint);
+        edit->setProperty("given", edit->text());
+        connect(edit, &QLineEdit::textEdited, this, changed);
+        connect(edit, &QLineEdit::returnPressed, this, &MainWindow::applyEdits);
+        m_propertyForm->addRow(f.unit.isEmpty() ? f.label : QString("%1 (%2)").arg(f.label, f.unit), edit);
+    }
+    connect(apply, &QPushButton::clicked, this, &MainWindow::applyEdits);
+    connect(reset, &QPushButton::clicked, this, [this] { showProperties(m_tree->currentItem()); });
 }
 
 void MainWindow::startMeshing()
@@ -578,6 +649,48 @@ void MainWindow::onMeshed()
     say(tr("Meshed: %1").arg(detail), quality.solverReady() ? Tone::Done : Tone::Warning);
     updateActions();
     emit meshReady();
+}
+
+QString MainWindow::selectedKey() const
+{
+    return m_tree->currentItem() ? m_tree->currentItem()->data(0, Qt::UserRole).toString() : QString();
+}
+
+void MainWindow::applyEdits()
+{
+    core::Edit edit;
+    for (QLineEdit *e : m_properties->findChildren<QLineEdit *>()) {
+        if (!e->objectName().startsWith("edit:") || e->text() == e->property("given").toString())
+            continue;
+        const QString name = e->objectName().mid(5);
+        if (e->text().trimmed().isEmpty()) {
+            edit[name] = std::nullopt;
+            continue;
+        }
+        bool ok = false;
+        const double v = e->text().trimmed().toDouble(&ok);
+        if (!ok) {
+            say(tr("Cannot apply: \"%1\" is not a number").arg(e->text()), Tone::Problem);
+            return;
+        }
+        edit[name] = v;
+    }
+    if (edit.empty())
+        return;
+    QString error;
+    const QString key = m_editKey;
+    if (!core::editStudy(m_study.folder, key, edit, &error)) {
+        say(tr("Cannot apply: %1").arg(error), Tone::Problem);
+        return;
+    }
+    say(tr("Applied to study.json: %1").arg(key));
+    openStudy(m_study.folder);
+    // The same item selected again.
+    for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+        if ((*it)->data(0, Qt::UserRole).toString() == key) {
+            m_tree->setCurrentItem(*it);
+            break;
+        }
 }
 
 void MainWindow::updateBanner()
