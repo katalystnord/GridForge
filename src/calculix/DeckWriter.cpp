@@ -8,6 +8,10 @@
 #include <cmath>
 #include <map>
 
+#include <vtkCellData.h>
+#include <vtkDataArray.h>
+#include <vtkPointData.h>
+
 namespace gf::calculix {
 
 namespace {
@@ -53,6 +57,62 @@ int planeAxis(const gf::core::ResultsSeries &mesh, const QString &group)
             axis = d;
         }
     return axis;
+}
+
+// A tetrahedron's face on the outside of the mesh: the cell, ccx's face
+// number (S1: corners 1 2 3, S2: 1 4 2, S3: 2 4 3, S4: 3 4 1, as in the
+// ccx manual's C3D4 and C3D10 faces; VTK's node order is ccx's), the
+// face's corners and, for C3D10, its middle nodes, and its area.
+struct OuterFace {
+    vtkIdType cell;
+    int side;
+    std::vector<vtkIdType> corners, middles;
+    double area;
+};
+
+std::vector<OuterFace> outerFaces(const gf::core::ResultsSeries &mesh, const QString &group)
+{
+    static const int corner[4][3] = {{0, 1, 2}, {0, 1, 3}, {1, 2, 3}, {0, 2, 3}};
+    static const int middle[4][3] = {{4, 5, 6}, {4, 8, 7}, {5, 9, 8}, {6, 9, 7}};
+    vtkUnstructuredGrid *grid = mesh.points.front().grid;
+    const gf::core::NamedSet *set = find(mesh, group, true);
+    std::vector<bool> on(grid->GetNumberOfPoints(), false);
+    for (vtkIdType p : set ? set->members : std::vector<vtkIdType>{})
+        on[p] = true;
+    // Faces used once are outside.
+    std::map<std::array<vtkIdType, 3>, int> uses;
+    std::vector<OuterFace> candidates;
+    for (vtkIdType c = 0; c < grid->GetNumberOfCells(); ++c) {
+        vtkIdType n;
+        const vtkIdType *pts;
+        grid->GetCellPoints(c, n, pts);
+        for (int f = 0; f < 4; ++f) {
+            std::array<vtkIdType, 3> key{pts[corner[f][0]], pts[corner[f][1]], pts[corner[f][2]]};
+            std::sort(key.begin(), key.end());
+            ++uses[key];
+            if (!on[key[0]] || !on[key[1]] || !on[key[2]])
+                continue;
+            OuterFace face{c, f + 1, {key.begin(), key.end()}, {}, 0};
+            if (n == 10)
+                for (int k : middle[f])
+                    face.middles.push_back(pts[k]);
+            double a[3], b[3], d[3];
+            grid->GetPoint(pts[corner[f][0]], a);
+            grid->GetPoint(pts[corner[f][1]], b);
+            grid->GetPoint(pts[corner[f][2]], d);
+            const double u[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, v[3] = {d[0] - a[0], d[1] - a[1], d[2] - a[2]};
+            face.area = 0.5 * std::sqrt(std::pow(u[1] * v[2] - u[2] * v[1], 2) + std::pow(u[2] * v[0] - u[0] * v[2], 2)
+                                        + std::pow(u[0] * v[1] - u[1] * v[0], 2));
+            candidates.push_back(face);
+        }
+    }
+    std::vector<OuterFace> out;
+    for (const OuterFace &f : candidates) {
+        std::array<vtkIdType, 3> key{f.corners[0], f.corners[1], f.corners[2]};
+        if (uses[key] == 1)
+            out.push_back(f);
+    }
+    return out;
 }
 
 QString boundary(const gf::core::ResultsSeries &mesh, const QString &group, bool fixed, bool symmetry,
@@ -163,10 +223,69 @@ QString write(const gf::core::Setup &setup, const gf::core::ResultsSeries &mesh,
             moves += boundary(mesh, s.group, s.fixed, s.symmetry, s.displacement,
                               QString("step %1, supports[%2]").arg(step.name).arg(i));
         }
-        for (const gf::core::Load &l : step.loads)
-            moves += boundary(mesh, l.group, false, false, l.displacement, "step " + step.name);
+        QString cloads, dloads;
+        vtkDataArray *nodeIds = mesh.points.front().grid->GetPointData()->GetArray("node id");
+        vtkDataArray *elementIds = mesh.points.front().grid->GetCellData()->GetArray("element id");
+        auto nodeId = [&](vtkIdType p) { return nodeIds ? static_cast<long long>(nodeIds->GetTuple1(p)) : p + 1; };
+        auto elementId = [&](vtkIdType c) {
+            return elementIds ? static_cast<long long>(elementIds->GetTuple1(c)) : c + 1;
+        };
+        for (const gf::core::Load &l : step.loads) {
+            using Kind = gf::core::Load::Kind;
+            if ((l.kind == Kind::Pressure || l.kind == Kind::Force) && outerFaces(mesh, l.group).empty())
+                fault(QString("step %1: group \"%2\" has no face on the outside of the mesh for the load to act on")
+                          .arg(step.name, l.group));
+            if (l.kind == Kind::Displacement) {
+                moves += boundary(mesh, l.group, false, false, l.displacement, "step " + step.name);
+            } else if (l.kind == Kind::Pressure) {
+                for (const OuterFace &f : outerFaces(mesh, l.group))
+                    dloads += QString("%1, P%2, %3\n").arg(elementId(f.cell)).arg(f.side).arg(inpNumber(l.pressure));
+            } else if (l.kind == Kind::Force) {
+                // Each face's share by its area: a third to each corner of a
+                // linear face, a third to each middle node of a quadratic one
+                // (its corners take none under a uniform load).
+                std::map<vtkIdType, double> weight;
+                double total = 0;
+                for (const OuterFace &f : outerFaces(mesh, l.group)) {
+                    for (vtkIdType p : f.middles.empty() ? f.corners : f.middles)
+                        weight[p] += f.area / 3;
+                    total += f.area;
+                }
+                std::map<long long, vtkIdType> byId;
+                for (const auto &[p, w] : weight)
+                    byId[nodeId(p)] = p;
+                const std::optional<double> by[3] = {l.vector.x, l.vector.y, l.vector.z};
+                for (const auto &[id, p] : byId)
+                    for (int d = 0; d < 3; ++d)
+                        if (by[d] && *by[d] != 0)
+                            cloads += QString("%1, %2, %3\n").arg(id).arg(d + 1).arg(inpNumber(*by[d] * weight[p] / total));
+            } else {
+                const double x = l.vector.x.value_or(0), y = l.vector.y.value_or(0), z = l.vector.z.value_or(0);
+                const double size = std::sqrt(x * x + y * y + z * z);
+                if (size == 0)
+                    fault(QString("step %1: gravity of size 0").arg(step.name));
+                // Every material the gravity acts on needs a density.
+                for (const auto &[group, material] : setup.assign) {
+                    const gf::core::Group *g = setup.group(group);
+                    bool acted = l.group.isEmpty() || l.group == group;
+                    if (!acted && g)
+                        for (int solid : setup.group(l.group)->solids)
+                            acted = acted || std::count(g->solids.begin(), g->solids.end(), solid);
+                    const gf::core::Material *m = setup.material(material);
+                    if (acted && m && !m->values.count("Density"))
+                        fault(QString("step %1: gravity, but material %2 has no Density").arg(step.name, m->name));
+                }
+                dloads += QString("%1, GRAV, %2, %3, %4, %5\n")
+                              .arg(l.group.isEmpty() ? QString("EALL") : inpName(l.group), inpNumber(size),
+                                   inpNumber(x / size), inpNumber(y / size), inpNumber(z / size));
+            }
+        }
         if (!moves.isEmpty())
             deck += "*BOUNDARY\n" + moves;
+        if (!cloads.isEmpty())
+            deck += "*CLOAD\n" + cloads;
+        if (!dloads.isEmpty())
+            deck += "*DLOAD\n" + dloads;
         QStringList node, element;
         for (const QString &o : step.output) {
             const auto it = outputs.find(o);

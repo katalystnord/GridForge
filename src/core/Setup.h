@@ -7,8 +7,8 @@
 // Solver-neutral; the CalculiX deck is written from it elsewhere.
 //
 // Version 1 here: supports (fixed, displacement, symmetry) and static
-// steps with displacement loads. Forces, pressure and gravity are read
-// and refused by name until the deck can write them.
+// steps with loads: a given displacement, a total force or a pressure on
+// a group of faces, gravity on the solids (all, or a group's).
 
 #include <QJsonObject>
 #include <QString>
@@ -54,8 +54,12 @@ struct Support {
 };
 
 struct Load {
-    QString group;
-    Movement displacement;
+    enum class Kind { Displacement, Force, Pressure, Gravity };
+    Kind kind = Kind::Displacement;
+    QString group;          // for gravity, empty: every solid
+    Movement displacement;  // Displacement
+    Movement vector;        // Force: the total, N; Gravity: the acceleration
+    double pressure = 0;    // Pressure: normal, positive inward
 };
 
 struct AnalysisStep {

@@ -1,0 +1,75 @@
+** written by GridForge 0.0.1 (build fd39ede2282a-dirty)
+** units: mm-N-s (lengths mm, forces N, stresses MPa)
+** material Steel: YoungsModulus 210000 (entered in the study), PoissonRatio 0.3 (entered in the study)
+*INCLUDE, INPUT=mesh.inp
+*MATERIAL, NAME=Steel
+*ELASTIC
+210000, 0.3
+*SOLID SECTION, ELSET=Steel_part, MATERIAL=Steel
+*BOUNDARY
+Back, 1, 1, 0
+Side, 2, 2, 0
+Bottom, 3, 3, 0
+** step Pull
+*STEP
+*STATIC
+*DLOAD
+14, P2, -210
+20, P1, -210
+21, P1, -210
+24, P1, -210
+26, P1, -210
+30, P2, -210
+33, P1, -210
+36, P2, -210
+38, P2, -210
+39, P2, -210
+40, P1, -210
+46, P2, -210
+47, P2, -210
+59, P1, -210
+61, P1, -210
+63, P2, -210
+67, P1, -210
+71, P1, -210
+72, P2, -210
+76, P1, -210
+79, P1, -210
+88, P1, -210
+93, P2, -210
+95, P2, -210
+98, P2, -210
+103, P2, -210
+107, P1, -210
+117, P2, -210
+123, P2, -210
+124, P2, -210
+128, P1, -210
+133, P2, -210
+136, P1, -210
+142, P2, -210
+146, P2, -210
+153, P1, -210
+158, P1, -210
+161, P1, -210
+167, P1, -210
+168, P1, -210
+171, P1, -210
+174, P1, -210
+179, P2, -210
+187, P1, -210
+192, P2, -210
+194, P2, -210
+197, P1, -210
+203, P2, -210
+204, P2, -210
+215, P1, -210
+216, P2, -210
+225, P1, -210
+226, P2, -210
+229, P2, -210
+*NODE FILE
+U, RF
+*EL FILE
+S, E
+*END STEP

@@ -161,7 +161,18 @@ add_test(NAME the_setup_is_written_as_a_calculix_deck COMMAND test_deck_writer)
 # turned on by a plastic material; raw lines dropped; a solid without a
 # material passed; only the first face of a group taken; stress written
 # as strain; a section's group name not made ccx-safe: each red (and the
-# box-setup round trip red where the deck changes). The mesh writer's
+# box-setup round trip red where the deck changes).
+# NEGATIVE CHECKS, 2026-11-17, forces, pressure and gravity: the load
+# cases written first, red (the set-up refused them; the deck had none).
+# Then each rule broken, the tests run, restored: faces S2 and S3 swapped;
+# a force on the corners of quadratic faces; a force not divided by the
+# area; gravity reversed: each red (the deck cases, and the round trips
+# where the deck changes); inner faces taken as outside: survived at
+# first (no group of the box lies inside); a load on the two boxes'
+# contact face is now refused, and that case is red.
+# box-gravity first failed the round trip (reaction 0.4521 against
+# 0.4650): ccx's FORC is the reaction less the node's own load; the
+# test now adds the top nodes' consistent gravity load back (README). The mesh writer's
 # name rule (spec 4.2: underscores, said in a comment; two names written
 # alike refused) replaced its refusal of spaces: both cases seen red
 # against the old rule first.

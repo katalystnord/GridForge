@@ -174,12 +174,44 @@ CASE(each_fault_is_refused_saying_what_and_where)
     CHECK(errorWith("steps[0].kind", "\"modal\"") == "steps[0]: kind \"modal\" is not written yet; static is");
     CHECK(errorWith("steps[0].loads[0].group", "\"Top\"") == "steps[0].loads[0]: no group \"Top\"");
     CHECK(errorWith("steps[0].loads[0].displacement", nullptr)
-          == "steps[0].loads[0]: no displacement; forces, pressure and gravity are not written yet");
+          == "steps[0].loads[0]: says none of displacement, force, pressure or gravity");
+    CHECK(errorWith("steps[0].loads[0].pressure", "5")
+          == "steps[0].loads[0]: says more than one of displacement, force, pressure or gravity");
+    CHECK(errorWith("steps[0].loads[0]", "{\"group\": \"Steel part\", \"pressure\": 5}")
+          == "steps[0].loads[0]: a pressure acts on faces; group \"Steel part\" has none");
+    CHECK(errorWith("steps[0].loads[0]", "{\"group\": \"Pulled\", \"gravity\": {\"z\": -9810}}")
+          == "steps[0].loads[0]: gravity acts on solids; group \"Pulled\" has none");
+    CHECK(errorWith("steps[0].loads[0]", "{\"pressure\": 5}") == "steps[0].loads[0]: no group");
     CHECK(errorWith("steps[0].loads[0].displacement", "{\"w\": 1}")
           == "steps[0].loads[0].displacement: \"w\" is not x, y or z");
     CHECK(errorWith("materials.Steel.values", "{\"YoungsModulus\": \"stiff\"}")
           == "materials.Steel.values.YoungsModulus: not a number");
     CHECK(errorWith("steps", "[]") == "steps: none; a study needs at least one");
+}
+
+CASE(forces_pressure_and_gravity_are_read)
+{
+    QJsonObject o = json(example);
+    QJsonArray steps = o["steps"].toArray();
+    QJsonObject st = steps[0].toObject();
+    st["loads"] = QJsonDocument::fromJson(R"([
+        {"group": "Pulled", "force": {"x": 126000}},
+        {"group": "Pulled", "pressure": -210},
+        {"gravity": {"z": -9810}},
+        {"group": "Steel part", "gravity": {"y": 1}}])").array();
+    steps[0] = st;
+    o["steps"] = steps;
+    QString error;
+    const Setup s = readSetup(o, &error);
+    CHECK(error.isEmpty());
+    if (s.steps.empty() || s.steps[0].loads.size() != 4)
+        return;
+    const auto &l = s.steps[0].loads;
+    CHECK(l[0].kind == Load::Kind::Force && l[0].group == "Pulled" && l[0].vector.x == 126000.0
+          && !l[0].vector.y);
+    CHECK(l[1].kind == Load::Kind::Pressure && l[1].pressure == -210);
+    CHECK(l[2].kind == Load::Kind::Gravity && l[2].group.isEmpty() && l[2].vector.z == -9810.0);
+    CHECK(l[3].kind == Load::Kind::Gravity && l[3].group == "Steel part");
 }
 
 CASE(a_solid_given_two_materials_is_refused)

@@ -1,0 +1,24 @@
+** written by GridForge 0.0.1 (build fd39ede2282a-dirty)
+** units: mm-N-s (lengths mm, forces N, stresses MPa)
+** material Steel: YoungsModulus 210000 (entered in the study), PoissonRatio 0.3 (entered in the study), Density 7.9e-09 (entered in the study)
+*INCLUDE, INPUT=mesh.inp
+*MATERIAL, NAME=Steel
+*ELASTIC
+210000, 0.3
+*DENSITY
+7.9e-09
+*SOLID SECTION, ELSET=Steel_part, MATERIAL=Steel
+*BOUNDARY
+Back, 1, 1, 0
+Side, 2, 2, 0
+Top, 3, 3, 0
+** step Hang
+*STEP
+*STATIC
+*DLOAD
+EALL, GRAV, 9810, 0, 0, -1
+*NODE FILE
+U, RF
+*EL FILE
+S
+*END STEP

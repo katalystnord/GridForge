@@ -12,15 +12,19 @@
 //   *SOLID SECTION           each group of solids with its material
 //   *BOUNDARY                the supports from the start
 //   *STEP[, NLGEOM]          each analysis step: *STATIC, its supports and
-//     ...                    displacement loads as *BOUNDARY, the output
-//   *END STEP                asked for, the raw lines given by hand
+//     ...                    displacement loads as *BOUNDARY, forces as
+//   *END STEP                *CLOAD (spread by the outer faces' areas),
+//                            pressure as *DLOAD per element face (P1 to
+//                            P4), gravity as *DLOAD GRAV, the output asked
+//                            for, the raw lines given by hand
 //
 // Materials' values from their cards are filled first
 // (gf::core::fillFromCards); the comments say where each value came from.
 // Refused by name: a solid with no material; a material without Young's
 // modulus or Poisson's ratio; symmetry on a face not normal to x, y or z;
-// an output not known; a step that replaces what came before (not written
-// yet).
+// an output not known; gravity on a material without density; a force or
+// pressure on a group with no face on the outside; a step that replaces
+// what came before (not written yet).
 
 #include "core/ResultsSeries.h"
 #include "core/Setup.h"

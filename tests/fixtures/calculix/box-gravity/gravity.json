@@ -1,0 +1,71 @@
+{
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Steel part": {
+        "solids": [
+          1
+        ]
+      },
+      "Back": {
+        "faces": [
+          1
+        ]
+      },
+      "Side": {
+        "faces": [
+          3
+        ]
+      },
+      "Top": {
+        "faces": [
+          6
+        ]
+      }
+    },
+    "materials": {
+      "Steel": {
+        "values": {
+          "YoungsModulus": 210000,
+          "PoissonRatio": 0.3,
+          "Density": 7.9e-09
+        }
+      }
+    },
+    "assign": {
+      "Steel part": "Steel"
+    },
+    "supports": [
+      {
+        "group": "Back",
+        "symmetry": true
+      },
+      {
+        "group": "Side",
+        "symmetry": true
+      },
+      {
+        "group": "Top",
+        "symmetry": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "Hang",
+        "kind": "static",
+        "loads": [
+          {
+            "gravity": {
+              "z": -9810
+            }
+          }
+        ],
+        "output": [
+          "displacement",
+          "reaction",
+          "stress"
+        ]
+      }
+    ]
+  }
+}

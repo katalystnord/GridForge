@@ -167,11 +167,39 @@ Setup read(const QJsonObject &o)
             const QString at = where + QString(".loads[%1]").arg(k);
             const QJsonObject l = loads[k].toObject();
             Load load;
+            int kinds = 0;
+            for (const char *key : {"displacement", "force", "pressure", "gravity"})
+                kinds += l.contains(key) ? 1 : 0;
+            if (kinds == 0)
+                fault(at, "says none of displacement, force, pressure or gravity");
+            if (kinds > 1)
+                fault(at, "says more than one of displacement, force, pressure or gravity");
             load.group = l["group"].toString();
-            needGroup(s, load.group, at);
-            if (!l.contains("displacement"))
-                fault(at, "no displacement; forces, pressure and gravity are not written yet");
-            load.displacement = movement(l["displacement"], at + ".displacement");
+            if (load.group.isEmpty() && !l.contains("gravity"))
+                fault(at, "no group");
+            if (!load.group.isEmpty())
+                needGroup(s, load.group, at);
+            const Group *g = load.group.isEmpty() ? nullptr : s.group(load.group);
+            if (l.contains("displacement")) {
+                load.displacement = movement(l["displacement"], at + ".displacement");
+            } else if (l.contains("force") || l.contains("pressure")) {
+                const bool force = l.contains("force");
+                if (g->faces.empty())
+                    fault(at, QString("a %1 acts on faces; group \"%2\" has none")
+                                  .arg(force ? "force" : "pressure", load.group));
+                load.kind = force ? Load::Kind::Force : Load::Kind::Pressure;
+                if (force)
+                    load.vector = movement(l["force"], at + ".force");
+                else if (!l["pressure"].isDouble())
+                    fault(at + ".pressure", "not a number");
+                else
+                    load.pressure = l["pressure"].toDouble();
+            } else {
+                if (g && g->solids.empty())
+                    fault(at, QString("gravity acts on solids; group \"%1\" has none").arg(load.group));
+                load.kind = Load::Kind::Gravity;
+                load.vector = movement(l["gravity"], at + ".gravity");
+            }
             step.loads.push_back(load);
         }
         for (const QJsonValue &v : st["output"].toArray())

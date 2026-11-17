@@ -70,8 +70,9 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   static steps with displacement loads, NLGEOM automatic with a plastic
   material, raw lines. Solved by ccx 2.23 to the hand answer (fixture
   box-setup). FreeCAD material cards (.FCMat, both elastic models, units
-  converted, each value's source in the deck). Not yet: forces,
-  pressure, gravity, replacing steps.
+  converted, each value's source in the deck). Forces, pressure
+  and gravity, each solved by ccx to its hand answer (fixtures
+  box-pressure, box-force, box-gravity). Not yet: replacing steps.
 - The job folder and the progress protocol (toolkits spec, sections 4
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,

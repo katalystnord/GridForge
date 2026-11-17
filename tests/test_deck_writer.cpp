@@ -12,7 +12,9 @@
 
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QRegularExpression>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -322,6 +324,139 @@ CASE(raw_lines_are_written_into_their_step_and_marked)
     const int at = l.indexOf("** given by hand in the study:");
     CHECK(at > 0 && l.value(at + 1) == "*CONTROLS, PARAMETERS=TIME INCREMENTATION"
           && l.value(at + 2) == "4, 8, 9, 200, 10, 4, 0, 10" && l.value(at + 3) == "*END STEP");
+}
+
+// The example's displacement load replaced by `load` (JSON).
+QString deckWithLoad(const char *load, QString *error, const char *density = nullptr)
+{
+    return deckWith([&](QJsonObject &o) {
+        QJsonArray steps = o["steps"].toArray();
+        QJsonObject st = steps[0].toObject();
+        st["loads"] = QJsonArray{QJsonDocument::fromJson(QByteArray("[") + load + "]").array().at(0)};
+        steps[0] = st;
+        o["steps"] = steps;
+        if (density) {
+            QJsonObject materials = o["materials"].toObject(), steel = materials["Steel"].toObject();
+            QJsonObject values = steel["values"].toObject();
+            values["Density"] = QString(density).toDouble();
+            steel["values"] = values;
+            materials["Steel"] = steel;
+            o["materials"] = materials;
+        }
+    }, error);
+}
+
+// The lines between `keyword` and the next keyword.
+QStringList block(const QString &deck, const QString &keyword)
+{
+    const QStringList b = body(deck);
+    QStringList out;
+    for (int i = b.indexOf(keyword) + 1; i > 0 && i < b.size() && !b[i].startsWith("*"); ++i)
+        out << b[i];
+    return out;
+}
+
+CASE(a_force_is_spread_over_the_faces_nodes_and_sums_to_the_total)
+{
+    QString error;
+    const QString deck = deckWithLoad(R"({"group": "Pulled", "force": {"x": 126000}})", &error);
+    CHECK(error.isEmpty());
+    const QStringList lines = block(deck, "*CLOAD");
+    CHECK(!lines.isEmpty());
+    // Every line on dof 1; their sum the total. Quadratic faces put it all
+    // on the middle nodes (a third of each face's area to each), none on
+    // the corners.
+    ResultsSeries m = mesh("box.step");
+    QString e;
+    gf::mesh::addGroupSets(m, setup(json(example)), &e);
+    const NamedSet *pulled = setOf(m, "Pulled", true);
+    std::set<long long> corners;
+    vtkUnstructuredGrid *g = m.points.front().grid;
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c)
+        for (int k = 0; k < 4; ++k)
+            corners.insert(g->GetCell(c)->GetPointId(k) + 1);  // gf_mesh numbers nodes from 1 in order
+    double sum = 0;
+    bool onDof1 = true, onPulled = true, noCorner = true;
+    for (const QString &line : lines) {
+        const QStringList f = line.split(", ");
+        onDof1 = onDof1 && f.value(1) == "1";
+        const long long id = f.value(0).toLongLong();
+        onPulled = onPulled && pulled
+                   && std::find(pulled->members.begin(), pulled->members.end(), id - 1) != pulled->members.end();
+        noCorner = noCorner && !corners.count(id);
+        sum += f.value(2).toDouble();
+    }
+    CHECK(onDof1 && onPulled && noCorner);
+    CHECK(std::abs(sum - 126000) < 1e-9 * 126000);
+}
+
+CASE(a_pressure_is_written_on_each_element_face_of_the_group)
+{
+    QString error;
+    const QString deck = deckWithLoad(R"({"group": "Pulled", "pressure": -210})", &error);
+    CHECK(error.isEmpty());
+    const QStringList lines = block(deck, "*DLOAD");
+    CHECK(!lines.isEmpty());
+    bool shaped = true;
+    for (const QString &line : lines) {
+        const QStringList f = line.split(", ");
+        shaped = shaped && f.size() == 3 && QRegularExpression("^P[1-4]$").match(f[1]).hasMatch()
+                 && f[2] == "-210";
+    }
+    CHECK(shaped);
+}
+
+CASE(gravity_is_written_with_its_size_and_direction)
+{
+    QString error;
+    const QString deck = deckWithLoad(R"({"gravity": {"z": -9810}})", &error, "7.9e-9");
+    CHECK(error.isEmpty());
+    CHECK(block(deck, "*DLOAD") == QStringList({"EALL, GRAV, 9810, 0, 0, -1"}));
+    const QString onGroup = deckWithLoad(R"({"group": "Steel part", "gravity": {"x": 3, "y": 4}})", &error, "7.9e-9");
+    CHECK(block(onGroup, "*DLOAD") == QStringList({"Steel_part, GRAV, 5, 0.6, 0.8, 0"}));
+}
+
+CASE(gravity_on_a_material_without_density_is_refused)
+{
+    QString error;
+    deckWithLoad(R"({"gravity": {"z": -9810}})", &error);
+    CHECK(error == "step Pull: gravity, but material Steel has no Density");
+    deckWithLoad(R"({"gravity": {"z": 0}})", &error, "7.9e-9");
+    CHECK(error == "step Pull: gravity of size 0");
+}
+
+CASE(a_load_on_a_face_inside_the_mesh_is_refused)
+{
+    // The two boxes, joined, share their contact face (x = 10): it has no
+    // outside for a pressure or a force to act on.
+    ResultsSeries m = mesh("twoboxes.step");
+    int contact = 0;
+    for (int f = 1; contact == 0 && setOf(m, QString("Face%1").arg(f), true); ++f) {
+        bool on = true;
+        for (vtkIdType p : setOf(m, QString("Face%1").arg(f), true)->members) {
+            double x[3];
+            m.points.front().grid->GetPoint(p, x);
+            on = on && std::abs(x[0] - 10) < 1e-9;
+        }
+        contact = on ? f : 0;
+    }
+    CHECK(contact > 0);
+    QJsonObject o = json(example);
+    o["groups"] = QJsonObject{{"Both", QJsonObject{{"solids", QJsonArray{1, 2}}}},
+                              {"Contact", QJsonObject{{"faces", QJsonArray{contact}}}}};
+    o["assign"] = QJsonObject{{"Both", "Steel"}};
+    o["supports"] = QJsonArray{};
+    for (const char *load : {R"({"group": "Contact", "pressure": 5})", R"({"group": "Contact", "force": {"x": 1}})"}) {
+        QJsonObject step{{"name", "Push"}, {"kind", "static"},
+                         {"loads", QJsonArray{QJsonDocument::fromJson(QByteArray("[") + load + "]").array().at(0)}}};
+        o["steps"] = QJsonArray{step};
+        const Setup s = setup(o);
+        ResultsSeries mm = m;
+        QString error;
+        CHECK(gf::mesh::addGroupSets(mm, s, &error));
+        analysisInp(s, mm, "mesh.inp", &error);
+        CHECK(error == "step Push: group \"Contact\" has no face on the outside of the mesh for the load to act on");
+    }
 }
 
 CASE(a_step_that_replaces_is_refused_until_written)
