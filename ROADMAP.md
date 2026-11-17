@@ -62,6 +62,9 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   sets, surfaces, materials (`.FCMat` elastic part, TenSense's `*PLASTIC`
   by `*INCLUDE`), sections, steps, supports, loads; raw-keyword
   passthrough per step.
+  Started 2026-11-17: nodes, elements (C3D4, C3D10) and sets, from
+  GridForge's own mesh (`calculix/InpWriter`). The set-up's part waits
+  for the study spec's section 4.
 - The job folder and the progress protocol (toolkits spec, sections 4
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,
@@ -82,9 +85,11 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   id; a verdict on the terminal, `<mesh>.quality.json` for agents, and
   each cell's mean ratio for ParaView. The study's benchmark kept as a test
   (the five models, against OpenCASCADE and a committed baseline).
-  Next: the CalculiX deck from `gf_mesh`'s mesh; then, for OpenFOAM, in
-  the study's order: the polyhedral dual, wall layers with coverage, an
-  octree hex core.
+  The mesh part of the CalculiX deck (`gf-study mesh --inp`: nodes,
+  C3D4 and C3D10, the sets), solved by ccx 2.23 to the hand answer at
+  every node (fixture box-gfmesh). Then, for OpenFOAM, in the study's
+  order: the polyhedral dual, wall layers with coverage, an octree hex
+  core.
   Started 2026-11-17: the `.msh` 4.1 reader (ASCII and binary, every
   element type a ccx deck takes) and its hand-off to ParaView with the
   physical groups as sets (`gf-study convert mesh.msh`), against boxes

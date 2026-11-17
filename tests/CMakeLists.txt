@@ -99,6 +99,32 @@ add_test(NAME named_sets_are_read_from_the_deck COMMAND test_inp_sets)
 #     no overlap in the deck); the deck now has GENERATE 1, 3, 2 and Ends
 #     lists node 1 again, and both are red.
 
+# The mesh part of a deck, written and read back.
+add_executable(test_inp_writer test_inp_writer.cpp)
+target_link_libraries(test_inp_writer PRIVATE gf_calculix)
+add_test(NAME the_mesh_is_written_as_a_calculix_deck COMMAND test_inp_writer)
+
+# GridForge's mesh through CalculiX and back: gf_mesh, the deck writer,
+# ccx 2.23 (fixture box-gfmesh), the .frd reader; uniaxial tension known
+# by hand at every node.
+add_executable(test_mesh_to_ccx test_mesh_to_ccx.cpp)
+target_link_libraries(test_mesh_to_ccx PRIVATE gf_calculix gf_mesh)
+target_compile_definitions(test_mesh_to_ccx PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME gridforges_mesh_solves_in_ccx_as_by_hand COMMAND test_mesh_to_ccx)
+# NEGATIVE CHECKS, 2026-11-17, deck writer and the round trip: the 9
+# writer cases written first, all red against a stub (24 checks). Two
+# round-trip expectations were wrong and corrected: the .frd keeps six
+# digits of each coordinate, so its middle nodes are not halfway to 1e-9
+# (now: each node where GridForge put it, to 5e-5); ccx's nodal stress is
+# 209.998, extrapolated (now to 1e-4, as the other fixtures). Then each
+# rule broken, the tests run, restored:
+#   y and z swapped; ids by place, not by the grid's ids; C3D10 middle
+#   nodes reversed; sixteen ids to a line; a space allowed in a set
+#   name: each red;
+#   -0 written as "-0": survived at first (no coordinate was -0.0: the
+#   integer -0 is +0.0); the fixture's first z is now -0.0, and it is red.
+
 # A running job's progress: the .sta and .cvg ccx appends to.
 add_executable(test_job_progress test_job_progress.cpp)
 target_link_libraries(test_job_progress PRIVATE gf_calculix)

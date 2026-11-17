@@ -42,6 +42,7 @@ add_library(gf_calculix STATIC
     calculix/FrdReader.cpp
     calculix/FrdToVtk.cpp
     calculix/InpSets.cpp
+    calculix/InpWriter.cpp
     calculix/JobProgress.cpp
 )
 target_include_directories(gf_calculix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

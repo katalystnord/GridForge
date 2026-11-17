@@ -1,0 +1,32 @@
+** Uniaxial tension of the 10 x 20 x 30 mm box, meshed by GridForge's
+** mesher (gf_mesh, Netgen) with quadratic tetrahedra and written by its
+** deck writer: mesh.inp, from
+**   gf-study mesh tests/fixtures/step/box.step --size 5 --order 2 --inp
+** This deck around it is written by hand.
+**
+** Symmetry planes hold x = 0 (Face1) in x, y = 0 (Face3) in y and z = 0
+** (Face5) in z; x = 10 (Face2) is pulled 0.01 mm in x. Steel, E = 210000
+** MPa, nu = 0.3. Known by hand, at every node:
+**   ux = 0.001 x;  uy = -0.0003 y;  uz = -0.0003 z
+**   stress xx = 210 MPa, every other component 0
+**   the reaction on Face2: 210 MPa * 20 mm * 30 mm = 126000 N in x
+*INCLUDE, INPUT=mesh.inp
+*MATERIAL, NAME=STEEL
+*ELASTIC
+210000, 0.3
+*SOLID SECTION, ELSET=Solid1, MATERIAL=STEEL
+*BOUNDARY
+Face1, 1, 1, 0
+Face3, 2, 2, 0
+Face5, 3, 3, 0
+*STEP
+*STATIC
+*BOUNDARY
+Face2, 1, 1, 0.01
+*NODE FILE
+U, RF
+*EL FILE
+S, E
+*NODE PRINT, NSET=Face2, TOTALS=ONLY
+RF
+*END STEP

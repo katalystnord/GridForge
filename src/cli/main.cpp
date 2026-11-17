@@ -8,14 +8,16 @@
 //       --pvd, a .vtu series and its .pvd instead (no sets)
 //   gf-study convert mesh.msh [-o DIR] [--pvd]
 //       a Gmsh mesh likewise, its physical groups as the sets
-//   gf-study mesh part.step --size H [--order 2] [-o DIR] [--pvd]
+//   gf-study mesh part.step --size H [--order 2] [-o DIR] [--pvd] [--inp]
 //       the STEP's solids meshed with tetrahedra (gf_mesh, Netgen), to one
-//       .vtkhdf with each solid and face as a set
+//       .vtkhdf with each solid and face as a set; with --inp, also
+//       <name>.inp, the mesh and its sets for a CalculiX deck to *INCLUDE
 //   Both mesh commands measure the mesh: the verdict and measures on the
 //   terminal, the report for agents in <name>.quality.json beside it, and
 //   each cell's "mean ratio" on the grid for ParaView.
 
 #include "calculix/FrdToVtk.h"
+#include "calculix/InpWriter.h"
 #include "core/ApplicationInfo.h"
 #include "gmsh/MshToVtk.h"
 #include "mesh/Mesher.h"
@@ -113,7 +115,7 @@ int convertMesh(const QString &input, const QString &outDir, bool pvd)
 }
 
 int mesh(const QString &input, const QString &size, const QString &order, const QString &outDir,
-         bool pvd)
+         bool pvd, bool inp)
 {
     bool sizeOk = false, orderOk = false;
     const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
@@ -146,6 +148,14 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
                 static_cast<long long>(grid->GetNumberOfCells()), qPrintable(sets));
     for (const QString &line : series.provenance)
         std::printf("  %s\n", qPrintable(line));
+    if (inp) {
+        const QString deck = QFileInfo(written).absoluteDir().filePath(in.completeBaseName() + ".inp");
+        if (!gf::calculix::writeMeshInp(series, deck, &error)) {
+            std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+            return 1;
+        }
+        std::printf("wrote %s (the mesh and its sets, for a CalculiX deck to *INCLUDE)\n", qPrintable(deck));
+    }
     return reportQuality(quality, grid, written) ? 0 : 1;
 }
 
@@ -234,7 +244,10 @@ int main(int argc, char *argv[])
     const QCommandLineOption orderOpt("order", "mesh: 1 (straight edges, the default) or 2 "
                                                "(a middle node on each edge, on the geometry).",
                                       "N");
+    const QCommandLineOption inpOpt("inp", "mesh: also write the mesh and its sets as "
+                                           "<name>.inp, for a CalculiX deck to *INCLUDE.");
     parser.addOption(pvdOpt);
+    parser.addOption(inpOpt);
     parser.addOption(sizeOpt);
     parser.addOption(orderOpt);
     parser.addPositionalArgument("command", "convert or mesh");
@@ -258,7 +271,7 @@ int main(int argc, char *argv[])
     }
     if (args.size() == 2 && args[0] == "mesh")
         return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt),
-                    parser.isSet(pvdOpt));
+                    parser.isSet(pvdOpt), parser.isSet(inpOpt));
     if (args.size() == 2 && args[0] == "convert")
         return convert(args[1], parser.value(outOpt), parser.value(deckOpt),
                        parser.isSet(pvdOpt));
