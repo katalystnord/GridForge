@@ -63,8 +63,14 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   by `*INCLUDE`), sections, steps, supports, loads; raw-keyword
   passthrough per step.
   Started 2026-11-17: nodes, elements (C3D4, C3D10) and sets, from
-  GridForge's own mesh (`calculix/InpWriter`). The set-up's part waits
-  for the study spec's section 4.
+  GridForge's own mesh (`calculix/InpWriter`); the set-up read from
+  study.json (`core/Setup`) and the job's deck written from it
+  (`calculix/DeckWriter`, `gf-study deck`): materials with values given
+  in the study, sections, fixed, displacement and symmetry supports,
+  static steps with displacement loads, NLGEOM automatic with a plastic
+  material, raw lines. Solved by ccx 2.23 to the hand answer (fixture
+  box-setup). Not yet: material cards (.FCMat, needs yaml-cpp), forces,
+  pressure, gravity, replacing steps.
 - The job folder and the progress protocol (toolkits spec, sections 4
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,

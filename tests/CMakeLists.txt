@@ -135,6 +135,23 @@ add_test(NAME gridforges_mesh_solves_in_ccx_as_by_hand COMMAND test_mesh_to_ccx)
 #   -0 written as "-0": survived at first (no coordinate was -0.0: the
 #   integer -0 is +0.0); the fixture's first z is now -0.0, and it is red.
 
+# A CalculiX job's deck from a study's set-up, around GridForge's mesh.
+add_executable(test_deck_writer test_deck_writer.cpp)
+target_link_libraries(test_deck_writer PRIVATE gf_calculix gf_mesh)
+target_compile_definitions(test_deck_writer PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME the_setup_is_written_as_a_calculix_deck COMMAND test_deck_writer)
+# NEGATIVE CHECKS, 2026-11-17, the deck from a set-up: the 13 cases
+# written first, all red against stubs (28 checks). Then each rule
+# broken, the tests run, restored: symmetry on the wrong axis; NLGEOM not
+# turned on by a plastic material; raw lines dropped; a solid without a
+# material passed; only the first face of a group taken; stress written
+# as strain; a section's group name not made ccx-safe: each red (and the
+# box-setup round trip red where the deck changes). The mesh writer's
+# name rule (spec 4.2: underscores, said in a comment; two names written
+# alike refused) replaced its refusal of spaces: both cases seen red
+# against the old rule first.
+
 # A running job's progress: the .sta and .cvg ccx appends to.
 add_executable(test_job_progress test_job_progress.cpp)
 target_link_libraries(test_job_progress PRIVATE gf_calculix)

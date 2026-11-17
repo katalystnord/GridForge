@@ -1,17 +1,25 @@
 // GridForge's mesh through CalculiX and back: the box meshed by gf_mesh,
-// written by the deck writer (fixtures/calculix/box-gfmesh/mesh.inp),
-// solved by ccx 2.23 in a deck written by hand (tension.inp), and read back
-// by the .frd reader. Uniaxial tension, so the answer is known by hand at
-// every node (tension.inp says how).
+// solved by ccx 2.23 and read back by the .frd reader. Twice:
+//   box-gfmesh  the mesh part written by GridForge, the deck around it by
+//               hand (tension.inp);
+//   box-setup   both written by GridForge from the study spec's example
+//               set-up (tension.json): gf-study deck.
+// Uniaxial tension, so the answer is known by hand at every node
+// (box-gfmesh/tension.inp says how), and both must give it.
 
 #include "CellChecks.h"
 #include "calculix/FrdToVtk.h"
 #include "calculix/InpSets.h"
+#include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/Setup.h"
+#include "mesh/Groups.h"
 #include "mesh/Mesher.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <vtkPointData.h>
 
@@ -50,25 +58,31 @@ struct Register {
         }                                                                              \
     } while (0)
 
-QString fixture(const char *file) { return QString(GF_FIXTURES) + "/calculix/box-gfmesh/" + file; }
+const char *fixtures[] = {"box-gfmesh", "box-setup"};
+const char *dir = "box-gfmesh";  // the fixture the case is run on
 
-const ResultsSeries &results()
+QString fixture(const char *file) { return QString(GF_FIXTURES) + "/calculix/" + dir + "/" + file; }
+
+ResultsSeries results()
 {
-    static const ResultsSeries s = [] {
-        QString e;
-        ResultsSeries r = toSeries(readFrd(fixture("tension.frd")), "tension.frd", &e);
-        if (!e.isEmpty())
-            std::printf("  (tension.frd: %s)\n", qPrintable(e));
-        return r;
-    }();
-    return s;
+    QString e;
+    ResultsSeries r = toSeries(readFrd(fixture("tension.frd")), "tension.frd", &e);
+    if (!e.isEmpty())
+        std::printf("  (%s/tension.frd: %s)\n", dir, qPrintable(e));
+    return r;
+}
+
+QStringList fileLines(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()).split('\n') : QStringList();
 }
 
 } // namespace
 
 CASE(ccx_took_the_mesh_as_written)
 {
-    const ResultsSeries &s = results();
+    const ResultsSeries s = results();
     CHECK(s.points.size() == 1);
     if (s.points.empty())
         return;
@@ -98,7 +112,7 @@ CASE(ccx_took_the_mesh_as_written)
 
 CASE(every_node_moves_as_by_hand)
 {
-    const ResultsSeries &s = results();
+    const ResultsSeries s = results();
     if (s.points.empty())
         return;
     vtkUnstructuredGrid *g = s.points.front().grid;
@@ -123,7 +137,7 @@ CASE(the_stress_is_210_in_x_and_nothing_else_everywhere)
     // To 1e-4, as the other fixtures: ccx computes 210 at the integration
     // points and writes 209.998 at the nodes, extrapolated (bar-tension's
     // README).
-    const ResultsSeries &s = results();
+    const ResultsSeries s = results();
     if (s.points.empty())
         return;
     vtkUnstructuredGrid *g = s.points.front().grid;
@@ -143,7 +157,7 @@ CASE(the_stress_is_210_in_x_and_nothing_else_everywhere)
 
 CASE(the_reaction_on_the_pulled_face_is_126000_newtons)
 {
-    const ResultsSeries &s = results();
+    const ResultsSeries s = results();
     const InpSets sets = readInpSets(fixture("mesh.inp"));
     const InpSet *face2 = sets.find("Face2", true);
     CHECK(sets.ok() && face2);
@@ -172,22 +186,33 @@ CASE(the_committed_mesh_is_what_gridforge_writes_today)
     // same geometry and recipe must still give it, line for line, all but
     // the first (the build that wrote it).
     QString error;
-    const ResultsSeries mesh = gf::mesh::meshStep(QString(GF_FIXTURES) + "/step/box.step", {5, 2}, &error);
+    ResultsSeries mesh = gf::mesh::meshStep(QString(GF_FIXTURES) + "/step/box.step", {5, 2}, &error);
     CHECK(error.isEmpty());
-    const QStringList today = meshInp(mesh, &error).split('\n');
-    QFile f(fixture("mesh.inp"));
-    CHECK(f.open(QIODevice::ReadOnly));
-    const QStringList kept = QString::fromUtf8(f.readAll()).split('\n');
+    if (QString(dir) == "box-setup") {
+        // Here the deck is GridForge's too, from the set-up beside it.
+        QFile f(fixture("tension.json"));
+        CHECK(f.open(QIODevice::ReadOnly));
+        const gf::core::Setup setup =
+            gf::core::readSetup(QJsonDocument::fromJson(f.readAll()).object()["setup"].toObject(), &error);
+        CHECK(error.isEmpty() && gf::mesh::addGroupSets(mesh, setup, &error));
+        const QStringList deck = analysisInp(setup, mesh, "mesh.inp", &error).split('\n'),
+                          keptDeck = fileLines(fixture("tension.inp"));
+        CHECK(deck.size() == keptDeck.size() && deck.mid(1) == keptDeck.mid(1));
+    }
+    const QStringList today = meshInp(mesh, &error).split('\n'), kept = fileLines(fixture("mesh.inp"));
     CHECK(today.size() == kept.size());
     CHECK(today.mid(1) == kept.mid(1));
 }
 
 int main()
 {
-    for (auto &[name, run] : cases()) {
-        const int before = failures;
-        run();
-        std::printf("%s %s\n", failures == before ? "PASS" : "FAIL", name);
+    for (const char *f : fixtures) {
+        dir = f;
+        for (auto &[name, run] : cases()) {
+            const int before = failures;
+            run();
+            std::printf("%s %s: %s\n", failures == before ? "PASS" : "FAIL", f, name);
+        }
     }
     std::printf("%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;

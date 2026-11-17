@@ -1,0 +1,22 @@
+** written by GridForge 0.0.1 (build 37b7da9168a9-dirty)
+** units: mm-N-s (lengths mm, forces N, stresses MPa)
+** material Steel: YoungsModulus 210000, PoissonRatio 0.3, entered in the study
+*INCLUDE, INPUT=mesh.inp
+*MATERIAL, NAME=Steel
+*ELASTIC
+210000, 0.3
+*SOLID SECTION, ELSET=Steel_part, MATERIAL=Steel
+*BOUNDARY
+Back, 1, 1, 0
+Side, 2, 2, 0
+Bottom, 3, 3, 0
+** step Pull
+*STEP
+*STATIC
+*BOUNDARY
+Pulled, 1, 1, 0.01
+*NODE FILE
+U, RF
+*EL FILE
+S, E
+*END STEP

@@ -12,12 +12,19 @@
 //       the STEP's solids meshed with tetrahedra (gf_mesh, Netgen), to one
 //       .vtkhdf with each solid and face as a set; with --inp, also
 //       <name>.inp, the mesh and its sets for a CalculiX deck to *INCLUDE
+//   gf-study deck setup.json part.step --size H [--order 2] [-o DIR]
+//       a CalculiX job from a set-up (study spec, section 4; the file holds
+//       the "setup" object): the part meshed, its groups as sets, written
+//       to mesh.inp, and the analysis deck <setup name>.inp around it
 //   Both mesh commands measure the mesh: the verdict and measures on the
 //   terminal, the report for agents in <name>.quality.json beside it, and
 //   each cell's "mean ratio" on the grid for ParaView.
 
 #include "calculix/FrdToVtk.h"
+#include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/Setup.h"
+#include "mesh/Groups.h"
 #include "core/ApplicationInfo.h"
 #include "gmsh/MshToVtk.h"
 #include "mesh/Mesher.h"
@@ -26,6 +33,7 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QSaveFile>
@@ -159,6 +167,60 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
     return reportQuality(quality, grid, written) ? 0 : 1;
 }
 
+int deck(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+         const QString &outDir)
+{
+    QFile f(setupFile);
+    if (!f.open(QIODevice::ReadOnly)) {
+        std::fprintf(stderr, "gf-study: cannot read %s\n", qPrintable(setupFile));
+        return 1;
+    }
+    QJsonParseError parse;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &parse);
+    if (parse.error != QJsonParseError::NoError) {
+        std::fprintf(stderr, "gf-study: %s: %s at byte %d\n", qPrintable(setupFile),
+                     qPrintable(parse.errorString()), parse.offset);
+        return 1;
+    }
+    QString error;
+    const gf::core::Setup setup = gf::core::readSetup(doc.object()["setup"].toObject(), &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s: %s\n", qPrintable(setupFile), qPrintable(error));
+        return 1;
+    }
+    bool sizeOk = false, orderOk = false;
+    const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    if (!sizeOk || (!order.isEmpty() && !orderOk)) {
+        std::fprintf(stderr, "gf-study: deck needs --size, and --order 1 or 2\n");
+        return 1;
+    }
+    gf::core::ResultsSeries mesh = gf::mesh::meshStep(part, recipe, &error);
+    if (error.isEmpty())
+        gf::mesh::addGroupSets(mesh, setup, &error);
+    const QString text = error.isEmpty() ? gf::calculix::analysisInp(setup, mesh, "mesh.inp", &error) : QString();
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    const QString dir = outDir.isEmpty() ? QFileInfo(setupFile).absolutePath() : outDir;
+    QDir().mkpath(dir);
+    const QString meshPath = QDir(dir).filePath("mesh.inp");
+    const QString deckPath = QDir(dir).filePath(QFileInfo(setupFile).completeBaseName() + ".inp");
+    QSaveFile out(deckPath);
+    if (!gf::calculix::writeMeshInp(mesh, meshPath, &error) || !out.open(QIODevice::WriteOnly)
+        || out.write(text.toUtf8()) < 0 || !out.commit()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error.isEmpty() ? "cannot write " + deckPath : error));
+        return 1;
+    }
+    std::printf("wrote %s (the mesh: %lld nodes, %lld elements, with the set-up's groups as sets)\n",
+                qPrintable(meshPath), static_cast<long long>(mesh.points.front().grid->GetNumberOfPoints()),
+                static_cast<long long>(mesh.points.front().grid->GetNumberOfCells()));
+    std::printf("wrote %s (the job's deck: %zu material%s, %zu step%s)\n", qPrintable(deckPath),
+                setup.materials.size(), setup.materials.size() == 1 ? "" : "s", setup.steps.size(),
+                setup.steps.size() == 1 ? "" : "s");
+    return 0;
+}
+
 int convert(const QString &input, const QString &outDir, QString deck, bool pvd)
 {
     const QFileInfo in(input);
@@ -226,7 +288,9 @@ int main(int argc, char *argv[])
                                      "  convert mesh.msh  a Gmsh mesh likewise, its physical "
                                      "groups as the sets\n"
                                      "  mesh part.step    the STEP's solids meshed with "
-                                     "tetrahedra, each solid and face as a set");
+                                     "tetrahedra, each solid and face as a set\n"
+                                     "  deck setup.json part.step   a CalculiX job from a set-up: "
+                                     "mesh.inp and the deck around it");
     parser.addHelpOption();
     const QCommandLineOption versionOpt("version", "Print the version and build.");
     const QCommandLineOption outOpt({"o", "out"},
@@ -269,6 +333,8 @@ int main(int argc, char *argv[])
         }
         return convertMesh(args[1], parser.value(outOpt), parser.isSet(pvdOpt));
     }
+    if (args.size() == 3 && args[0] == "deck")
+        return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt));
     if (args.size() == 2 && args[0] == "mesh")
         return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt),
                     parser.isSet(pvdOpt), parser.isSet(inpOpt));

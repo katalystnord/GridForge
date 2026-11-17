@@ -16,8 +16,9 @@ namespace gf::calculix {
 
 namespace {
 
-// The shortest text that reads back as the same double; never "-0".
-QString number(double x)
+} // namespace
+
+QString inpNumber(double x)
 {
     if (x == 0)
         return "0";
@@ -25,6 +26,8 @@ QString number(double x)
     const auto result = std::to_chars(buffer, buffer + sizeof buffer, x);
     return QString::fromLatin1(buffer, static_cast<int>(result.ptr - buffer));
 }
+
+namespace {
 
 QString cellName(int type)
 {
@@ -49,6 +52,14 @@ long long idOf(vtkDataArray *ids, vtkIdType at)
 
 } // namespace
 
+QString inpName(const QString &name)
+{
+    QString out = name;
+    out.replace(' ', '_');
+    out.replace(',', '_');
+    return out;
+}
+
 QString meshInp(const gf::core::ResultsSeries &mesh, QString *error)
 {
     auto fail = [&](const QString &why) {
@@ -67,10 +78,16 @@ QString meshInp(const gf::core::ResultsSeries &mesh, QString *error)
         if (type != VTK_TETRA && type != VTK_QUADRATIC_TETRA)
             return fail(QString("a %1 is not written to a CalculiX deck yet; tetrahedra are").arg(cellName(type)));
     }
-    for (const gf::core::NamedSet &set : mesh.sets)
-        if (set.name.isEmpty() || set.name.contains(' ') || set.name.contains(','))
-            return fail(QString("the set name \"%1\" has a space or a comma; a CalculiX set name cannot")
-                            .arg(set.name));
+    std::map<std::pair<bool, QString>, QString> written;  // (nodes, as written) -> as named
+    for (const gf::core::NamedSet &set : mesh.sets) {
+        if (set.name.isEmpty())
+            return fail("a set has no name");
+        const auto [at, fresh] = written.emplace(std::pair{set.nodes, inpName(set.name).toUpper()}, set.name);
+        if (!fresh && at->second != set.name)  // ccx ignores case too
+            return fail(QString("the sets \"%1\" and \"%2\" would both be written as %3")
+                            .arg(std::min(at->second, set.name), std::max(at->second, set.name),
+                                 inpName(set.name)));
+    }
 
     QString text;
     text += QString("** written by %1 %2 (build %3)\n")
@@ -78,12 +95,19 @@ QString meshInp(const gf::core::ResultsSeries &mesh, QString *error)
                      gf::core::applicationBuild());
     for (const QString &line : mesh.provenance)
         text += "** " + line + "\n";
+    QStringList renamed;
+    for (const gf::core::NamedSet &set : mesh.sets)
+        if (inpName(set.name) != set.name && !renamed.contains(set.name))
+            renamed << set.name;
+    for (const QString &name : renamed)
+        text += QString("** the set \"%1\" is written as %2: a CalculiX set name has no spaces or commas\n")
+                    .arg(name, inpName(name));
 
     text += "*NODE, NSET=NALL\n";
     for (vtkIdType p = 0; p < grid->GetNumberOfPoints(); ++p) {
         double x[3];
         grid->GetPoint(p, x);
-        text += QString("%1, %2, %3, %4\n").arg(idOf(nodeIds, p)).arg(number(x[0]), number(x[1]), number(x[2]));
+        text += QString("%1, %2, %3, %4\n").arg(idOf(nodeIds, p)).arg(inpNumber(x[0]), inpNumber(x[1]), inpNumber(x[2]));
     }
 
     // One *ELEMENT block per type, in the order the types first appear.
@@ -106,7 +130,8 @@ QString meshInp(const gf::core::ResultsSeries &mesh, QString *error)
     }
 
     for (const gf::core::NamedSet &set : mesh.sets) {
-        text += set.nodes ? QString("*NSET, NSET=%1\n").arg(set.name) : QString("*ELSET, ELSET=%1\n").arg(set.name);
+        text += set.nodes ? QString("*NSET, NSET=%1\n").arg(inpName(set.name))
+                          : QString("*ELSET, ELSET=%1\n").arg(inpName(set.name));
         for (size_t k = 0; k < set.members.size(); ++k) {
             text += QString::number(idOf(set.nodes ? nodeIds : elementIds, set.members[k]));
             text += (k + 1) % 10 == 0 || k + 1 == set.members.size() ? "\n" : ", ";

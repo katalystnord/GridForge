@@ -13,11 +13,14 @@
 //   *ELEMENT, TYPE=C3D10, ELSET=EALL
 //                             every element, by its "element id"; C3D4 and
 //                             C3D10, whose node order is VTK's
-//   *NSET, NSET=<name>        each node set, ten ids to a line
+//   *NSET, NSET=<name>        each node set, ten ids to a line; a name with
+//                             a space or a comma written with underscores,
+//                             and a comment line saying so
 //   *ELSET, ELSET=<name>      each element set
 //
 // Version 1 writes tetrahedra; a grid with other cells is refused, naming
-// the cell type.
+// the cell type. Two sets of one kind whose names would be written alike
+// are refused.
 
 #include "core/ResultsSeries.h"
 
@@ -25,8 +28,16 @@
 
 namespace gf::calculix {
 
+// A name as a CalculiX deck can take it: spaces and commas become
+// underscores (study spec, section 4.2).
+QString inpName(const QString &name);
+
+// A number as the deck writes it: the shortest text that reads back as the
+// same double, never "-0".
+QString inpNumber(double x);
+
 // The deck's text; empty with *error set if the mesh cannot be written
-// (no grid, a cell type not written yet, a set name ccx cannot take).
+// (no grid, a cell type not written yet, two set names written alike).
 QString meshInp(const gf::core::ResultsSeries &mesh, QString *error);
 
 // meshInp written to a file; false with *error set.

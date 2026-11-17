@@ -44,6 +44,7 @@ add_library(gf_calculix STATIC
     calculix/FrdToVtk.cpp
     calculix/InpSets.cpp
     calculix/InpWriter.cpp
+    calculix/DeckWriter.cpp
     calculix/JobProgress.cpp
 )
 target_include_directories(gf_calculix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -66,6 +67,7 @@ target_link_libraries(gf_gmsh PUBLIC gf_core)
 add_library(gf_mesh STATIC
     mesh/Mesher.cpp
     mesh/Quality.cpp
+    mesh/Groups.cpp
 )
 target_include_directories(gf_mesh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(gf_mesh SYSTEM PRIVATE ${NETGEN_OCC_INCLUDE_DIR})

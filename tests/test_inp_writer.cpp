@@ -189,13 +189,31 @@ CASE(cells_not_written_yet_are_refused_by_name)
     CHECK(error == "a quadrilateral is not written to a CalculiX deck yet; tetrahedra are");
 }
 
-CASE(a_set_name_ccx_cannot_take_is_refused)
+CASE(a_set_name_ccx_cannot_take_is_written_with_underscores_and_said)
 {
+    // Study spec 4.2: a group name with a space or a comma is written with
+    // underscores, and the deck's comments say so.
+    CHECK(inpName("Fixed end") == "Fixed_end");
+    CHECK(inpName("a,b c") == "a_b_c");
+    CHECK(inpName("Back") == "Back");
     ResultsSeries s = threeTets();
     s.sets.push_back({"Fixed end", true, {0}});
     QString error;
+    const QStringList l = lines(meshInp(s, &error));
+    CHECK(error.isEmpty());
+    CHECK(l.contains("** the set \"Fixed end\" is written as Fixed_end: a CalculiX set name has no "
+                     "spaces or commas"));
+    CHECK(l.contains("*NSET, NSET=Fixed_end"));
+}
+
+CASE(two_sets_that_would_be_written_alike_are_refused)
+{
+    ResultsSeries s = threeTets();
+    s.sets.push_back({"Fixed end", true, {0}});
+    s.sets.push_back({"Fixed_end", true, {1}});
+    QString error;
     CHECK(meshInp(s, &error).isEmpty());
-    CHECK(error == "the set name \"Fixed end\" has a space or a comma; a CalculiX set name cannot");
+    CHECK(error == "the sets \"Fixed end\" and \"Fixed_end\" would both be written as Fixed_end");
 }
 
 CASE(nothing_to_write_is_said)
