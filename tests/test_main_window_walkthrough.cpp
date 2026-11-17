@@ -343,6 +343,31 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 2)"), 60000);
         QVERIFY(QDir(QDir(dir.path()).filePath("box-tension/steps/solve/runs/1")).exists());
+        // Properties, showing the study, says the run that just finished
+        // (seen by David: "none yet" after run 1 had solved).
+        QCOMPARE(propertyValue(w.findChild<QWidget *>("properties"), "Runs"), QString("latest: run 2"));
+    }
+
+    void a_finished_run_leaves_unapplied_edits_in_properties_alone()
+    {
+        stand_in_ccx(false);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        w.findChild<QAction *>("run")->trigger();
+        tree->setCurrentItem(findItem(tree, "Steel"));
+        auto *e = w.findChild<QLineEdit *>("edit:YoungsModulus");
+        QVERIFY(e);
+        e->setText("1234");
+        emit e->textEdited("1234");
+        QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"), 60000);
+        e = w.findChild<QLineEdit *>("edit:YoungsModulus");
+        QVERIFY(e);
+        QCOMPARE(e->text(), QString("1234"));
+        QVERIFY(w.findChild<QPushButton *>("apply")->isEnabled());
     }
 
     void the_results_are_shown_after_a_solve_and_on_reopening()
@@ -423,6 +448,18 @@ private slots:
         QVERIFY(w.openStudy(study));
         QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
             "Note on run 1: PE below 0 at 3 node values"));
+    }
+
+    void a_long_legend_title_moves_the_legend_into_the_view()
+    {
+        // Seen in the results view: "von Mises stress (derived)" cut off
+        // at the right edge. A short title leaves the legend where it was.
+        QCOMPARE(MainWindow::legendLeft(1000, 120, 40), 0.86);
+        const double x = MainWindow::legendLeft(1000, 120, 200);
+        QVERIFY(x < 0.86);
+        QCOMPARE(x * 1000 + 120 / 2.0 + 200 / 2.0, 1000.0 - 8);
+        // A view too narrow for any of it starts the legend at its edge.
+        QCOMPARE(MainWindow::legendLeft(100, 120, 400), 0.0);
     }
 
     void paraview_is_found_on_path_or_as_its_flatpak()

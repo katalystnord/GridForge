@@ -443,6 +443,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, Properties after a run and the legend: the
+# study's "Runs" not refreshed when a run finishes: red ("none yet"); the
+# refresh made regardless of edits not yet applied: red (the typed value
+# wiped); legendLeft fixed at 0.86: red.
 # NEGATIVE CHECKS, 2026-11-17, the status bar (seen by David: a note ran
 # over the units): the case red first for the test's own fault (a folder
 # that did not exist is named by its parent, short); then the message not

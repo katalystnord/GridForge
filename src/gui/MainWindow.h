@@ -74,6 +74,11 @@ public:
     // PATH, else ParaView's Flatpak (sharing the file's folder), else none.
     static QStringList paraviewCommand(const QString &file, bool paraviewOnPath, bool flatpak);
 
+    // Where the colour legend's box starts, as a fraction of the view's
+    // width: at 0.86, or further left so its title (which VTK centres over
+    // the box) ends 8 pixels inside the view.
+    static double legendLeft(double viewPixels, double boxPixels, double titlePixels);
+
 signals:
     void meshReady();
 
@@ -91,6 +96,7 @@ private:
     void setJobState(const QString &state);
     void updateActions();
     void showLayer(int layout);
+    void placeLegend();
     void showIncrement(int k);
     QString latestResults() const;
     void updateBanner();

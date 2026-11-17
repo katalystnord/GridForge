@@ -56,6 +56,8 @@
 #include <vtkProperty.h>
 #include <vtkRenderer.h>
 #include <vtkScalarBarActor.h>
+#include <vtkTextRenderer.h>
+#include <vtkCommand.h>
 #include <vtkTextProperty.h>
 
 #include <QProcess>
@@ -182,6 +184,8 @@ MainWindow::MainWindow(QWidget *parent)
     renderer->SetBackground2(graphiteTop[0], graphiteTop[1], graphiteTop[2]);
     window->AddRenderer(renderer);
     m_renderer = renderer;
+    // The legend placed for the view's size as it is drawn, resized or not.
+    renderer->AddObserver(vtkCommand::StartEvent, this, &MainWindow::placeLegend);
     vtkNew<vtkLightKit> lights;  // a key, fill and back light, as ParaView's light kit
     lights->AddLightsToRenderer(renderer);
     m_view->setRenderWindow(window);
@@ -854,6 +858,11 @@ void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
         say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results), Tone::Done);
         showResults(results);
     }
+    // Properties says the run that just finished, unless it holds edits not
+    // yet applied: those are the user's, and never wiped.
+    const auto *apply = m_properties->findChild<QPushButton *>(QStringLiteral("apply"));
+    if (!apply || !apply->isEnabled())
+        showProperties(m_tree->currentItem());
     updateActions();
 }
 
@@ -864,6 +873,26 @@ QStringList MainWindow::paraviewCommand(const QString &file, bool paraviewOnPath
     if (flatpak)
         return {"flatpak", "run", "--filesystem=" + QFileInfo(file).absolutePath(), "org.paraview.ParaView", file};
     return {};
+}
+
+double MainWindow::legendLeft(double viewPixels, double boxPixels, double titlePixels)
+{
+    if (viewPixels <= 0)
+        return 0.86;
+    const double fit = (viewPixels - 8 - (boxPixels + titlePixels) / 2) / viewPixels;
+    return std::clamp(fit, 0.0, 0.86);
+}
+
+void MainWindow::placeLegend()
+{
+    if (!m_scalarBar || !m_scalarBar->GetTitle())
+        return;
+    const int *size = m_renderer->GetSize();
+    int box[4] = {0, 0, 0, 0};
+    vtkTextRenderer::GetInstance()->GetBoundingBox(m_scalarBar->GetTitleTextProperty(), m_scalarBar->GetTitle(), box,
+                                                   m_view->renderWindow()->GetDPI());
+    const double boxPixels = std::min(0.12 * size[0], double(m_scalarBar->GetMaximumWidthInPixels()));
+    m_scalarBar->SetPosition(legendLeft(size[0], boxPixels, box[1] - box[0]), 0.12);
 }
 
 QString MainWindow::latestResults() const
@@ -970,7 +999,8 @@ void MainWindow::showIncrement(int k)
         }
         m_scalarBar->GetTitleTextProperty()->SetFontSize(14);
         m_scalarBar->GetLabelTextProperty()->SetFontSize(13);
-        m_scalarBar->SetPosition(0.86, 0.12);
+        m_scalarBar->SetVerticalTitleSeparation(6);  // the top label clear of the title
+        m_scalarBar->SetPosition(0.86, 0.12);  // moved left for a long title: placeLegend
         m_scalarBar->SetWidth(0.12);
         m_scalarBar->SetHeight(0.7);
     }
