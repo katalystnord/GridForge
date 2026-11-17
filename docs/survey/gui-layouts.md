@@ -351,9 +351,8 @@ OpenInventor, OpenSCAD, Revit, TinkerCAD, Touchpad, and in its source
 SolidWorks and Siemens NX), chosen from a button in its status bar. So
 GridForge offers both "ParaView" and "FreeCAD (CAD)" navigation, chosen
 from the status bar as FreeCAD does (David, 2026-11-17: the user chooses,
-as in FreeCAD). On first start the window asks which the user is used to,
-and remembers; changeable at any time from the status bar and the
-preferences.
+as in FreeCAD; ParaView's is the default). Changeable at any time from the
+status bar and the preferences, and remembered.
 
 ---
 
