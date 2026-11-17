@@ -43,6 +43,7 @@
 #include <vtkCamera.h>
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkGenericOpenGLRenderWindow.h>
+#include <vtkLightKit.h>
 #include <vtkNew.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkColorTransferFunction.h>
@@ -176,6 +177,8 @@ MainWindow::MainWindow(QWidget *parent)
     renderer->SetBackground2(graphiteTop[0], graphiteTop[1], graphiteTop[2]);
     window->AddRenderer(renderer);
     m_renderer = renderer;
+    vtkNew<vtkLightKit> lights;  // a key, fill and back light, as ParaView's light kit
+    lights->AddLightsToRenderer(renderer);
     m_view->setRenderWindow(window);
     column->addWidget(m_layouts);
     column->addWidget(m_view, 1);
@@ -258,7 +261,7 @@ void MainWindow::buildDocks()
     tabifyDockWidget(job, stepsDock);
     tabifyDockWidget(stepsDock, deck);
     messages->raise();
-    resizeDocks({study}, {380}, Qt::Horizontal);
+    resizeDocks({study}, {470}, Qt::Horizontal);  // room for the values beside the names
     resizeDocks({messages}, {160}, Qt::Vertical);
 }
 
@@ -439,6 +442,7 @@ bool MainWindow::openStudy(const QString &path)
     for (const core::AnalysisStep &s : m_study.setup.steps)
         m_step->addItem(s.name);
     m_units->setText(unitsText(m_study.setup.units));
+    showProperties(nullptr);  // the study, until an item is selected
     setWindowTitle(QStringLiteral("%1 - %2").arg(core::applicationName(), QDir(m_study.folder).dirName()));
     say(tr("Opened %1").arg(m_study.folder));
     m_results = ResultsFile();
@@ -461,14 +465,34 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
         delete row->widget();
         delete row;
     }
-    if (!item)
-        return;
     auto value = [this](const QString &text) {
         auto *l = new QLabel(text, m_properties);
         l->setTextInteractionFlags(Qt::TextSelectableByMouse);
         l->setWordWrap(true);
         return l;
     };
+    if (!item) {
+        // Nothing selected: the study itself, and how to see more.
+        if (m_study.folder.isEmpty()) {
+            m_propertyForm->addRow(value(tr("Open a study to see it here.")));
+            return;
+        }
+        m_propertyForm->addRow(tr("Study"), value(QDir(m_study.folder).dirName()));
+        // A long path shortened in the middle to fit, whole on hover.
+        QLabel *folder = value(m_study.folder);
+        folder->setWordWrap(false);
+        folder->setText(folder->fontMetrics().elidedText(m_study.folder, Qt::ElideMiddle,
+                                                          std::max(120, m_properties->width() - 110)));
+        folder->setToolTip(m_study.folder);
+        m_propertyForm->addRow(tr("Folder"), folder);
+        m_propertyForm->addRow(tr("Units"), value(m_units->text()));
+        m_propertyForm->addRow(tr("Steps"), value(QString::number(m_study.setup.steps.size())));
+        const QString latest = latestResults();
+        m_propertyForm->addRow(tr("Runs"), value(latest.isEmpty() ? tr("none yet")
+                                                                  : tr("latest: run %1").arg(latest.section('/', -3, -3))));
+        m_propertyForm->addRow(value(tr("Select an item in the Study tree to see it here.")));
+        return;
+    }
     m_propertyForm->addRow(tr("Name"), value(item->text(0)));
     if (!item->text(1).isEmpty())
         m_propertyForm->addRow(tr("Value"), value(item->text(1)));
@@ -531,9 +555,12 @@ void MainWindow::onMeshed()
     mapper->SetInputConnection(surface->GetOutputPort());
     vtkNew<vtkActor> actor;
     actor->SetMapper(mapper);
-    actor->GetProperty()->SetColor(0.9, 0.9, 0.9);
+    // Light faces and soft edges, so the part reads on graphite.
+    actor->GetProperty()->SetColor(0.86, 0.87, 0.89);
     actor->GetProperty()->EdgeVisibilityOn();
-    actor->GetProperty()->SetEdgeColor(0.25, 0.25, 0.35);
+    actor->GetProperty()->SetEdgeColor(0.52, 0.55, 0.60);
+    actor->GetProperty()->SetAmbient(0.15);
+    actor->GetProperty()->SetDiffuse(0.85);
     m_meshActor = actor;
     actor->Register(nullptr);  // kept while the Results layer is shown instead
     showLayer(m_layouts->currentIndex());
@@ -639,8 +666,10 @@ void MainWindow::run()
     m_runNumber = QDir(folder).dirName().toInt();
     m_job->clear();
     appendLine(m_job, tr("Run %1 with %2, in %3").arg(m_runNumber).arg(toolkit->name, folder), Tone::Detail);
-    if (auto *d = findChild<QDockWidget *>("jobDock"))
+    if (auto *d = findChild<QDockWidget *>("jobDock")) {
         d->raise();
+        resizeDocks({d}, {160}, Qt::Vertical);  // the view keeps its room
+    }
     if (!m_runner.start(*toolkit, folder, &why)) {
         say(tr("Cannot run: %1").arg(why), Tone::Problem);
         return;

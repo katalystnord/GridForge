@@ -443,6 +443,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, polish (seen by David): Properties shows the
+# study when nothing is selected (its case red first: empty, then Units
+# empty while the label was not yet filled); the Job dock keeps under 300
+# px when it comes to the front (red against the first run's layout).
 # NEGATIVE CHECKS, 2026-11-17, coloured messages (David's idea): the tone
 # cases and the window's colour case written first, red. Then: no colours
 # applied: the window case red; ccx's *ERROR not taken as a problem:

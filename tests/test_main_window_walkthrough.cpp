@@ -93,8 +93,11 @@ QString propertyValue(QWidget *properties, const QString &label)
 {
     auto *form = qobject_cast<QFormLayout *>(properties->layout());
     for (int r = 0; form && r < form->rowCount(); ++r) {
-        auto *l = qobject_cast<QLabel *>(form->itemAt(r, QFormLayout::LabelRole)->widget());
-        auto *v = qobject_cast<QLabel *>(form->itemAt(r, QFormLayout::FieldRole)->widget());
+        QLayoutItem *li = form->itemAt(r, QFormLayout::LabelRole), *vi = form->itemAt(r, QFormLayout::FieldRole);
+        if (!li || !vi)
+            continue;  // a row of one widget across (a hint), no label
+        auto *l = qobject_cast<QLabel *>(li->widget());
+        auto *v = qobject_cast<QLabel *>(vi->widget());
         if (l && v && l->text() == label)
             return v->text();
     }
@@ -202,6 +205,10 @@ private slots:
         w.show();
         w.openStudy(QString(GF_EXAMPLES) + "/dogbone-plastic");
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        // Nothing selected: the study itself.
+        auto *props = w.findChild<QWidget *>("properties");
+        QCOMPARE(propertyValue(props, "Study"), QString("dogbone-plastic"));
+        QCOMPARE(propertyValue(props, "Units"), QString("mm, N, s, MPa"));
         tree->setCurrentItem(findItem(tree, "Measured steel"));
         auto *properties = w.findChild<QWidget *>("properties");
         QCOMPARE(propertyValue(properties, "Name"), QString("Measured steel"));
@@ -265,6 +272,9 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         auto *job = w.findChild<QPlainTextEdit *>("job");
         QTRY_VERIFY_WITH_TIMEOUT(job->toPlainText().contains("100%  step 1, increment 1"), 60000);
+        // The Job dock came to the front without taking the view's room.
+        QVERIFY2(w.findChild<QDockWidget *>("jobDock")->height() < 300,
+                 qPrintable(QString::number(w.findChild<QDockWidget *>("jobDock")->height())));
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"), 60000);
         QCOMPARE(findItem(tree, "Results")->text(1), QString("run 1, solved by CalculiX Version 2.23"));
