@@ -77,7 +77,8 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   from the status bar as FreeCAD does. GridForge's own identity on top
   (David, 2026-11-17), so it is told from ParaView at a glance: the
   next-step banner (TenSense's), ember orange (226, 92, 29) for the
-  accent, a dark graphite gradient in the view.
+  accent (the banner, selections, a line under every selected tab, drawn
+  by gui/Style, a proxy over Fusion), a dark graphite gradient in the view.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,

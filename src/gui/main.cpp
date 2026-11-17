@@ -1,5 +1,6 @@
 #include "core/ApplicationInfo.h"
 #include "gui/MainWindow.h"
+#include "gui/Style.h"
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -26,6 +27,7 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat());
 
     QApplication app(argc, argv);
+    gf::gui::applyStyle(app);
     QApplication::setApplicationName(gf::core::applicationName());
     QApplication::setOrganizationName(QStringLiteral("Katalyst Nord"));
     QApplication::setApplicationVersion(gf::core::applicationVersion());

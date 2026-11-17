@@ -6,6 +6,7 @@
 //   test_main_window_walkthrough [--screenshot FILE]   also saves the window
 
 #include "gui/MainWindow.h"
+#include "gui/Style.h"
 
 #include <QAction>
 #include <QApplication>
@@ -158,6 +159,22 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(
             banner->text(), QString("Run 1 solved. Step through the increments in Results, or Open in ParaView."), 60000);
+    }
+
+    void the_selected_tab_has_an_ember_line_under_it()
+    {
+        // Drawn by GridForge's proxy over Fusion (gui/Style), no style sheet.
+        MainWindow w;
+        w.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&w));
+        auto *tabs = w.findChild<QTabBar *>("layouts");
+        tabs->setCurrentIndex(1);
+        const QImage image = tabs->grab().toImage();
+        const QRect selected = tabs->tabRect(1), other = tabs->tabRect(0);
+        const int dpr = qRound(image.devicePixelRatio());
+        auto pixel = [&](int x, int y) { return QColor(image.pixel(x * dpr, y * dpr)); };
+        QCOMPARE(pixel(selected.center().x(), selected.bottom() - 1), gf::gui::ember);
+        QVERIFY(pixel(other.center().x(), other.bottom() - 1) != gf::gui::ember);
     }
 
     void opening_the_dogbone_fills_the_tree_and_the_units()
@@ -427,6 +444,7 @@ int main(int argc, char *argv[])
     int n = static_cast<int>(rest.size());
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat());
     QApplication app(n, rest.data());
+    gf::gui::applyStyle(app);
     Q_INIT_RESOURCE(icons);
     // The CalculiX adapter, as the window finds it beside itself when
     // installed; here it is in the build's src/.

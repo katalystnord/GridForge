@@ -1,4 +1,5 @@
 #include "gui/MainWindow.h"
+#include "gui/Style.h"
 
 #include "core/ApplicationInfo.h"
 #include "core/Job.h"
@@ -62,8 +63,8 @@ QIcon icon(const QString &name) { return QIcon(":/icons/" + name + ".svg"); }
 
 // GridForge's identity (David, 2026-11-17): ParaView's layout, but its own
 // colours, so the two are told apart at a glance. Ember orange for the
-// accent (the banner, selections), dark graphite for the view.
-const QColor ember(226, 92, 29);
+// accent (the banner, selections, the selected tab's line: gui/Style),
+// dark graphite for the view.
 const double graphiteBottom[3] = {0.105, 0.112, 0.122};
 const double graphiteTop[3] = {0.305, 0.318, 0.337};
 

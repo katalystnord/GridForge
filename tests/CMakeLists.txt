@@ -443,6 +443,8 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the ember tab line: the line not drawn: the
+# pixel case red.
 # NEGATIVE CHECKS, 2026-11-17, the identity layer: the banner's function
 # and its tests were written together; then the running state and the
 # mesh problem each left unsaid: test_next_step red each.
