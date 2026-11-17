@@ -1,0 +1,5 @@
+FoamFile { version 2.0; format ascii; class dictionary; object meshDict; }
+surfaceFile "constant/triSurface/duct.stl";
+maxCellSize 1.6;
+boundaryCellSize 0.8;
+boundaryLayers { patchBoundaryLayers { wall { nLayers 5; thicknessRatio 1.2; allowDiscontinuity 0; } } optimiseLayer 1; }

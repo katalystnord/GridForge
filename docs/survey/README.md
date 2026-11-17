@@ -18,6 +18,12 @@ across Kitware's software, their licences, who reuses ParaView's, and a
 house style for ours). Researched by sub-agents; the icon counts and the
 licence text were checked again by hand against ParaView's source.
 
+Added 2026-11-17: [meshing.md](meshing.md), whether to adopt, wrap or
+write GridForge's mesher: what CalculiX, OpenFOAM® and surrogates need,
+the bar commercial meshers set, the open meshers, other kinds of meshes,
+and a benchmark run here (`tools/mesh-bench/`). Its recommendation (own
+the pipeline around linked Netgen) and its section 8 are for David.
+
 ## The gap, in one paragraph
 
 On Linux there is no open, maintained, standalone pre-processor for

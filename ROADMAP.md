@@ -69,6 +69,10 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   Started 2026-11-16: the `.sta` and `.cvg` parsers (`JobProgress`), with
   cutbacks and a line ccx is still writing (fixture cantilever-cutbacks).
 - Meshing: Gmsh as a process, `.msh` 4.1, physical groups to sets.
+  Under review 2026-11-17: [docs/survey/meshing.md](docs/survey/meshing.md)
+  recommends a mesh core of our own (model, recipe, quality report,
+  assembly, layers, polyhedral dual) around a linked Netgen, Gmsh as a
+  toolkit. Awaits David's decision.
   Started 2026-11-17: the `.msh` 4.1 reader (ASCII and binary, every
   element type a ccx deck takes) and its hand-off to ParaView with the
   physical groups as sets (`gf-study convert mesh.msh`), against boxes

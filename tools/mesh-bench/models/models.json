@@ -1,0 +1,32 @@
+{
+ "dogbone": {
+  "volume": 8699.688877463912,
+  "outer_area": 5725.643516362958,
+  "volumes": 1,
+  "notes": "150 x 20 x 4 mm, narrow part 60 x 10, R30 transitions"
+ },
+ "bracket": {
+  "volume": 60816.975593585215,
+  "outer_area": 19370.67322898981,
+  "volumes": 1,
+  "notes": "L bracket 80 x 60 x 50, 8 mm thick, R5 inner fillet, a rib, four 10 mm holes"
+ },
+ "thinwall": {
+  "volume": 27133.499999999985,
+  "outer_area": 36657.99999999999,
+  "volumes": 1,
+  "notes": "open box 100 x 60 x 40, walls 1.5 mm"
+ },
+ "twoparts": {
+  "volume": 45571.68026350791,
+  "outer_area": 8661.94671058465,
+  "volumes": 2,
+  "notes": "block 40 x 40 x 20 and a cylinder R12 x 30 standing on it: two volumes sharing a face; the STEP holds the contact disk once per solid"
+ },
+ "duct": {
+  "volume": 63162.47009914801,
+  "outer_area": 13683.774991786418,
+  "volumes": 1,
+  "notes": "pipe D20: 60 straight, 90 degree bend R40, 80 straight; a D6 rod across the inlet"
+ }
+}

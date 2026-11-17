@@ -1,0 +1,20 @@
+FoamFile { version 2.0; format ascii; class dictionary; object snappyHexMeshDict; }
+castellatedMesh true; snap true; addLayers true;
+geometry { duct.stl { type triSurfaceMesh; name duct; regions { inlet {name inlet;} outlet {name outlet;} wall {name wall;} } } }
+castellatedMeshControls {
+  maxLocalCells 2000000; maxGlobalCells 20000000; minRefinementCells 0; nCellsBetweenLevels 3;
+  maxLoadUnbalance 0.1; resolveFeatureAngle 30; allowFreeStandingZoneFaces true;
+  features ( { file "duct.eMesh"; level 2; } );
+  refinementSurfaces { duct { level (1 1); regions { wall { level (1 2); patchInfo { type wall; } } } } }
+  refinementRegions {}
+  locationInMesh (50 0.11 0.13);
+}
+snapControls { nSmoothPatch 3; tolerance 2.0; nSolveIter 50; nRelaxIter 5; nFeatureSnapIter 10; implicitFeatureSnap false; explicitFeatureSnap true; multiRegionFeatureSnap false; }
+addLayersControls {
+  relativeSizes true; layers { wall { nSurfaceLayers 5; } }
+  expansionRatio 1.2; finalLayerThickness 0.4; minThickness 0.05; nGrow 0; featureAngle 130;
+  nRelaxIter 5; nSmoothSurfaceNormals 1; nSmoothNormals 3; nSmoothThickness 10; maxFaceThicknessRatio 0.5;
+  maxThicknessToMedialRatio 0.3; minMedialAxisAngle 90; nBufferCellsNoExtrude 0; nLayerIter 50;
+}
+meshQualityControls { #includeEtc "caseDicts/meshQualityDict" nSmoothScale 4; errorReduction 0.75; }
+mergeTolerance 1e-6;
