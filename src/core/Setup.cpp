@@ -163,6 +163,23 @@ Setup read(const QJsonObject &o)
         if (st.contains("nonlinear geometry"))
             step.nonlinearGeometry = st["nonlinear geometry"].toBool();
         step.replace = st["replace"].toBool();
+        if (st.contains("increments")) {
+            const QJsonObject inc = st["increments"].toObject();
+            const QString at = where + ".increments";
+            auto number = [&](const char *key) -> std::optional<double> {
+                if (!inc.contains(key))
+                    return std::nullopt;
+                if (!inc[key].isDouble() || inc[key].toDouble() <= 0)
+                    fault(at + "." + key, "not a number above 0");
+                return inc[key].toDouble();
+            };
+            step.increments = {number("initial"), number("period"), number("min"), number("max")};
+            const double period = step.increments.period.value_or(1);
+            if (step.increments.initial && *step.increments.initial > period)
+                fault(at, QString("the initial increment %1 is longer than the period %2")
+                              .arg(*step.increments.initial)
+                              .arg(period));
+        }
         const QJsonArray stepSupports = st["supports"].toArray();
         for (int k = 0; k < stepSupports.size(); ++k)
             step.supports.push_back(support(s, stepSupports[k].toObject(), where + QString(".supports[%1]").arg(k)));

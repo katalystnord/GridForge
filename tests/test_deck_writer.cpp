@@ -459,6 +459,26 @@ CASE(a_load_on_a_face_inside_the_mesh_is_refused)
     }
 }
 
+CASE(increments_are_written_on_the_static_line)
+{
+    QString error;
+    const QString deck = deckWith([](QJsonObject &o) {
+        QJsonArray steps = o["steps"].toArray();
+        QJsonObject st = steps[0].toObject();
+        st["increments"] = QJsonObject{{"initial", 0.02}, {"period", 1}, {"min", 1e-5}, {"max", 0.05}};
+        steps[0] = st;
+        o["steps"] = steps;
+    }, &error);
+    const QStringList b = body(deck);
+    // ccx stops a step at 100 increments unless told (INC); room for the
+    // smallest increment over the whole period.
+    CHECK(b.contains("*STEP, INC=100000") && b.contains("*STATIC"));
+    const int at = b.indexOf("*STATIC");
+    CHECK(at > 0 && b.value(at + 1) == "0.02, 1, 1e-05, 0.05");
+    QString none;
+    CHECK(!body(deckWith([](QJsonObject &) {}, &none)).join('\n').contains("INC="));
+}
+
 CASE(a_step_that_replaces_is_refused_until_written)
 {
     QString error;

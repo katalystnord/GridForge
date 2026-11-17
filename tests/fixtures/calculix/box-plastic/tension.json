@@ -1,0 +1,82 @@
+{
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Steel part": {
+        "solids": [
+          1
+        ]
+      },
+      "Back": {
+        "faces": [
+          1
+        ]
+      },
+      "Side": {
+        "faces": [
+          3
+        ]
+      },
+      "Bottom": {
+        "faces": [
+          5
+        ]
+      },
+      "Pulled": {
+        "faces": [
+          2
+        ]
+      }
+    },
+    "materials": {
+      "Measured steel": {
+        "card": "materials/tensense-ro.FCMat",
+        "plastic": "materials/tensense-ro-plastic.inp",
+        "values": {
+          "PoissonRatio": 0.3
+        }
+      }
+    },
+    "assign": {
+      "Steel part": "Measured steel"
+    },
+    "supports": [
+      {
+        "group": "Back",
+        "symmetry": true
+      },
+      {
+        "group": "Side",
+        "symmetry": true
+      },
+      {
+        "group": "Bottom",
+        "symmetry": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "Pull",
+        "kind": "static",
+        "loads": [
+          {
+            "group": "Pulled",
+            "displacement": {
+              "x": 0.5
+            }
+          }
+        ],
+        "output": [
+          "displacement",
+          "reaction",
+          "stress",
+          "plastic strain"
+        ],
+        "increments": {
+          "initial": 0.02,
+          "max": 0.02
+        }
+      }
+    ]
+  }
+}

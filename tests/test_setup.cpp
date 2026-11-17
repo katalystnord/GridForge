@@ -214,6 +214,29 @@ CASE(forces_pressure_and_gravity_are_read)
     CHECK(l[3].kind == Load::Kind::Gravity && l[3].group == "Steel part");
 }
 
+CASE(a_steps_increments_are_read)
+{
+    QJsonObject o = json(example);
+    QJsonArray steps = o["steps"].toArray();
+    QJsonObject st = steps[0].toObject();
+    st["increments"] = QJsonObject{{"initial", 0.02}, {"period", 1}, {"min", 1e-5}, {"max", 0.05}};
+    steps[0] = st;
+    o["steps"] = steps;
+    QString error;
+    const Setup s = readSetup(o, &error);
+    CHECK(error.isEmpty() && !s.steps.empty());
+    if (s.steps.empty())
+        return;
+    const Increments &i = s.steps[0].increments;
+    CHECK(i.initial == 0.02 && i.period == 1.0 && i.min == 1e-5 && i.max == 0.05);
+    CHECK(!readSetup(json(example), &error).steps[0].increments.initial);  // none given: the solver's
+    st["increments"] = QJsonObject{{"initial", 2}, {"period", 1}};
+    steps[0] = st;
+    o["steps"] = steps;
+    readSetup(o, &error);
+    CHECK(error == "steps[0].increments: the initial increment 2 is longer than the period 1");
+}
+
 CASE(a_solid_given_two_materials_is_refused)
 {
     QJsonObject o = json(example);

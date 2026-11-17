@@ -98,6 +98,14 @@ add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
 #   failure first wrote no results either); it now writes them, now red;
 #   the plastic block's path not seen from work/: no build at first (an
 #   empty if); kept, a plastic job added, now red.
+# NEGATIVE CHECKS, 2026-11-17, increments and box-plastic: the set-up and
+# deck cases written first, red. box-plastic's checks first failed on the
+# test's own mistakes (one time point assumed; the pull's tolerance not
+# counting the coordinates' rounding; the card not filled before the
+# deck was compared), corrected. Then: the plastic block left out of the
+# deck, no room for the increments (INC): each red. The hand answer's
+# last 0.11 % against ccx's converged value is not explained yet (its
+# README).
 # NEGATIVE CHECKS, 2026-11-17, cancel: both cases written first, red (the
 # adapter and gf-study killed outright). Then each rule broken: the
 # adapter ignoring SIGTERM: red; gf-study not passing the cancel on:

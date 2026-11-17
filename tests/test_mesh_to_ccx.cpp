@@ -8,7 +8,9 @@
 //               or a force of 126000 N on the pulled face instead of a
 //               given displacement (the reaction then on the face held);
 //   box-gravity the box hanging from its top under its own weight: the
-//               reaction is the weight, rho g V = 7.9e-9 * 9810 * 6000 N.
+//               reaction is the weight, rho g V = 7.9e-9 * 9810 * 6000 N;
+//   box-plastic the box pulled 0.5 mm (stretch 1.05) in TenSense's measured
+//               steel, past yield, in 50 increments: see its README.
 // Uniaxial tension, so the answer is known by hand at every node
 // (box-gfmesh/tension.inp says how), and all must give it.
 
@@ -17,6 +19,7 @@
 #include "calculix/InpSets.h"
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/MaterialCard.h"
 #include "core/Setup.h"
 #include "mesh/Groups.h"
 #include "mesh/Mesher.h"
@@ -78,6 +81,7 @@ const Fixture fixtures[] = {
     {"box-pressure", "pressure", true, true, "Face1", 0, -126000},
     {"box-force", "force", true, true, "Face1", 0, -126000},
     {"box-gravity", "gravity", true, false, "Face6", 2, weight},
+    {"box-plastic", "tension", true, false, "Face1", 0, 0},
 };
 const Fixture *now = &fixtures[0];  // the fixture the case is run on
 const char *dir = "box-gfmesh";
@@ -105,7 +109,7 @@ QStringList fileLines(const QString &path)
 CASE(ccx_took_the_mesh_as_written)
 {
     const ResultsSeries s = results();
-    CHECK(s.points.size() == 1);
+    CHECK(s.points.size() == (QString(dir) == "box-plastic" ? 50u : 1u));
     if (s.points.empty())
         return;
     vtkUnstructuredGrid *g = s.points.front().grid;
@@ -181,8 +185,70 @@ CASE(the_stress_is_210_in_x_and_nothing_else_everywhere)
     CHECK(worstOther < 1e-3);
 }
 
+CASE(the_plastic_box_follows_the_measured_curve_everywhere)
+{
+    if (QString(dir) != "box-plastic")
+        return;
+    const ResultsSeries s = results();
+    CHECK(s.points.size() == 50);
+    if (s.points.empty())
+        return;
+    vtkUnstructuredGrid *g = s.points.back().grid;
+    vtkDataArray *stress = g->GetPointData()->GetArray("STRESS"), *pe = g->GetPointData()->GetArray("PE"),
+                 *u = g->GetPointData()->GetArray("DISP");
+    CHECK(stress && pe && u);
+    if (!stress || !pe || !u)
+        return;
+    // TenSense's curve, true stress against true plastic strain, as the
+    // deck included it.
+    std::vector<std::pair<double, double>> curve;  // (plastic strain, stress)
+    for (const QString &line : fileLines(fixture("materials/tensense-ro-plastic.inp"))) {
+        const QStringList f = line.split(',');
+        bool a = false, b = false;
+        const double sigma = f.value(0).toDouble(&a), ep = f.value(1).toDouble(&b);
+        if (f.size() == 2 && a && b)
+            curve.push_back({ep, sigma});
+    }
+    auto H = [&](double ep) -> double {
+        for (size_t k = 1; k < curve.size(); ++k)
+            if (ep <= curve[k].first && curve[k].first > curve[k - 1].first)
+                return curve[k - 1].second
+                       + (ep - curve[k - 1].first) * (curve[k].second - curve[k - 1].second)
+                             / (curve[k].first - curve[k - 1].first);
+        return NAN;
+    };
+    double sMin = 1e300, sMax = -1e300, offCurve = 0, others = 0, pull = 0;
+    for (vtkIdType p = 0; p < g->GetNumberOfPoints(); ++p) {
+        const double sxx = stress->GetComponent(p, 0);
+        sMin = std::min(sMin, sxx);
+        sMax = std::max(sMax, sxx);
+        offCurve = std::max(offCurve, std::abs(sxx - H(pe->GetTuple1(p))));
+        for (int k = 1; k < 6; ++k)
+            others = std::max(others, std::abs(stress->GetComponent(p, k)));
+        pull = std::max(pull, std::abs(u->GetComponent(p, 0) - 0.05 * gf::test::point(g, p)[0]));
+    }
+    // Uniaxial and the same everywhere.
+    CHECK(sMax - sMin < 1e-3 && others < 0.05);
+    // The stretch: ux = 0.05 x at every node, to the .frd's six digits of
+    // ux (5e-7 at 0.5) and of x (0.05 times 5e-6).
+    CHECK(pull < 1e-6);
+    if (pull >= 1e-6)
+        std::printf("  (pull off by %.3g)\n", pull);
+    // The measured curve honoured: at each node's plastic strain, the
+    // stress is TenSense's (to the .frd's digits).
+    CHECK(offCurve < 0.01);
+    // Simo's hyperelastic-plastic model by hand (README): 432.1208 MPa.
+    // ccx converges to 432.603 as its increments shrink (1000: 432.603;
+    // here, 50: 432.635), 0.11 % above: not yet explained, so held to 0.2 %.
+    CHECK(std::abs(sMax - 432.1208) < 0.002 * 432.1208);
+    if (!(std::abs(sMax - 432.1208) < 0.002 * 432.1208) || offCurve >= 0.01)
+        std::printf("  (sxx %.4f, off the curve by %.4f)\n", sMax, offCurve);
+}
+
 CASE(the_reaction_on_the_held_face_is_the_hand_answer)
 {
+    if (QString(dir) == "box-plastic")
+        return;  // its reaction follows from its stress, checked above
     const ResultsSeries s = results();
     const InpSets sets = readInpSets(fixture("mesh.inp"));
     const InpSet *face2 = sets.find(now->held, true);
@@ -244,8 +310,9 @@ CASE(the_committed_mesh_is_what_gridforge_writes_today)
         // Here the deck is GridForge's too, from the set-up beside it.
         QFile f(job(".json"));
         CHECK(f.open(QIODevice::ReadOnly));
-        const gf::core::Setup setup =
+        gf::core::Setup setup =
             gf::core::readSetup(QJsonDocument::fromJson(f.readAll()).object()["setup"].toObject(), &error);
+        CHECK(error.isEmpty() && gf::core::fillFromCards(setup, fixture(""), &error));
         CHECK(error.isEmpty() && gf::mesh::addGroupSets(mesh, setup, &error));
         const QStringList deck = analysisInp(setup, mesh, "mesh.inp", &error).split('\n'),
                           keptDeck = fileLines(job(".inp"));

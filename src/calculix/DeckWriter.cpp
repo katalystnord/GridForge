@@ -216,7 +216,23 @@ QString write(const gf::core::Setup &setup, const gf::core::ResultsSeries &mesh,
         if (nlgeom && !step.nonlinearGeometry)
             deck += QString("** step %1: large displacements (NLGEOM), turned on by itself: %2 is plastic\n")
                         .arg(step.name, plasticName);
-        deck += nlgeom ? "*STEP, NLGEOM\n*STATIC\n" : "*STEP\n*STATIC\n";
+        // Increments given: the *STATIC data line, and room for ccx to take
+        // the smallest over the whole period (it stops a step at 100
+        // increments unless told; its own smallest is 1e-5 of the period).
+        const gf::core::Increments &inc = step.increments;
+        const bool given = inc.initial || inc.period || inc.min || inc.max;
+        const double period = inc.period.value_or(1);
+        QString stepLine = nlgeom ? "*STEP, NLGEOM" : "*STEP";
+        QString staticLines = "*STATIC\n";
+        if (given) {
+            const double smallest = inc.min.value_or(1e-5 * period);
+            stepLine += QString(", INC=%1").arg(static_cast<long long>(std::ceil(period / smallest)));
+            QStringList fields{inpNumber(inc.initial.value_or(period)), inpNumber(period)};
+            if (inc.min || inc.max)
+                fields << inpNumber(smallest) << inpNumber(inc.max.value_or(period));
+            staticLines += fields.join(", ") + "\n";
+        }
+        deck += stepLine + "\n" + staticLines;
         QString moves;
         for (size_t i = 0; i < step.supports.size(); ++i) {
             const gf::core::Support &s = step.supports[i];

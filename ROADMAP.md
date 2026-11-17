@@ -114,6 +114,11 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   groups into the deck (Gmsh's node order to ccx's).
 - Exit: a plastic dogbone from a study file to ParaView with no hand edits,
   checked against a known answer.
+  Reached 2026-11-17: the dogbone (examples/dogbone-plastic) from a
+  study file to ParaView with no hand edits; the known answer on the
+  plastic box (fixture box-plastic): uniaxial everywhere, the stretch
+  applied, TenSense's curve honoured at every node, and within 0.2 % of
+  Simo's model by hand (0.11 % of it not yet explained, its README).
 
 ## Phase 3: The window, release 0.1 (L)
 

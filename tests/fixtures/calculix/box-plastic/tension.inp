@@ -1,0 +1,25 @@
+** written by GridForge 0.0.1 (build 64cfe4f9575c-dirty)
+** units: mm-N-s (lengths mm, forces N, stresses MPa)
+** material Measured steel: YoungsModulus 199900 (199.9 GPa in tensense-ro.FCMat), PoissonRatio 0.3 (entered in the study)
+*INCLUDE, INPUT=mesh.inp
+*MATERIAL, NAME=Measured_steel
+*ELASTIC
+199900, 0.3
+*INCLUDE, INPUT=materials/tensense-ro-plastic.inp
+*SOLID SECTION, ELSET=Steel_part, MATERIAL=Measured_steel
+*BOUNDARY
+Back, 1, 1, 0
+Side, 2, 2, 0
+Bottom, 3, 3, 0
+** step Pull
+** step Pull: large displacements (NLGEOM), turned on by itself: Measured steel is plastic
+*STEP, NLGEOM, INC=100000
+*STATIC
+0.02, 1, 1e-05, 0.02
+*BOUNDARY
+Pulled, 1, 1, 0.5
+*NODE FILE
+U, RF
+*EL FILE
+S, PEEQ
+*END STEP

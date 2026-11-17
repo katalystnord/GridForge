@@ -62,10 +62,18 @@ struct Load {
     double pressure = 0;    // Pressure: normal, positive inward
 };
 
+// A step's increments (ccx's *STATIC data line): the first, the step's
+// length in time, the smallest and largest allowed. None given: the
+// solver's own.
+struct Increments {
+    std::optional<double> initial, period, min, max;
+};
+
 struct AnalysisStep {
     QString name;
     QString kind;  // "static"
     std::optional<bool> nonlinearGeometry;
+    Increments increments;
     std::vector<Support> supports;
     std::vector<Load> loads;
     QStringList output;  // "displacement", "reaction", "stress", "strain", ...
