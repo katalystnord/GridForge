@@ -69,7 +69,10 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   the window, the local API) is decided when it is built.
 - **The window (David, 2026-11-17):** ParaView's layout with one study
   tree (docs/survey/gui-layouts.md, proposal A), ParaView's icons and
-  conventions borrowed heavily (docs/survey/kitware-icons.md).
+  conventions borrowed heavily (docs/survey/kitware-icons.md). Its look,
+  icons and conventions are copied; GridForge is built on VTK and Qt
+  itself and does not link ParaView's Qt components. It must be easily
+  recognised by today's FreeCAD and ParaView users.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,
