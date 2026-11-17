@@ -8,10 +8,14 @@
 //       --pvd, a .vtu series and its .pvd instead (no sets)
 //   gf-study convert mesh.msh [-o DIR] [--pvd]
 //       a Gmsh mesh likewise, its physical groups as the sets
+//   gf-study mesh part.step --size H [--order 2] [-o DIR] [--pvd]
+//       the STEP's solids meshed with tetrahedra (gf_mesh, Netgen), to one
+//       .vtkhdf with each solid and face as a set
 
 #include "calculix/FrdToVtk.h"
 #include "core/ApplicationInfo.h"
 #include "gmsh/MshToVtk.h"
+#include "mesh/Mesher.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -60,6 +64,42 @@ int convertMesh(const QString &input, const QString &outDir, bool pvd)
                                    .arg(series.sets.size() == 1 ? "" : "s");
     std::printf("wrote %s (a mesh: %zu nodes, %lld elements, %s)\n", qPrintable(written),
                 msh.nodes.size(), static_cast<long long>(cells), qPrintable(sets));
+    for (const QString &line : series.provenance)
+        std::printf("  %s\n", qPrintable(line));
+    return 0;
+}
+
+int mesh(const QString &input, const QString &size, const QString &order, const QString &outDir,
+         bool pvd)
+{
+    bool sizeOk = false, orderOk = false;
+    const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    if (!sizeOk) {
+        std::fprintf(stderr, "gf-study: mesh needs --size, the largest element edge\n");
+        return 1;
+    }
+    if (!order.isEmpty() && !orderOk) {
+        std::fprintf(stderr, "gf-study: --order is 1 or 2, not %s\n", qPrintable(order));
+        return 1;
+    }
+    const QFileInfo in(input);
+    QString error;
+    const gf::core::ResultsSeries series = gf::mesh::meshStep(input, recipe, &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    const QString written = write(series, in, outDir, pvd, &error);
+    if (written.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    vtkUnstructuredGrid *grid = series.points.front().grid;
+    const QString sets = pvd ? QString("no sets: a .vtu series has no blocks")
+                             : QString("%1 sets from its solids and faces").arg(series.sets.size());
+    std::printf("wrote %s (a mesh: %lld nodes, %lld elements, %s)\n", qPrintable(written),
+                static_cast<long long>(grid->GetNumberOfPoints()),
+                static_cast<long long>(grid->GetNumberOfCells()), qPrintable(sets));
     for (const QString &line : series.provenance)
         std::printf("  %s\n", qPrintable(line));
     return 0;
@@ -130,7 +170,9 @@ int main(int argc, char *argv[])
                                      "  convert job.frd   CalculiX results to one .vtkhdf for "
                                      "ParaView, the deck's named sets as blocks\n"
                                      "  convert mesh.msh  a Gmsh mesh likewise, its physical "
-                                     "groups as the sets");
+                                     "groups as the sets\n"
+                                     "  mesh part.step    the STEP's solids meshed with "
+                                     "tetrahedra, each solid and face as a set");
     parser.addHelpOption();
     const QCommandLineOption versionOpt("version", "Print the version and build.");
     const QCommandLineOption outOpt({"o", "out"},
@@ -143,8 +185,15 @@ int main(int argc, char *argv[])
     parser.addOption(versionOpt);
     parser.addOption(outOpt);
     parser.addOption(deckOpt);
+    const QCommandLineOption sizeOpt("size", "mesh: the largest element edge, in the "
+                                             "geometry's units.", "H");
+    const QCommandLineOption orderOpt("order", "mesh: 1 (straight edges, the default) or 2 "
+                                               "(a middle node on each edge, on the geometry).",
+                                      "N");
     parser.addOption(pvdOpt);
-    parser.addPositionalArgument("command", "convert");
+    parser.addOption(sizeOpt);
+    parser.addOption(orderOpt);
+    parser.addPositionalArgument("command", "convert or mesh");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
 
@@ -163,6 +212,9 @@ int main(int argc, char *argv[])
         }
         return convertMesh(args[1], parser.value(outOpt), parser.isSet(pvdOpt));
     }
+    if (args.size() == 2 && args[0] == "mesh")
+        return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt),
+                    parser.isSet(pvdOpt));
     if (args.size() == 2 && args[0] == "convert")
         return convert(args[1], parser.value(outOpt), parser.value(deckOpt),
                        parser.isSet(pvdOpt));

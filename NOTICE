@@ -12,6 +12,13 @@ LGPL-3.0. https://www.qt.io/
 
 VTK, Kitware, Inc. and contributors, BSD-3-Clause. https://vtk.org/
 
+Netgen, Joachim Schoeberl and the NGSolve team, LGPL-2.1. GridForge
+builds it from its fork, https://github.com/katalystnord/netgen
+(upstream https://github.com/NGSolve/netgen).
+
+Open CASCADE Technology, Open Cascade SAS, LGPL-2.1 with the Open CASCADE
+exception. https://dev.opencascade.org/
+
 Programs run, not included
 --------------------------
 

@@ -1,0 +1,4 @@
+[submodule "third_party/netgen"]
+	path = third_party/netgen
+	url = https://github.com/katalystnord/netgen.git
+	branch = gridforge-dev

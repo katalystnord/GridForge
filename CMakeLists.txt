@@ -41,6 +41,20 @@ find_package(VTK REQUIRED COMPONENTS
     GUISupportQt              # QVTKOpenGLNativeWidget
 )
 
+# Netgen (LGPL-2.1), GridForge's meshing engine: built from our fork in
+# third_party/netgen at the commit the submodule pins, by
+# tools/build-netgen.sh, into build-netgen/install. OpenCASCADE (LGPL-2.1
+# with its header exception) comes with it: Netgen reads STEP through it.
+find_package(Netgen CONFIG REQUIRED
+    PATHS ${CMAKE_SOURCE_DIR}/build-netgen/install NO_DEFAULT_PATH)
+if(NOT NETGEN_USE_OCC)
+    message(FATAL_ERROR "Netgen was built without OpenCASCADE; run tools/build-netgen.sh -f")
+endif()
+# The commit built, for the provenance; configure runs again when it changes.
+set(GF_NETGEN_STAMP ${CMAKE_SOURCE_DIR}/build-netgen/install/.gridforge-netgen-commit)
+file(STRINGS ${GF_NETGEN_STAMP} GF_NETGEN_COMMIT LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GF_NETGEN_STAMP})
+
 enable_testing()
 
 add_subdirectory(src)

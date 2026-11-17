@@ -58,6 +58,19 @@ add_library(gf_gmsh STATIC
 target_include_directories(gf_gmsh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_gmsh PUBLIC gf_core)
 
+# --- gf_mesh: GridForge's mesher, headless -------------------------------------
+# Geometry in, a mesh out, the same every time. Netgen fills the volume
+# (linked: LGPL-2.1, from our fork); what GridForge adds around it is here.
+add_library(gf_mesh STATIC
+    mesh/Mesher.cpp
+)
+target_include_directories(gf_mesh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(gf_mesh SYSTEM PRIVATE ${NETGEN_OCC_INCLUDE_DIR})
+target_link_libraries(gf_mesh PUBLIC gf_core PRIVATE nglib ngcore ${NETGEN_OCC_LIBRARIES})
+target_compile_definitions(gf_mesh PRIVATE OCCGEOMETRY  # Netgen's OCC interface
+    GF_NETGEN_VERSION="${NETGEN_VERSION}"
+    GF_NETGEN_COMMIT="${GF_NETGEN_COMMIT}")
+
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
@@ -71,4 +84,4 @@ target_link_libraries(GridForge PRIVATE gf_gui)
 
 # --- gf-study: the same work without a window ----------------------------------
 add_executable(gf-study cli/main.cpp)
-target_link_libraries(gf-study PRIVATE gf_core gf_calculix gf_gmsh)
+target_link_libraries(gf-study PRIVATE gf_core gf_calculix gf_gmsh gf_mesh)

@@ -118,7 +118,10 @@ git config core.hooksPath tools/git-hooks       # once per clone
 src/core/   gf_core   the solver-neutral model and the toolkit door, headless
 toolkits/   the shipped toolkits' manifests (calculix, openfoam)
 src/gui/    gf_gui    the window; GridForge
+src/mesh/   gf_mesh   GridForge's mesher, headless; Netgen fills the volume
 src/cli/    gf-study  the same work without a window
+third_party/netgen    our Netgen fork (submodule, gridforge-dev), built by
+                      tools/build-netgen.sh into build-netgen/install
 tests/      one executable per subject; fixtures/ committed data
 docs/survey/  the 2026-11-14 survey and its research notes
 docs/specs/   file contracts (study file, results hand-off): to be written

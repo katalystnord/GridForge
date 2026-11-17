@@ -30,6 +30,9 @@ say() { [ "$quiet" -eq 1 ] || printf '%s\n' "$*"; }
 say "=== No em-dashes ==="
 "$here/tools/check-no-em-dashes.sh"
 
+say "=== Netgen, the pinned meshing engine (built only when its commit changes) ==="
+"$here/tools/build-netgen.sh"
+
 say "=== Building GridForge and its tests ==="
 cmake -S "$here" -B "$build" -G Ninja >/dev/null
 cmake --build "$build"

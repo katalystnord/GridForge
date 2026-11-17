@@ -1,0 +1,349 @@
+// gf_mesh: STEP geometry meshed with tetrahedra through Netgen, handed on
+// as a grid with the geometry's solids and faces as sets. The fixtures'
+// answers are known without any mesher (fixtures/step/README.md): the box
+// is 10 x 20 x 30 mm, the two boxes 1000 mm3 each, the dogbone's volume is
+// OpenCASCADE's.
+
+#include "CellChecks.h"
+#include "mesh/Mesher.h"
+
+#include <QRegularExpression>
+
+#include <vtkFieldData.h>
+#include <vtkStringArray.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <functional>
+#include <set>
+#include <vector>
+
+using namespace gf::mesh;
+using namespace gf::test;
+using gf::core::NamedSet;
+using gf::core::ResultsSeries;
+
+#ifndef GF_FIXTURES
+#error "GF_FIXTURES must point at tests/fixtures"
+#endif
+
+namespace {
+
+int failures = 0;
+std::vector<std::pair<const char *, std::function<void()>>> &cases()
+{
+    static std::vector<std::pair<const char *, std::function<void()>>> c;
+    return c;
+}
+struct Register {
+    Register(const char *n, std::function<void()> f) { cases().push_back({n, std::move(f)}); }
+};
+#define CASE(name)                                  \
+    void name();                                    \
+    static Register reg_##name(#name, name);        \
+    void name()
+#define CHECK(cond)                                                                    \
+    do {                                                                               \
+        if (!(cond)) {                                                                 \
+            std::printf("  FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);              \
+            ++failures;                                                                \
+        }                                                                              \
+    } while (0)
+
+const double dogboneVolume = 8699.688877463912;
+
+ResultsSeries mesh(const char *file, double size, int order, QString *error = nullptr)
+{
+    QString e;
+    ResultsSeries s = meshStep(QString(GF_FIXTURES) + "/step/" + file, Recipe{size, order}, &e);
+    if (!e.isEmpty() && !error)
+        std::printf("  (%s: %s)\n", file, qPrintable(e));
+    if (error)
+        *error = e;
+    return s;
+}
+
+vtkUnstructuredGrid *grid(const ResultsSeries &s)
+{
+    return s.points.empty() ? nullptr : s.points.front().grid.Get();
+}
+
+const NamedSet *setOf(const ResultsSeries &s, const QString &name, bool nodes)
+{
+    for (const NamedSet &n : s.sets)
+        if (n.name == name && n.nodes == nodes)
+            return &n;
+    return nullptr;
+}
+
+bool allCellsAre(vtkUnstructuredGrid *g, int type)
+{
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c)
+        if (g->GetCellType(c) != type)
+            return false;
+    return g->GetNumberOfCells() > 0;
+}
+
+double relative(double a, double b) { return std::abs(a - b) / std::abs(b); }
+
+// The volume of some cells of a grid only.
+double volumeOf(vtkUnstructuredGrid *g, const std::vector<vtkIdType> &cells)
+{
+    auto part = vtkSmartPointer<vtkUnstructuredGrid>::New();
+    part->SetPoints(g->GetPoints());
+    part->Allocate(static_cast<vtkIdType>(cells.size()));
+    for (vtkIdType c : cells)
+        part->InsertNextCell(g->GetCellType(c), g->GetCell(c)->GetPointIds());
+    return enclosedVolume(part);
+}
+
+} // namespace
+
+CASE(a_box_is_filled_with_tetrahedra_to_its_volume)
+{
+    const ResultsSeries s = mesh("box.step", 3, 1);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    CHECK(s.points.size() == 1);
+    CHECK(allCellsAre(g, VTK_TETRA));
+    CHECK(misplacedCells(g) == 0);
+    CHECK(relative(enclosedVolume(g), 6000) < 1e-12);
+    double b[6];
+    g->GetBounds(b);
+    CHECK(std::abs(b[0]) < 1e-12 && std::abs(b[1] - 10) < 1e-12);
+    CHECK(std::abs(b[2]) < 1e-12 && std::abs(b[3] - 20) < 1e-12);
+    CHECK(std::abs(b[4]) < 1e-12 && std::abs(b[5] - 30) < 1e-12);
+}
+
+CASE(halving_the_size_gives_about_eight_times_the_tetrahedra)
+{
+    // The recipe's size is a target for Netgen, not a hard bound (at 3 its
+    // longest edge in the box is 6.1): what it must do is set the
+    // fineness. Half the edge length is about eight times the cells.
+    const ResultsSeries coarse = mesh("box.step", 3, 1), fine = mesh("box.step", 1.5, 1);
+    vtkUnstructuredGrid *c = grid(coarse), *f = grid(fine);
+    CHECK(c && f);
+    if (!c || !f)
+        return;
+    const double ratio = double(f->GetNumberOfCells()) / double(c->GetNumberOfCells());
+    CHECK(ratio > 5 && ratio < 12);
+    CHECK(relative(enclosedVolume(f), 6000) < 1e-12);
+}
+
+CASE(quadratic_tetrahedra_have_their_middle_nodes_in_vtks_order)
+{
+    const ResultsSeries s = mesh("box.step", 3, 2);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    CHECK(allCellsAre(g, VTK_QUADRATIC_TETRA));
+    // The box is flat-faced: every middle node sits halfway along its edge.
+    CHECK(misplacedCells(g) == 0);
+    CHECK(relative(enclosedVolume(g), 6000) < 1e-12);
+}
+
+CASE(a_curved_part_is_filled_close_to_its_volume)
+{
+    const ResultsSeries s = mesh("dogbone.step", 2, 1);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    CHECK(misplacedCells(g) == 0);
+    // Straight edges cut across the R30 transitions, which are concave:
+    // a little volume is gained (3.2e-4 at this size), never a thousandth.
+    const double v = enclosedVolume(g);
+    CHECK(v > dogboneVolume);
+    CHECK(relative(v, dogboneVolume) < 1e-3);
+}
+
+CASE(every_node_handed_on_belongs_to_an_element)
+{
+    // Netgen keeps points no element uses: in the dogbone, the centres of
+    // the four R30 arcs, at y = -35 and 35, outside the part. They must not
+    // reach the grid (they would stretch its bounds, and every node set).
+    for (int order : {1, 2}) {
+        const ResultsSeries s = mesh("dogbone.step", 2, order);
+        vtkUnstructuredGrid *g = grid(s);
+        CHECK(g);
+        if (!g)
+            continue;
+        std::vector<bool> used(g->GetNumberOfPoints(), false);
+        for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
+            vtkIdType n;
+            const vtkIdType *pts;
+            g->GetCellPoints(c, n, pts);
+            for (vtkIdType k = 0; k < n; ++k)
+                used[pts[k]] = true;
+        }
+        CHECK(std::count(used.begin(), used.end(), false) == 0);
+        double b[6];
+        g->GetBounds(b);
+        CHECK(b[2] >= -10 - 1e-9 && b[3] <= 10 + 1e-9);
+    }
+}
+
+CASE(quadratic_middle_nodes_are_moved_onto_curved_faces)
+{
+    const ResultsSeries s = mesh("dogbone.step", 2, 2);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    CHECK(allCellsAre(g, VTK_QUADRATIC_TETRA));
+    if (!allCellsAre(g, VTK_QUADRATIC_TETRA))
+        return;
+    // On the flat faces middle nodes stay halfway; on the transitions they
+    // leave the straight edge for the arc, by up to the arc's sagitta.
+    // VTK's edges: 01, 12, 20, 03, 13, 23 as nodes 4 to 9.
+    const int ends[6][2] = {{0, 1}, {1, 2}, {2, 0}, {0, 3}, {1, 3}, {2, 3}};
+    int moved = 0;
+    double furthest = 0;
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
+        vtkCell *cell = g->GetCell(c);
+        for (int k = 0; k < 6; ++k) {
+            const auto a = point(g, cell->GetPointId(ends[k][0])),
+                       b = point(g, cell->GetPointId(ends[k][1])),
+                       m = point(g, cell->GetPointId(4 + k));
+            const double off = std::hypot(m[0] - (a[0] + b[0]) / 2, m[1] - (a[1] + b[1]) / 2,
+                                          m[2] - (a[2] + b[2]) / 2);
+            moved += off > 1e-9 ? 1 : 0;
+            furthest = std::max(furthest, off);
+        }
+    }
+    CHECK(moved > 0);
+    // An edge of about 2 mm on R30 bows by about 2^2 / (8 * 30) = 0.017 mm.
+    CHECK(furthest < 0.1);
+}
+
+CASE(each_solid_is_an_element_set_and_a_node_set)
+{
+    const ResultsSeries s = mesh("twoboxes.step", 2, 1);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    const NamedSet *one = setOf(s, "Solid1", false), *two = setOf(s, "Solid2", false);
+    CHECK(one && two);
+    CHECK(setOf(s, "Solid1", true) && setOf(s, "Solid2", true));
+    CHECK(!setOf(s, "Solid3", false));
+    if (!one || !two)
+        return;
+    CHECK(one->members.size() + two->members.size() == static_cast<size_t>(g->GetNumberOfCells()));
+    CHECK(relative(volumeOf(g, one->members), 1000) < 1e-12);
+    CHECK(relative(volumeOf(g, two->members), 1000) < 1e-12);
+    // In the file's order: the first solid is the one at x 0 to 10.
+    double b[6];
+    g->GetCell(one->members.front())->GetBounds(b);
+    CHECK(b[1] <= 10 + 1e-12);
+}
+
+CASE(each_face_of_the_geometry_is_a_node_set_on_that_face)
+{
+    const ResultsSeries s = mesh("box.step", 3, 1);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    // OpenCASCADE's order of the box's faces, as Gmsh 4.14 lists them from
+    // the same file: x = 0, x = 10, y = 0, y = 20, z = 0, z = 30.
+    const std::pair<int, double> planes[6] = {{0, 0}, {0, 10}, {1, 0}, {1, 20}, {2, 0}, {2, 30}};
+    std::set<vtkIdType> all;
+    for (int f = 0; f < 6; ++f) {
+        const NamedSet *face = setOf(s, QString("Face%1").arg(f + 1), true);
+        CHECK(face && face->members.size() > 3);
+        if (!face)
+            continue;
+        bool on = true;
+        for (vtkIdType p : face->members)
+            on = on && std::abs(point(g, p)[planes[f].first] - planes[f].second) < 1e-12;
+        CHECK(on);
+        all.insert(face->members.begin(), face->members.end());
+    }
+    CHECK(!setOf(s, "Face7", true));
+    // Together they hold every node on the outside.
+    int outside = 0;
+    for (vtkIdType p = 0; p < g->GetNumberOfPoints(); ++p) {
+        const auto x = point(g, p);
+        outside += (x[0] == 0 || x[0] == 10 || x[1] == 0 || x[1] == 20 || x[2] == 0 || x[2] == 30) ? 1 : 0;
+    }
+    CHECK(static_cast<int>(all.size()) == outside);
+}
+
+CASE(the_same_geometry_and_recipe_give_the_same_mesh)
+{
+    const ResultsSeries a = mesh("dogbone.step", 2, 2), b = mesh("dogbone.step", 2, 2);
+    vtkUnstructuredGrid *ga = grid(a), *gb = grid(b);
+    CHECK(ga && gb);
+    if (!ga || !gb)
+        return;
+    CHECK(allCellsAre(ga, VTK_QUADRATIC_TETRA) && allCellsAre(gb, VTK_QUADRATIC_TETRA));
+    if (!allCellsAre(ga, VTK_QUADRATIC_TETRA) || !allCellsAre(gb, VTK_QUADRATIC_TETRA))
+        return;
+    CHECK(ga->GetNumberOfPoints() == gb->GetNumberOfPoints());
+    CHECK(ga->GetNumberOfCells() == gb->GetNumberOfCells());
+    bool same = ga->GetNumberOfPoints() == gb->GetNumberOfPoints()
+                && ga->GetNumberOfCells() == gb->GetNumberOfCells();
+    for (vtkIdType p = 0; same && p < ga->GetNumberOfPoints(); ++p)
+        same = point(ga, p) == point(gb, p);  // bit for bit
+    for (vtkIdType c = 0; same && c < ga->GetNumberOfCells(); ++c)
+        for (int k = 0; k < 10 && same; ++k)
+            same = ga->GetCell(c)->GetPointId(k) == gb->GetCell(c)->GetPointId(k);
+    CHECK(same);
+}
+
+CASE(the_provenance_names_the_engine_the_recipe_and_the_source)
+{
+    const ResultsSeries s = mesh("box.step", 3, 2);
+    const QString all = s.provenance.join('\n');
+    CHECK(engine().startsWith("Netgen "));
+    CHECK(engine().contains("github.com/katalystnord/netgen at "));
+    CHECK(s.provenance.contains("mesher: " + engine()));
+    CHECK(s.provenance.contains("source: box.step"));
+    CHECK(s.provenance.contains("recipe: largest element 3, order 2"));
+    CHECK(all.contains(QRegularExpression("model: \\d+ quadratic tetrahedra, \\d+ nodes")));
+    CHECK(s.provenance.contains("node order: Netgen's, put into VTK's by GridForge"));
+    CHECK(s.provenance.contains("sets: 1 solid, as an element set and a node set; 6 faces, as node sets"));
+    // On the grid too, for ParaView.
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g && g->GetFieldData()->GetAbstractArray("provenance"));
+}
+
+CASE(a_missing_file_is_said_and_nothing_is_made)
+{
+    QString error;
+    const ResultsSeries s = mesh("no-such.step", 3, 1, &error);
+    CHECK(s.points.empty());
+    CHECK(error.contains("no-such.step"));
+}
+
+CASE(a_recipe_without_a_size_is_refused)
+{
+    QString error;
+    const ResultsSeries s = mesh("box.step", 0, 1, &error);
+    CHECK(s.points.empty());
+    CHECK(error == "the recipe has no largest element size");
+}
+
+CASE(an_order_other_than_1_or_2_is_refused)
+{
+    QString error;
+    const ResultsSeries s = mesh("box.step", 3, 3, &error);
+    CHECK(s.points.empty());
+    CHECK(error == "the recipe's order is 3; only 1 and 2 are made");
+}
+
+int main()
+{
+    for (auto &[name, run] : cases()) {
+        const int before = failures;
+        run();
+        std::printf("%s %s\n", failures == before ? "PASS" : "FAIL", name);
+    }
+    std::printf("%d failure(s)\n", failures);
+    return failures == 0 ? 0 : 1;
+}

@@ -12,9 +12,15 @@ and why, is in [docs/survey/](docs/survey/README.md); the plan in
 
 ## Build
 
-Qt 6, VTK 9 and CMake (Ubuntu 26.04 packages):
+Qt 6, VTK 9, CMake and OpenCASCADE's development files (Ubuntu 26.04
+packages). Netgen, the meshing engine, is a submodule (our fork,
+github.com/katalystnord/netgen) built by the test script at the commit
+it pins:
 
 ```bash
+sudo apt install libocct-foundation-dev libocct-modeling-data-dev \
+    libocct-modeling-algorithms-dev libocct-data-exchange-dev libocct-ocaf-dev
+git submodule update --init
 tools/run-tests.sh
 ```
 

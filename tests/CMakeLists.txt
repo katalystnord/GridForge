@@ -150,6 +150,53 @@ add_test(NAME meshes_reach_paraview_with_their_groups COMMAND test_mesh_handoff)
 # bounds 10 x 20 x 30, the assembly with Model, NodeSets (Solid, Fixed,
 # Pulled, PhysicalSurface77, Edge, Origin), ElementSets (Solid).
 
+# gf_mesh: STEP geometry meshed through Netgen, each fixture with an
+# answer known without a mesher (fixtures/step/README.md).
+add_executable(test_mesher test_mesher.cpp)
+target_link_libraries(test_mesher PRIVATE gf_mesh)
+target_compile_definitions(test_mesher PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME geometry_is_meshed_the_same_every_time COMMAND test_mesher)
+# NEGATIVE CHECKS, 2026-11-17, gf_mesh: the 12 cases written first, all red
+# against a stub (20 checks). Two expectations were wrong and corrected
+# against the meshes: Netgen's size is a target, not a bound (the box's
+# longest edge at 3 is 6.1; the case now asks that half the size give
+# about eight times the cells); the dogbone's R30 transitions are concave,
+# so straight edges gain volume (+3.2e-4), not lose it. Then each rule
+# broken, the tests run, restored:
+#   tet4 not turned: the box, size, dogbone and solids cases red;
+#   tet10 middles in Netgen's order: both quadratic cases red;
+#   solids numbered backwards: the solids case red;
+#   order 2 not made: crashed (a 4-node cell read as 10); the quadratic
+#     cases now stop when the cells are not quadratic, and are red;
+#   faces numbered one off: survived at first (every face was still a
+#     plane of the box); each face is now held to its plane in
+#     OpenCASCADE's order, as Gmsh 4.14 lists it, and the case is red;
+#   the recipe's size ignored: the size case red;
+#   a size of 0 accepted: that case red.
+# Found in ParaView, not by a test first: Netgen keeps points no element
+# uses (the dogbone's four arc centres, y = -35 and 35). The case
+# every_node_handed_on_belongs_to_an_element was written, seen red, then
+# the points were left out.
+# Opened in ParaView 6.2.0 (Flatpak, VTK's HDF reader), 2026-11-17: the
+# dogbone (0 to 150, -10 to 10, 0 to 4; 6292 quadratic tetrahedra) and the
+# two boxes, with the assembly Model, NodeSets (Solid1.., Face1..),
+# ElementSets (Solid1..).
+# KNOWN, NOT YET HANDLED: the two boxes do not fully share nodes where
+# they touch (258 nodes at x = 10, at 217 positions). Joining parts is
+# the mesher's next piece.
+
+# gf-study mesh: a STEP in, one .vtkhdf out with its solids and faces as
+# sets, said on the terminal.
+add_test(NAME cli_meshes_a_step_with_its_solids_and_faces_as_sets
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 3 --order 2
+            -o ${CMAKE_CURRENT_BINARY_DIR}/mesh-out)
+set_tests_properties(cli_meshes_a_step_with_its_solids_and_faces_as_sets PROPERTIES
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*mesh-out/box\\.vtkhdf \\(a mesh: [0-9]+ nodes, [0-9]+ elements, 8 sets from its solids and faces\\)\n  mesher: Netgen ")
+add_test(NAME cli_mesh_without_a_size_is_refused
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step)
+set_tests_properties(cli_mesh_without_a_size_is_refused PROPERTIES WILL_FAIL TRUE)
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)
