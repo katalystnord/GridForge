@@ -14,6 +14,8 @@
 
 #include <vtkCell.h>
 #include <vtkCellData.h>
+#include <vtkDoubleArray.h>
+#include <vtkPoints.h>
 #include <vtkCellType.h>
 #include <vtkDataArray.h>
 #include <vtkFieldData.h>
@@ -215,6 +217,41 @@ CASE(derived_stresses_keep_the_invariants_of_the_solvers_tensor)
     }
     CHECK(bad == 0);
     CHECK(largestShear > 1.0);  // the check means something only with shear
+}
+
+// Two time points of four nodes with a PE array: none below 0 at the
+// first, two at the second (least -4.4e-4, as in the dogbone).
+ResultsSeries withPe(std::vector<double> first, std::vector<double> second)
+{
+    ResultsSeries s;
+    for (const auto &values : {first, second}) {
+        auto g = vtkSmartPointer<vtkUnstructuredGrid>::New();
+        vtkNew<vtkPoints> pts;
+        for (int k = 0; k < 4; ++k)
+            pts->InsertNextPoint(k, 0, 0);
+        g->SetPoints(pts);
+        vtkNew<vtkDoubleArray> pe;
+        pe->SetName("PE");
+        for (double v : values)
+            pe->InsertNextValue(v);
+        g->GetPointData()->AddArray(pe);
+        s.points.push_back({double(s.points.size() + 1), g});
+    }
+    return s;
+}
+
+CASE(a_plastic_strain_below_zero_at_the_nodes_is_said_not_changed)
+{
+    // The least first, so it must be kept, not the last seen.
+    const ResultsSeries s = withPe({0, 0, 0, 0}, {-4.4e-4, 0.01, -1e-4, 0.02});
+    CHECK(extrapolationNotes(s) == QStringList({
+        "PE below 0 at 2 node values in 1 of 2 time points (least -0.00044): ccx extrapolates it "
+        "from the integration points to the nodes, where it overshoots; an equivalent plastic "
+        "strain cannot be below 0"}));
+    // The values themselves are left as ccx wrote them.
+    CHECK(s.points[1].grid->GetPointData()->GetArray("PE")->GetTuple1(0) == -4.4e-4);
+    CHECK(extrapolationNotes(withPe({0, 0, 0, 0}, {0, 0.01, 0.02, 0})).isEmpty());
+    CHECK(extrapolationNotes(bar()).isEmpty());  // no PE at all
 }
 
 CASE(the_provenance_names_the_solver_and_the_source)

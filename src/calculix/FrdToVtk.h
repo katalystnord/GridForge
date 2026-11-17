@@ -21,4 +21,14 @@ gf::core::ResultsSeries toSeries(const FrdFile &frd, const QString &source, QStr
 // set; `deck` is the deck's name, for the provenance.
 void addSets(gf::core::ResultsSeries &series, const InpSets &sets, const QString &deck);
 
+// What the results hold that cannot be physical, said, never changed
+// (tenets 9 and 10). ccx computes element results at the integration
+// points and extrapolates them to the nodes for the .frd; where a field
+// changes sharply, the nodal values overshoot. Version 1: an equivalent
+// plastic strain (PE) below 0 at a node, which cannot be (checked on
+// examples/dogbone-plastic: none below 0 at its 6496 integration points,
+// 65 nodes below 0 in the .frd, at the yield fronts). One line per field,
+// over every time point; none when nothing is out of bounds.
+QStringList extrapolationNotes(const gf::core::ResultsSeries &series);
+
 } // namespace gf::calculix

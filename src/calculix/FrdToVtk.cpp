@@ -14,6 +14,7 @@
 #include <vtkStringArray.h>
 
 #include <cmath>
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
@@ -298,6 +299,36 @@ void addSets(ResultsSeries &series, const InpSets &sets, const QString &deck)
         provenance->InsertNextValue(line.toStdString());
     for (gf::core::TimePoint &t : series.points)
         t.grid->GetFieldData()->AddArray(provenance);
+}
+
+QStringList extrapolationNotes(const gf::core::ResultsSeries &series)
+{
+    long long below = 0;
+    int timePoints = 0;
+    double least = 0;
+    for (const gf::core::TimePoint &t : series.points) {
+        vtkDataArray *pe = t.grid ? t.grid->GetPointData()->GetArray("PE") : nullptr;
+        if (!pe)
+            continue;
+        bool here = false;
+        for (vtkIdType i = 0; i < pe->GetNumberOfTuples(); ++i)
+            if (const double v = pe->GetTuple1(i); v < 0) {
+                ++below;
+                here = true;
+                least = std::min(least, v);
+            }
+        timePoints += here ? 1 : 0;
+    }
+    if (below == 0)
+        return {};
+    return {QString("PE below 0 at %1 node value%2 in %3 of %4 time points (least %5): ccx extrapolates it "
+                    "from the integration points to the nodes, where it overshoots; an equivalent plastic "
+                    "strain cannot be below 0")
+                .arg(below)
+                .arg(below == 1 ? "" : "s")
+                .arg(timePoints)
+                .arg(series.points.size())
+                .arg(least, 0, 'g', 2)};
 }
 
 } // namespace gf::calculix

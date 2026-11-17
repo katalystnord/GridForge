@@ -164,6 +164,9 @@ int main(int argc, char *argv[])
     const gf::calculix::InpSets sets = gf::calculix::readInpSets(work.filePath("mesh.inp"));
     if (sets.ok())
         gf::calculix::addSets(results, sets, "mesh.inp");
+    const QStringList notes = gf::calculix::extrapolationNotes(results);
+    for (const QString &note : notes)
+        results.provenance << "note: " + note;
     results.provenance << QString("toolkit: gf-calculix (%1 %2, build %3)")
                               .arg(gf::core::applicationName(), gf::core::applicationVersion(),
                                    gf::core::applicationBuild());
@@ -180,9 +183,12 @@ int main(int argc, char *argv[])
                              {"solver", version.hasMatch() ? version.captured(0) : QString("CalculiX (version not said)")},
                              {"trust", "solved"},
                              {"files", QJsonArray{"results/results.vtkhdf"}},
+                             {"notes", QJsonArray::fromStringList(notes)},
                              {"provenance", provenance}};
     if (!writeText(job.filePath("results/results.json"), QJsonDocument(report).toJson()))
         return refuse("cannot write " + job.filePath("results/results.json"), 1);
+    for (const QString &note : notes)
+        say({{"type", "log"}, {"level", "warning"}, {"text", note}});
     say({{"type", "file"}, {"path", "results/results.vtkhdf"}});
     return 0;
 }

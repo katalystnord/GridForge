@@ -97,6 +97,11 @@ add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
 #   failure first wrote no results either); it now writes them, now red;
 #   the plastic block's path not seen from work/: no build at first (an
 #   empty if); kept, a plastic job added, now red.
+# NEGATIVE CHECKS, 2026-11-17, extrapolation notes: the case written first,
+# red against a stub. Then each rule broken, the test run, restored: PE
+# counted below -1 instead of 0: red; the least taken as the last seen:
+# survived at first (the least came last); the fixture's least now
+# first, red.
 # Found by the real run (the dogbone, examples/dogbone-plastic), not by
 # the stand-in: ccx 2.23 refuses a number with an exponent longer than 21
 # characters (a Netgen coordinate, -4.7717021973877325e-06); the deck

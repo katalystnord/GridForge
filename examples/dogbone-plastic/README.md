@@ -26,6 +26,15 @@ material, and said in the deck), ccx, and the results in
   falling to none through the transitions; none in the grips. Von Mises
   stress at most 383 MPa.
 
+- PE (equivalent plastic strain) reads as low as -0.00044 at some nodes,
+  which cannot be. Chased down 2026-11-17: asked for at its integration
+  points (`*EL PRINT ... PEEQ`), ccx gives none below 0 (6496 points, 0
+  to 0.018777); the .frd's nodal values are ccx's extrapolation from
+  them, and overshoot at the yield fronts in the R30 transitions (65
+  nodes below 0 at the end, x = 32 to 118). GridForge leaves the values
+  as ccx wrote them and says so: results.json's "notes", the results'
+  provenance, and a warning while it runs.
+
 Not checked against a hand answer: a dogbone in plasticity has none.
 The box fixtures in tests/fixtures/calculix hold the deck to hand
 answers; this example shows the whole chain running on a real case.
