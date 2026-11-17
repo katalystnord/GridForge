@@ -130,6 +130,7 @@ private:
     void lightFaces(const std::vector<int> &faces);
     void showPicked();
     void makeGroup();
+    void showGroupEditing(const QString &group);
     void showDeck(const QString &path, int run);
     void fillSteps();
 

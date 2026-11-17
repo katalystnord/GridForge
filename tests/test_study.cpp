@@ -400,6 +400,63 @@ CASE(a_group_without_a_name_faces_or_a_name_of_its_own_is_refused)
     CHECK(f.readAll() == before);
 }
 
+CASE(a_renamed_group_is_renamed_wherever_the_study_uses_it)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    CHECK(renameGroup(folder, "Pulled grip", " Moving grip ", &error) && error.isEmpty());
+    const Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty() && !s.setup.group("Pulled grip") && s.setup.group("Moving grip"));
+    CHECK(s.setup.group("Moving grip") && s.setup.group("Moving grip")->faces == std::vector<int>({6}));
+    CHECK(!s.setup.steps.empty() && s.setup.steps[0].loads.size() == 1
+          && s.setup.steps[0].loads[0].group == "Moving grip");
+    CHECK(renameGroup(folder, "Fixed grip", "Held grip", &error));
+    const Study t = readStudy(folder, &error);
+    CHECK(t.setup.supports.size() == 1 && t.setup.supports[0].group == "Held grip");
+    // The material assignment names groups too.
+    CHECK(renameGroup(folder, "Dogbone", "Specimen", &error) && error.isEmpty());
+    const Study u = readStudy(folder, &error);
+    CHECK(error.isEmpty() && u.setup.assign.count("Specimen") && u.setup.assign.at("Specimen") == "Measured steel");
+    CHECK(!u.setup.assign.count("Dogbone"));
+}
+
+CASE(a_rename_or_delete_the_study_cannot_take_is_refused_and_the_file_kept)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QFile f(QDir(folder).filePath("study.json"));
+    f.open(QIODevice::ReadOnly);
+    const QByteArray before = f.readAll();
+    f.close();
+    QString error;
+    CHECK(!renameGroup(folder, "Pulled grip", " ", &error));
+    CHECK(error == "a group needs a name");
+    CHECK(!renameGroup(folder, "Pulled grip", "Fixed grip", &error));
+    CHECK(error == "there is a group named Fixed grip already");
+    CHECK(!renameGroup(folder, "Nothing", "New", &error));
+    CHECK(error == "there is no group named Nothing");
+    // In use: said where, and kept.
+    CHECK(!deleteGroup(folder, "Pulled grip", &error));
+    CHECK(error == "Pulled grip is used by step Pull's displacement; take that out first");
+    CHECK(!deleteGroup(folder, "Fixed grip", &error));
+    CHECK(error == "Fixed grip is used by the supports; take that out first");
+    CHECK(!deleteGroup(folder, "Dogbone", &error));
+    CHECK(error == "Dogbone is used by the material assignment; take that out first");
+    f.open(QIODevice::ReadOnly);
+    CHECK(f.readAll() == before);
+}
+
+CASE(a_group_nothing_uses_is_deleted)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    CHECK(addFaceGroup(folder, "Spare", {3}, &error));
+    CHECK(deleteGroup(folder, "Spare", &error) && error.isEmpty());
+    CHECK(!readStudy(folder, &error).setup.group("Spare"));
+}
+
 CASE(a_folder_without_a_study_is_said)
 {
     QTemporaryDir dir;

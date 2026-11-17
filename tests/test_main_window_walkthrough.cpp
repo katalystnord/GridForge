@@ -6,6 +6,7 @@
 //   test_main_window_walkthrough [--screenshot FILE]   also saves the window
 
 #include "core/Study.h"
+#include "core/StudyEdit.h"
 #include "gui/MainWindow.h"
 #include "gui/Style.h"
 #include "gui/Tone.h"
@@ -602,6 +603,38 @@ private slots:
         QCoreApplication::sendEvent(view, &leave);
         QVERIFY(!paleAt(w, top));
         QVERIFY(!w.statusBar()->currentMessage().startsWith("Face"));  // nor its name
+    }
+
+    void a_group_is_renamed_and_deleted_in_properties()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QString error;
+        QVERIFY(gf::core::addFaceGroup(folder, "Spare", {4}, &error));
+        QVERIFY(w.openStudy(folder));
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(findItem(tree, "Spare"));
+        auto *name = w.findChild<QLineEdit *>("groupRename");
+        QVERIFY(name);
+        QCOMPARE(name->text(), QString("Spare"));
+        name->setText("Extra");
+        QTest::mouseClick(w.findChild<QPushButton *>("renameGroup"), Qt::LeftButton);
+        QVERIFY(!findItem(tree, "Spare") && findItem(tree, "Extra"));
+        QCOMPARE(tree->currentItem(), findItem(tree, "Extra"));
+        // In use: refused, said, kept.
+        tree->setCurrentItem(findItem(tree, "Pulled"));
+        QTest::mouseClick(w.findChild<QPushButton *>("deleteGroup"), Qt::LeftButton);
+        QVERIFY(findItem(tree, "Pulled"));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Pulled is used by step Pull's displacement; take that out first"));
+        // Unused: deleted, and said with its faces, to be made again if need be.
+        tree->setCurrentItem(findItem(tree, "Extra"));
+        QTest::mouseClick(w.findChild<QPushButton *>("deleteGroup"), Qt::LeftButton);
+        QVERIFY(!findItem(tree, "Extra"));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("Group Extra deleted (face 4)"));
+        QVERIFY(!gf::core::readStudy(folder, &error).setup.group("Extra"));
     }
 
     void a_drag_turns_the_view_and_picks_nothing()

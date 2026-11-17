@@ -620,6 +620,10 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
 
     // What can be edited: a field each, Apply and Reset as ParaView's.
     m_editKey = item->data(0, Qt::UserRole).toString();
+    if (m_editKey.startsWith("group:")) {
+        showGroupEditing(m_editKey.mid(6));
+        return;
+    }
     const std::vector<core::EditableField> fields = core::editableFields(m_study, m_editKey);
     if (fields.empty())
         return;
@@ -1159,6 +1163,61 @@ void MainWindow::showDeck(const QString &path, int run)
         dock->setWindowTitle(tr("Deck (run %1)").arg(run));
         dock->setToolTip(QDir::cleanPath(path));
     }
+}
+
+void MainWindow::showGroupEditing(const QString &group)
+{
+    // A group's name changed (followed wherever the study uses it), or the
+    // group deleted if nothing does.
+    auto *name = new QLineEdit(group, m_properties);
+    name->setObjectName(QStringLiteral("groupRename"));
+    m_propertyForm->addRow(tr("New name"), name);
+    auto *buttons = new QWidget(m_properties);
+    auto *row = new QHBoxLayout(buttons);
+    row->setContentsMargins(0, 6, 0, 6);
+    auto *rename = new QPushButton(icon("pqApply"), tr("Rename"), buttons);
+    rename->setObjectName(QStringLiteral("renameGroup"));
+    auto *remove = new QPushButton(icon("pqDelete"), tr("Delete group"), buttons);
+    remove->setObjectName(QStringLiteral("deleteGroup"));
+    remove->setToolTip(tr("Only a group no support, load or material uses"));
+    row->addWidget(rename);
+    row->addWidget(remove);
+    row->addStretch();
+    m_propertyForm->addRow(buttons);
+    auto doRename = [this, name, group] {
+        const QString to = name->text().trimmed();
+        if (to == group)
+            return;
+        QString error;
+        if (!core::renameGroup(m_study.folder, group, to, &error)) {
+            say(tr("Cannot rename %1: %2").arg(group, error), Tone::Problem);
+            return;
+        }
+        say(tr("Group %1 renamed %2, wherever the study uses it").arg(group, to), Tone::Done);
+        openStudy(m_study.folder);
+        for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+            if ((*it)->data(0, Qt::UserRole).toString() == "group:" + to) {
+                m_tree->setCurrentItem(*it);
+                break;
+            }
+    };
+    connect(rename, &QPushButton::clicked, this, doRename);
+    connect(name, &QLineEdit::returnPressed, this, doRename);
+    connect(remove, &QPushButton::clicked, this, [this, group] {
+        const core::Group *g = m_study.setup.group(group);
+        QStringList what;
+        if (g && !g->faces.empty())
+            what << facesText(g->faces);
+        if (g && !g->solids.empty())
+            what << (g->solids.size() == 1 ? tr("solid %1").arg(g->solids[0]) : tr("%1 solids").arg(g->solids.size()));
+        QString error;
+        if (!core::deleteGroup(m_study.folder, group, &error)) {
+            say(tr("Cannot delete: %1").arg(error), Tone::Problem);
+            return;
+        }
+        say(tr("Group %1 deleted (%2)").arg(group, what.join("; ")), Tone::Done);
+        openStudy(m_study.folder);
+    });
 }
 
 void MainWindow::makeGroup()

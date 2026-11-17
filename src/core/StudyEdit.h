@@ -49,4 +49,13 @@ bool editStudy(const QString &folder, const QString &key, const Edit &edit, QStr
 // with a name a group has already, or without faces.
 bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error);
 
+// Renames a group, and every support and load that names it. False with
+// *error (the file unchanged) without a new name, with a name a group has
+// already, or if no group has the old name.
+bool renameGroup(const QString &folder, const QString &from, const QString &to, QString *error);
+
+// Deletes a group nothing uses. False with *error (the file unchanged),
+// saying what uses it, if a support or load does.
+bool deleteGroup(const QString &folder, const QString &name, QString *error);
+
 } // namespace gf::core

@@ -456,6 +456,12 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, renaming and deleting groups: the cases red
+# against stubs (13 checks) and before Properties offered it; then the
+# supports and loads not renamed: red; the material assignment not renamed
+# (found by reading study.json, not by a failure: "assign" names groups):
+# red; uses not checked before deleting: red; the assignment not checked:
+# red; the renamed group not selected again: red.
 # NEGATIVE CHECKS, 2026-11-17, the face under the mouse: the case red before
 # hover was written; then no tint: red; not named: red; the name left after
 # the tint: red. Two at first green: a tint while dragging (VTK turns the

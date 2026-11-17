@@ -161,7 +161,9 @@ beside the increment ("true scale", "deformed ×200"). The Steps dock
 (2026-11-17): a row per support or load, a column per step, each value
 set there or kept from an earlier step (said, in grey); a click selects
 what set it, to edit in Properties. The face under the mouse is tinted
-pale ember and named in the status bar (FreeCAD's preselection).
+pale ember and named in the status bar (FreeCAD's preselection). A group
+is renamed in Properties wherever the study uses it (supports, loads, the
+material assignment), and deleted only when nothing uses it.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

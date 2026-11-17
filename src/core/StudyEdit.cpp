@@ -272,4 +272,118 @@ bool addFaceGroup(const QString &folder, const QString &name, const std::vector<
         error);
 }
 
+namespace {
+
+// Each support and load that names a group, as where it is said to be
+// ("the supports", "step Pull's displacement"), with a way to rename it.
+// Walks setup.supports and each step's supports and loads. (The material
+// assignment names groups as its keys; renameGroup and deleteGroup see to
+// it themselves.)
+void eachUse(QJsonObject &setup, const QString &group,
+             const std::function<void(const QString &where, QJsonObject &item)> &use)
+{
+    if (!setup.contains("supports") && !setup.contains("steps"))
+        return;
+    QJsonArray supports = setup["supports"].toArray();
+    for (int i = 0; i < supports.size(); ++i) {
+        QJsonObject o = supports[i].toObject();
+        if (o["group"].toString() == group) {
+            use("the supports", o);
+            supports[i] = o;
+        }
+    }
+    if (setup.contains("supports"))
+        setup["supports"] = supports;
+    QJsonArray steps = setup["steps"].toArray();
+    for (int i = 0; i < steps.size(); ++i) {
+        QJsonObject step = steps[i].toObject();
+        const QString name = step["name"].toString();
+        for (const char *list : {"supports", "loads"}) {
+            QJsonArray items = step[list].toArray();
+            for (int k = 0; k < items.size(); ++k) {
+                QJsonObject o = items[k].toObject();
+                if (o["group"].toString() != group)
+                    continue;
+                QString what = list;
+                for (const char *kind : {"displacement", "force", "pressure", "gravity"})
+                    if (QString(list) == "loads" && o.contains(kind))
+                        what = kind;
+                use(QString("step %1's %2").arg(name, what), o);
+                items[k] = o;
+            }
+            if (step.contains(list))
+                step[list] = items;
+        }
+        steps[i] = step;
+    }
+    setup["steps"] = steps;
+}
+
+} // namespace
+
+bool renameGroup(const QString &folder, const QString &from, const QString &to, QString *error)
+{
+    const QString named = to.trimmed();
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject groups = setup["groups"].toObject();
+            if (!groups.contains(from))
+                return fail(QString("there is no group named %1").arg(from));
+            if (named.isEmpty())
+                return fail("a group needs a name");
+            if (named != from && groups.contains(named))
+                return fail(QString("there is a group named %1 already").arg(named));
+            groups[named] = groups.take(from);
+            setup["groups"] = groups;
+            QJsonObject assign = setup["assign"].toObject();
+            if (assign.contains(from)) {
+                assign[named] = assign.take(from);
+                setup["assign"] = assign;
+            }
+            eachUse(setup, from, [&](const QString &, QJsonObject &item) { item["group"] = named; });
+            root["setup"] = setup;
+            return root;
+        },
+        error);
+}
+
+bool deleteGroup(const QString &folder, const QString &name, QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject groups = setup["groups"].toObject();
+            if (!groups.contains(name))
+                return fail(QString("there is no group named %1").arg(name));
+            QString usedBy = setup["assign"].toObject().contains(name) ? QString("the material assignment") : QString();
+            QJsonObject probe = setup;
+            eachUse(probe, name, [&](const QString &where, QJsonObject &) {
+                if (usedBy.isEmpty())
+                    usedBy = where;
+            });
+            if (!usedBy.isEmpty())
+                return fail(QString("%1 is used by %2; take that out first").arg(name, usedBy));
+            groups.remove(name);
+            setup["groups"] = groups;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
+}
+
 } // namespace gf::core
