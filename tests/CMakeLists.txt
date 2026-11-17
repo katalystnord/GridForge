@@ -182,9 +182,18 @@ add_test(NAME geometry_is_meshed_the_same_every_time COMMAND test_mesher)
 # dogbone (0 to 150, -10 to 10, 0 to 4; 6292 quadratic tetrahedra) and the
 # two boxes, with the assembly Model, NodeSets (Solid1.., Face1..),
 # ElementSets (Solid1..).
-# KNOWN, NOT YET HANDLED: the two boxes do not fully share nodes where
-# they touch (258 nodes at x = 10, at 217 positions). Joining parts is
-# the mesher's next piece.
+# NEGATIVE CHECKS, 2026-11-17, joining touching solids: the 3 cases
+# written first, red (the two boxes shared only some nodes where they
+# touch: 258 nodes at x = 10, at 217 places; overlapping boxes meshed
+# without a word). Then each rule broken, the tests run, restored:
+#   the solids not joined: both touching cases red;
+#   overlap not checked: the overlap case red;
+#   solids named backwards after joining: the solids case red;
+#   shared faces not counted: the face-set case red (its provenance).
+# The benchmark's two parts (tools/mesh-bench, block and cylinder, R12
+# contact disk), order 2 at 2 mm: 27767 nodes at 27767 places; outside
+# area 8659.90 against OpenCASCADE's 8661.95 (straight facets, -0.02 %);
+# every mesher in the study left the contact face inside it (+10.3 %).
 
 # gf-study mesh: a STEP in, one .vtkhdf out with its solids and faces as
 # sets, said on the terminal.

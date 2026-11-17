@@ -13,7 +13,11 @@
 //   Solid1, Solid2, ...   each solid's tetrahedra (element set) and their
 //                         nodes (node set), in the file's order;
 //   Face1, Face2, ...     the nodes on each face of the geometry, in
-//                         OpenCASCADE's order of the faces.
+//                         OpenCASCADE's order of the faces once joined.
+//
+// Solids that touch are joined first: the face they share is one face,
+// meshed once, its nodes in both solids. Solids that overlap are refused,
+// naming the two.
 
 #include "core/ResultsSeries.h"
 

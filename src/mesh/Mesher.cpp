@@ -15,6 +15,12 @@
 #include <meshing.hpp>
 #include <occgeom.hpp>
 
+#include <BOPAlgo_Builder.hxx>
+#include <TopExp.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -33,6 +39,72 @@ constexpr int tet10[10] = {0, 1, 3, 2, 4, 8, 6, 5, 7, 9};
 QString plural(int n, const char *one, const char *many)
 {
     return QString("%1 %2").arg(n).arg(n == 1 ? one : many);
+}
+
+// Solids that touch are joined, so the face they share is one face, meshed
+// once, and both solids' elements use its nodes. OpenCASCADE's general
+// fuse does the joining; its history says which joined solid came from
+// which solid of the file, and a joined solid from two of them means they
+// overlap. Netgen has a GlueGeometry of its own; this one keeps the errors
+// and the history.
+struct Joined {
+    TopoDS_Shape shape;
+    TopTools_IndexedMapOfShape solids;  // the joined shape's solids
+    std::vector<int> origin;            // for each, the file's solid it came from, from 1
+    int sharedFaces = 0;
+    QString error;
+};
+
+Joined join(const TopoDS_Shape &shape, const QString &file)
+{
+    Joined joined;
+    std::vector<TopoDS_Shape> inputs;
+    for (TopExp_Explorer e(shape, TopAbs_SOLID); e.More(); e.Next())
+        inputs.push_back(e.Current());
+    if (inputs.size() < 2) {
+        joined.shape = shape;
+        TopExp::MapShapes(shape, TopAbs_SOLID, joined.solids);
+        joined.origin.assign(joined.solids.Extent(), 1);
+        return joined;
+    }
+    BOPAlgo_Builder builder;
+    for (const TopoDS_Shape &solid : inputs)
+        builder.AddArgument(solid);
+    builder.Perform();
+    if (builder.HasErrors()) {
+        joined.error = QString("OpenCASCADE could not join the solids of %1").arg(file);
+        return joined;
+    }
+    joined.shape = builder.Shape();
+    TopExp::MapShapes(joined.shape, TopAbs_SOLID, joined.solids);
+    joined.origin.assign(joined.solids.Extent(), 0);
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        std::vector<int> became;
+        const TopTools_ListOfShape &modified = builder.Modified(inputs[i]);
+        if (modified.IsEmpty())
+            became.push_back(joined.solids.FindIndex(inputs[i]));
+        for (const TopoDS_Shape &m : modified)
+            became.push_back(joined.solids.FindIndex(m));
+        for (int index : became) {
+            if (index < 1) {
+                joined.error = QString("OpenCASCADE lost solid %1 of %2 while joining").arg(i + 1).arg(file);
+                return joined;
+            }
+            int &from = joined.origin[index - 1];
+            if (from != 0) {
+                joined.error = QString("solids %1 and %2 of %3 overlap; touching solids are "
+                                       "joined, overlapping ones are a fault in the geometry")
+                                   .arg(from).arg(i + 1).arg(file);
+                return joined;
+            }
+            from = static_cast<int>(i + 1);
+        }
+    }
+    TopTools_IndexedDataMapOfShapeListOfShape owners;
+    TopExp::MapShapesAndAncestors(joined.shape, TopAbs_FACE, TopAbs_SOLID, owners);
+    for (int f = 1; f <= owners.Extent(); ++f)
+        joined.sharedFaces += owners(f).Extent() > 1 ? 1 : 0;
+    return joined;
 }
 
 } // namespace
@@ -59,21 +131,29 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
 
     ngcore::printmessage_importance = 0;  // Netgen's progress messages off
 
+    const QString file = QFileInfo(stepPath).fileName();
     std::shared_ptr<netgen::OCCGeometry> geometry;
     auto mesh = std::make_shared<netgen::Mesh>();
+    int fileSolids = 0;
+    Joined joined;
     try {
-        geometry.reset(netgen::LoadOCC_STEP(stepPath.toStdString()));
-        if (geometry->somap.Extent() == 0)
-            return fail(QString("%1 holds no solid to mesh").arg(QFileInfo(stepPath).fileName()));
+        std::unique_ptr<netgen::OCCGeometry> read(netgen::LoadOCC_STEP(stepPath.toStdString()));
+        fileSolids = read->somap.Extent();
+        if (fileSolids == 0)
+            return fail(QString("%1 holds no solid to mesh").arg(file));
+        joined = join(read->shape, file);
+        if (!joined.error.isEmpty())
+            return fail(joined.error);
+        geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
         netgen::MeshingParameters parameters;
         parameters.maxh = recipe.maxSize;
         mesh->SetGeometry(geometry);
         if (geometry->GenerateMesh(mesh, parameters) != 0)
-            return fail("Netgen could not mesh " + QFileInfo(stepPath).fileName());
+            return fail("Netgen could not mesh " + file);
         if (recipe.order == 2)
             geometry->GetRefinement().MakeSecondOrder(*mesh);
     } catch (const std::exception &e) {
-        return fail(QString("Netgen could not mesh %1: %2").arg(QFileInfo(stepPath).fileName(), e.what()));
+        return fail(QString("Netgen could not mesh %1: %2").arg(file, e.what()));
     }
 
     // Points, numbered from 1 in Netgen's order: only those an element
@@ -104,8 +184,17 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     vtkNew<vtkIntArray> elementIds;
     elementIds->SetName("element id");
 
-    const int solids = geometry->somap.Extent();
+    // Netgen's domains are the joined shape's solids; each is named for
+    // the file's solid it came from.
+    const int solids = fileSolids;
     const int faces = geometry->fmap.Extent();
+    std::vector<int> solidOfDomain(geometry->somap.Extent() + 1, 0);
+    for (int d = 1; d <= geometry->somap.Extent(); ++d) {
+        const int index = joined.solids.FindIndex(geometry->somap(d));
+        if (index < 1)
+            return fail(QString("lost track of a solid of %1 between joining and meshing").arg(file));
+        solidOfDomain[d] = joined.origin[index - 1];
+    }
     std::vector<std::vector<vtkIdType>> solidCells(solids);
     for (netgen::ElementIndex ei : mesh->VolumeElements().Range()) {
         const auto el = (*mesh)[ei];
@@ -117,7 +206,10 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
             ids[k] = place[el[np == 4 ? tet4[k] : tet10[k]]];
         const vtkIdType cell = grid->InsertNextCell(np == 4 ? VTK_TETRA : VTK_QUADRATIC_TETRA, np, ids);
         elementIds->InsertNextValue(static_cast<int>(cell + 1));
-        const int solid = el.GetIndex().Nr1();  // 1-based, in the file's order
+        const int domain = el.GetIndex().Nr1();
+        const int solid = domain >= 1 && domain < static_cast<int>(solidOfDomain.size())
+                              ? solidOfDomain[domain]
+                              : 0;  // from 1, in the file's order
         if (solid >= 1 && solid <= solids)
             solidCells[solid - 1].push_back(cell);
     }
@@ -157,8 +249,14 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
                           [](const gf::core::NamedSet &s) { return s.nodes; });
 
     series.provenance << "mesher: " + engine()
-                      << "source: " + QFileInfo(stepPath).fileName()
+                      << "source: " + file
                       << QString("recipe: largest element %1, order %2").arg(recipe.maxSize).arg(recipe.order)
+                      ;
+    if (fileSolids > 1)
+        series.provenance << QString("joined: %1, sharing %2")
+                                 .arg(plural(fileSolids, "solid", "solids"),
+                                      plural(joined.sharedFaces, "face", "faces"));
+    series.provenance
                       << QString("model: %1 %2tetrahedra, %3 nodes")
                              .arg(grid->GetNumberOfCells())
                              .arg(recipe.order == 2 ? "quadratic " : "")

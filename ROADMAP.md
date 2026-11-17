@@ -75,9 +75,10 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   [docs/survey/meshing.md](docs/survey/meshing.md).
   Started 2026-11-17: STEP in, linear or quadratic tetrahedra out, the
   same mesh every run, each solid and face as a set, to ParaView
-  (`gf-study mesh part.step --size H [--order 2]`). Next, in the study's
-  order: joining parts that touch (two boxes share only some nodes
-  today), the quality report, wall layers, the polyhedral dual.
+  (`gf-study mesh part.step --size H [--order 2]`). Touching solids
+  joined (one contact face, shared nodes), overlapping ones refused by
+  name. Next, in the study's order: the quality report, wall layers,
+  the polyhedral dual.
   Started 2026-11-17: the `.msh` 4.1 reader (ASCII and binary, every
   element type a ccx deck takes) and its hand-off to ParaView with the
   physical groups as sets (`gf-study convert mesh.msh`), against boxes

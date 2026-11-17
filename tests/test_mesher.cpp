@@ -13,6 +13,8 @@
 #include <vtkStringArray.h>
 
 #include <algorithm>
+#include <array>
+#include <iterator>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -240,6 +242,70 @@ CASE(each_solid_is_an_element_set_and_a_node_set)
     double b[6];
     g->GetCell(one->members.front())->GetBounds(b);
     CHECK(b[1] <= 10 + 1e-12);
+}
+
+CASE(touching_solids_share_their_nodes_where_they_touch)
+{
+    // The two boxes touch at x = 10: one face, meshed once, its nodes
+    // in both solids. No two nodes anywhere at the same place.
+    for (int order : {1, 2}) {
+        const ResultsSeries s = mesh("twoboxes.step", 2, order);
+        vtkUnstructuredGrid *g = grid(s);
+        CHECK(g);
+        if (!g)
+            continue;
+        std::set<std::array<double, 3>> places;
+        for (vtkIdType p = 0; p < g->GetNumberOfPoints(); ++p)
+            places.insert(point(g, p));
+        CHECK(static_cast<vtkIdType>(places.size()) == g->GetNumberOfPoints());
+        CHECK(relative(enclosedVolume(g), 2000) < 1e-12);
+        CHECK(misplacedCells(g) == 0);
+        const NamedSet *one = setOf(s, "Solid1", true), *two = setOf(s, "Solid2", true);
+        CHECK(one && two);
+        if (!one || !two)
+            continue;
+        std::vector<vtkIdType> both;
+        std::set_intersection(one->members.begin(), one->members.end(), two->members.begin(),
+                              two->members.end(), std::back_inserter(both));
+        CHECK(both.size() > 10);
+        bool onContact = true;
+        for (vtkIdType p : both)
+            onContact = onContact && std::abs(point(g, p)[0] - 10) < 1e-12;
+        CHECK(onContact);
+    }
+}
+
+CASE(the_face_two_solids_share_is_one_face_set)
+{
+    const ResultsSeries s = mesh("twoboxes.step", 2, 1);
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    // Twelve faces in the file, eleven once joined.
+    CHECK(setOf(s, "Face11", true) && !setOf(s, "Face12", true));
+    int contact = 0;
+    for (int f = 1; f <= 11; ++f) {
+        const NamedSet *face = setOf(s, QString("Face%1").arg(f), true);
+        if (!face || face->members.empty())
+            continue;
+        bool on = true;
+        for (vtkIdType p : face->members)
+            on = on && std::abs(point(g, p)[0] - 10) < 1e-12;
+        contact += on ? 1 : 0;
+    }
+    CHECK(contact == 1);
+    CHECK(s.provenance.contains("joined: 2 solids, sharing 1 face"));
+    CHECK(s.provenance.contains("sets: 2 solids, as element sets and node sets; 11 faces, as node sets"));
+}
+
+CASE(overlapping_solids_are_refused_and_named)
+{
+    QString error;
+    const ResultsSeries s = mesh("overlapping.step", 2, 1, &error);
+    CHECK(s.points.empty());
+    CHECK(error == "solids 1 and 2 of overlapping.step overlap; touching solids are joined, "
+                   "overlapping ones are a fault in the geometry");
 }
 
 CASE(each_face_of_the_geometry_is_a_node_set_on_that_face)

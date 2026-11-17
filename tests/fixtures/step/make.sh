@@ -4,4 +4,4 @@
 # tools/mesh-bench/models.
 set -eu
 cd "$(dirname "$0")"
-for g in box twoboxes; do gmsh "$g.geo" -0 -o "$g.step" >/dev/null; done
+for g in box twoboxes overlapping; do gmsh "$g.geo" -0 -o "$g.step" >/dev/null; done
