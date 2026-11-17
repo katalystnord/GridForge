@@ -322,6 +322,36 @@ rearrangement of A that a user can make, not a second program.
 - An embedded Python console (ParaView, SALOME, Abaqus): against the
   out-of-process API decision.
 
+### Recognisable to FreeCAD and ParaView users (checked 2026-11-17)
+
+David, 2026-11-17: GridForge copies ParaView's look, icons and conventions,
+built on VTK and Qt itself, and must be easily recognised by today's
+FreeCAD and ParaView users. Checked for that:
+
+**FreeCAD's FEM icons may be copied.** FreeCAD's repository licence is
+LGPL-2.1 (GitHub's licence record, `LICENSE`). Its FEM constraint icons
+(`src/Mod/Fem/Gui/Resources/icons/FEM_Constraint*.svg`) carry their own
+rights in their SVG metadata: Fixed, Force, Pressure, Displacement,
+Contact, SelfWeight and Tie read "FreeCAD LGPL2+", with their creators
+(Przemo Firszt, vginkeo, vdwalts, Bernd Hahnebach). Spring carries no
+rights metadata, so only the repository's licence covers it. LGPL-2.1-or-
+later fits GridForge's licence; the notices go in NOTICE (never the About
+dialog). FreeCAD also keeps its constraint symbols for the 3D view as Open
+Inventor files (`src/Mod/Fem/Gui/Resources/symbols/Constraint*.iv`): the
+shapes users know from the view, to redraw in VTK.
+
+**The mouse differs.** ParaView by default: left button rotates, middle
+pans, right zooms, Shift and Ctrl for roll and zoom-to-mouse
+(docs.paraview.org, Displaying Data). FreeCAD by default ("CAD
+navigation"): left button selects, the wheel zooms, middle drag pans,
+middle and left (or middle and right) together rotate, a middle click
+re-centres (FreeCAD wiki, Mouse navigation, in its GitHub mirror). FreeCAD
+offers ten other styles (Blender, Gesture, Maya-Gesture, OpenCascade,
+OpenInventor, OpenSCAD, Revit, TinkerCAD, Touchpad, and in its source
+SolidWorks and Siemens NX), chosen from a button in its status bar. So
+GridForge offers both "ParaView" and "FreeCAD (CAD)" navigation, chosen
+from the status bar as FreeCAD does; which is the default is David's call.
+
 ---
 
 ## 5b. CMB in depth: a pre-processor inside ParaView
