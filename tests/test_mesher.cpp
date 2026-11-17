@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <functional>
 #include <set>
+#include <thread>
 #include <vector>
 
 using namespace gf::mesh;
@@ -360,6 +361,24 @@ CASE(the_same_geometry_and_recipe_give_the_same_mesh)
         for (int k = 0; k < 10 && same; ++k)
             same = ga->GetCell(c)->GetPointId(k) == gb->GetCell(c)->GetPointId(k);
     CHECK(same);
+}
+
+CASE(meshing_on_two_threads_at_once_is_safe)
+{
+    // Netgen keeps global state: two meshings at once (a window meshing
+    // while another opens) must neither crash nor differ from one alone.
+    const ResultsSeries alone = mesh("dogbone.step", 2, 2);
+    ResultsSeries a, b;
+    std::thread one([&] { a = mesh("dogbone.step", 2, 2); });
+    std::thread two([&] { b = mesh("dogbone.step", 2, 2); });
+    one.join();
+    two.join();
+    vtkUnstructuredGrid *g = grid(alone), *ga = grid(a), *gb = grid(b);
+    CHECK(g && ga && gb);
+    if (!g || !ga || !gb)
+        return;
+    CHECK(ga->GetNumberOfCells() == g->GetNumberOfCells() && gb->GetNumberOfCells() == g->GetNumberOfCells());
+    CHECK(ga->GetNumberOfPoints() == g->GetNumberOfPoints() && gb->GetNumberOfPoints() == g->GetNumberOfPoints());
 }
 
 CASE(the_provenance_names_the_engine_the_recipe_and_the_source)

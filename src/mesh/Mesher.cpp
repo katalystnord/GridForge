@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <map>
+#include <mutex>
 #include <set>
 
 namespace gf::mesh {
@@ -129,6 +130,12 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     if (!QFileInfo(stepPath).isFile())
         return fail(QString("cannot read %1: no such file").arg(stepPath));
 
+    // Netgen keeps global state (its messages, its current mesh and
+    // geometry): one meshing at a time, whichever thread asks (a window
+    // meshing in the background while another study opens). Found by the
+    // window's walkthrough: two at once crashed inside Netgen.
+    static std::mutex netgen;
+    const std::lock_guard<std::mutex> one(netgen);
     ngcore::printmessage_importance = 0;  // Netgen's progress messages off
 
     const QString file = QFileInfo(stepPath).fileName();

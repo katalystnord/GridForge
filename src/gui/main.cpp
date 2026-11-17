@@ -30,7 +30,13 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QStringLiteral("Katalyst Nord"));
     QApplication::setApplicationVersion(gf::core::applicationVersion());
 
+    Q_INIT_RESOURCE(icons);  // the icons live in the static gf_gui library
+
     gf::gui::MainWindow window;
     window.show();
+    // A study folder named on the command line is opened.
+    const QStringList args = QApplication::arguments();
+    if (args.size() > 1)
+        window.openStudy(args.last());
     return app.exec();
 }

@@ -405,6 +405,33 @@ set_tests_properties(cli_solves_a_setup_through_its_toolkit PROPERTIES
     ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup"
     PASS_REGULAR_EXPRESSION "solving with CalculiX .*100%  step 1, increment 1\n.*results: [^\n]*solve-out/results/results\\.vtkhdf \\(solved by CalculiX Version 2\\.23\\)")
 
+# --- Walkthrough: the real window (layout A) --------------------------------
+add_executable(test_main_window_walkthrough test_main_window_walkthrough.cpp)
+target_link_libraries(test_main_window_walkthrough PRIVATE gf_gui Qt6::Test)
+target_compile_definitions(test_main_window_walkthrough PRIVATE GF_EXAMPLES="${CMAKE_SOURCE_DIR}/examples")
+vtk_module_autoinit(TARGETS test_main_window_walkthrough MODULES ${VTK_LIBRARIES})
+# HEADLESS BY CONSTRUCTION (TenSense's and SurView's lesson): the test shows
+# real windows, so it runs on its own private X server (xvfb-run, 24-bit
+# for the GL context, software GL so no graphics card is involved); started
+# any other way, it puts itself there (ensureHeadless in the test).
+find_program(GF_XVFB_RUN xvfb-run)
+if(GF_XVFB_RUN)
+    add_test(NAME the_window_is_walked_through
+             COMMAND ${GF_XVFB_RUN} -a -s "-screen 0 1700x1100x24" $<TARGET_FILE:test_main_window_walkthrough>)
+else()
+    message(WARNING "xvfb-run not found: the walkthrough would open windows on the desktop. Install xvfb.")
+    add_test(NAME the_window_is_walked_through COMMAND test_main_window_walkthrough)
+endif()
+# NEGATIVE CHECKS, 2026-11-17, the window: its first run crashed, which is
+# what it is for: (1) a window closed while meshing left the meshing
+# thread writing into it (now the mesh comes back through the future, and
+# a window waits for its meshing before it goes); (2) two meshings at once
+# crashed inside Netgen (global state; gf_mesh now meshes one at a time,
+# and test_mesher meshes on two threads at once: it crashed 1 run in 3
+# before the lock, none in 6 after).
+set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
+    ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

@@ -126,6 +126,16 @@ Layout: proposal A of docs/survey/gui-layouts.md, ParaView's layout with
 one study tree (David, 2026-11-17), with ParaView's icons
 (docs/survey/kitware-icons.md, section 6).
 
+Started 2026-11-17: the window's frame. A study folder (study.json)
+opened from File or the command line; the Study tree (core::studyOutline)
+with FreeCAD's FEM icons and ParaView's; Properties (read-only for now)
+and Information; Messages, Job, Steps and Deck docks; ParaView's camera
+toolbar; units in the status bar; the mesh made on another thread and
+shown as ParaView's "Surface With Edges", its quality in the tree. A
+walkthrough test on a private X server. Next: running a solve from the
+window (the Job dock, progress, cancel), results in the view with the
+increments, editing in Properties, picking faces.
+
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.
 - Geometry in: `.brep` + the group file from a FreeCAD macro we ship;

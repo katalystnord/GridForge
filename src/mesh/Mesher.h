@@ -34,7 +34,8 @@ struct Recipe {
 // (github.com/katalystnord/netgen at 7420b2f9...)".
 QString engine();
 
-// Meshes a STEP file's solids with tetrahedra. An empty series with
+// Meshes a STEP file's solids with tetrahedra. Safe from any thread; one
+// meshing runs at a time (Netgen keeps global state). An empty series with
 // *error set if it cannot: the file unreadable, no solid in it, a recipe
 // without a size, or the engine failing.
 gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, QString *error);

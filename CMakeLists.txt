@@ -21,7 +21,7 @@ endif()
 
 # Qt: only LGPL modules. Qt Charts, Qt Graphs, Qt Quick 3D and Qt Data
 # Visualization are GPL-3.0 only and would force the project's licence.
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGLWidgets Concurrent Test)
 
 # Ubuntu's VTK re-exports system libraries through its imported targets but
 # leaves the consumer to locate them (learned in SurView and TenSense). MPI's
@@ -35,6 +35,7 @@ find_package(VTK REQUIRED COMPONENTS
     CommonExecutionModel      # the time series as a pipeline source, for the VTKHDF writer
     IOXML                     # .vtu/.pvd out, for ParaView and PyVista
     IOHDF                     # .vtkhdf out: one file, every time point, sets as blocks
+    FiltersGeometry           # the mesh's surface for the view
     RenderingCore
     RenderingOpenGL2
     InteractionStyle
