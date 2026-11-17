@@ -77,8 +77,11 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   same mesh every run, each solid and face as a set, to ParaView
   (`gf-study mesh part.step --size H [--order 2]`). Touching solids
   joined (one contact face, shared nodes), overlapping ones refused by
-  name. Next, in the study's order: the quality report, wall layers,
-  the polyhedral dual.
+  name. The quality report (any VTK grid, Gmsh's too): inverted and
+  folded elements, mean ratio, dihedral angles, the worst elements by
+  id; a verdict on the terminal, `<mesh>.quality.json` for agents, and
+  each cell's mean ratio for ParaView. Next, in the study's order: wall
+  layers, the polyhedral dual.
   Started 2026-11-17: the `.msh` 4.1 reader (ASCII and binary, every
   element type a ccx deck takes) and its hand-off to ParaView with the
   physical groups as sets (`gf-study convert mesh.msh`), against boxes

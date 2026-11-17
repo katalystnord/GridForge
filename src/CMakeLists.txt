@@ -63,6 +63,7 @@ target_link_libraries(gf_gmsh PUBLIC gf_core)
 # (linked: LGPL-2.1, from our fork); what GridForge adds around it is here.
 add_library(gf_mesh STATIC
     mesh/Mesher.cpp
+    mesh/Quality.cpp
 )
 target_include_directories(gf_mesh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(gf_mesh SYSTEM PRIVATE ${NETGEN_OCC_INCLUDE_DIR})

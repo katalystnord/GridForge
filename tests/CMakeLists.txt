@@ -195,13 +195,39 @@ add_test(NAME geometry_is_meshed_the_same_every_time COMMAND test_mesher)
 # area 8659.90 against OpenCASCADE's 8661.95 (straight facets, -0.02 %);
 # every mesher in the study left the contact face inside it (+10.3 %).
 
+# The mesh quality report: tetrahedra with measures known by hand, then
+# gf_mesh's meshes.
+add_executable(test_mesh_quality test_mesh_quality.cpp)
+target_link_libraries(test_mesh_quality PRIVATE gf_mesh)
+target_compile_definitions(test_mesh_quality PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME mesh_quality_is_measured_as_by_hand COMMAND test_mesh_quality)
+# NEGATIVE CHECKS, 2026-11-17, mesh quality: the 10 cases written first,
+# all red against a stub (45 checks). Then each rule broken, the tests
+# run, restored:
+#   a flat tetrahedron not inverted; the orientation reversed; the mean
+#   ratio's exponent 1/3; the dihedral angle taken between the normals;
+#   the quadratic shape gradients wrong; the worst cells reversed; the
+#   element id ignored: each red;
+#   the centre's Jacobian not checked: survived at first (every folded
+#   fixture folded at a node too); a tetrahedron folded only at its
+#   centre (middle nodes 1.2 of the way to it: +0.28 at the nodes, -0.008
+#   at the centre, solved for beforehand) is now red;
+#   below 0.3 counted at 0.1: survived at first (the poor fixture was
+#   below both); one at 0.19 added, now red.
+# Against the benchmark's own referee (tools/mesh-bench/evaluate.py,
+# numpy), on Netgen's dogbone at 2 mm: 6292 tetrahedra, mean ratio
+# 0.61743259526 at worst and 0.88238374856 on average, smallest dihedral
+# 26.989832 degrees, the same to 11 digits (and the same mesh as the
+# released Netgen 6.2.2608 made in the study).
+
 # gf-study mesh: a STEP in, one .vtkhdf out with its solids and faces as
 # sets, said on the terminal.
 add_test(NAME cli_meshes_a_step_with_its_solids_and_faces_as_sets
     COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 3 --order 2
             -o ${CMAKE_CURRENT_BINARY_DIR}/mesh-out)
 set_tests_properties(cli_meshes_a_step_with_its_solids_and_faces_as_sets PROPERTIES
-    PASS_REGULAR_EXPRESSION "wrote [^\n]*mesh-out/box\\.vtkhdf \\(a mesh: [0-9]+ nodes, [0-9]+ elements, 8 sets from its solids and faces\\)\n  mesher: Netgen ")
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*mesh-out/box\\.vtkhdf \\(a mesh: [0-9]+ nodes, [0-9]+ elements, 8 sets from its solids and faces\\)\n  mesher: Netgen .*quality \\([^\n]*mesh-out/box\\.quality\\.json\\):\n  ready for a solver: no inverted or folded elements\n  [0-9]+ tetrahedra; mean ratio 0\\.[0-9]+ at worst")
 add_test(NAME cli_mesh_without_a_size_is_refused
     COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step)
 set_tests_properties(cli_mesh_without_a_size_is_refused PROPERTIES WILL_FAIL TRUE)

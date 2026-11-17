@@ -11,16 +11,26 @@
 //   gf-study mesh part.step --size H [--order 2] [-o DIR] [--pvd]
 //       the STEP's solids meshed with tetrahedra (gf_mesh, Netgen), to one
 //       .vtkhdf with each solid and face as a set
+//   Both mesh commands measure the mesh: the verdict and measures on the
+//   terminal, the report for agents in <name>.quality.json beside it, and
+//   each cell's "mean ratio" on the grid for ParaView.
 
 #include "calculix/FrdToVtk.h"
 #include "core/ApplicationInfo.h"
 #include "gmsh/MshToVtk.h"
 #include "mesh/Mesher.h"
+#include "mesh/Quality.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QSaveFile>
+
+#include <vtkCellData.h>
+#include <vtkDoubleArray.h>
+#include <vtkNew.h>
 
 #include <cstdio>
 
@@ -42,6 +52,38 @@ QString write(const gf::core::ResultsSeries &series, const QFileInfo &in, const 
     return gf::core::writeVtkHdf(series, path, error) ? path : QString();
 }
 
+// Measures the mesh, puts each cell's mean ratio on the grid, and says
+// where the report for agents will go. Call before writing the mesh.
+gf::mesh::Quality measureMesh(const gf::core::ResultsSeries &series)
+{
+    vtkUnstructuredGrid *grid = series.points.front().grid;
+    const gf::mesh::Quality quality = gf::mesh::measure(grid);
+    vtkNew<vtkDoubleArray> ratio;
+    ratio->SetName("mean ratio");  // -1 where not measured
+    for (double r : quality.meanRatio)
+        ratio->InsertNextValue(r);
+    grid->GetCellData()->AddArray(ratio);
+    return quality;
+}
+
+// Writes <mesh>.quality.json beside the mesh written and prints the
+// summary; false with a message if the report cannot be written.
+bool reportQuality(const gf::mesh::Quality &quality, vtkUnstructuredGrid *grid, const QString &written)
+{
+    const QFileInfo out(written);
+    const QString path = out.absoluteDir().filePath(out.completeBaseName() + ".quality.json");
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)
+        || file.write(QJsonDocument(gf::mesh::toJson(quality, grid)).toJson()) < 0 || !file.commit()) {
+        std::fprintf(stderr, "gf-study: cannot write %s\n", qPrintable(path));
+        return false;
+    }
+    std::printf("quality (%s):\n", qPrintable(path));
+    for (const QString &line : gf::mesh::summary(quality))
+        std::printf("  %s\n", qPrintable(line));
+    return true;
+}
+
 int convertMesh(const QString &input, const QString &outDir, bool pvd)
 {
     const QFileInfo in(input);
@@ -52,6 +94,7 @@ int convertMesh(const QString &input, const QString &outDir, bool pvd)
         std::fprintf(stderr, "gf-study: %s: %s\n", qPrintable(input), qPrintable(error));
         return 1;
     }
+    const gf::mesh::Quality quality = measureMesh(series);
     const QString written = write(series, in, outDir, pvd, &error);
     if (written.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
@@ -66,7 +109,7 @@ int convertMesh(const QString &input, const QString &outDir, bool pvd)
                 msh.nodes.size(), static_cast<long long>(cells), qPrintable(sets));
     for (const QString &line : series.provenance)
         std::printf("  %s\n", qPrintable(line));
-    return 0;
+    return reportQuality(quality, series.points.front().grid, written) ? 0 : 1;
 }
 
 int mesh(const QString &input, const QString &size, const QString &order, const QString &outDir,
@@ -89,6 +132,7 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
         return 1;
     }
+    const gf::mesh::Quality quality = measureMesh(series);
     const QString written = write(series, in, outDir, pvd, &error);
     if (written.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
@@ -102,7 +146,7 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
                 static_cast<long long>(grid->GetNumberOfCells()), qPrintable(sets));
     for (const QString &line : series.provenance)
         std::printf("  %s\n", qPrintable(line));
-    return 0;
+    return reportQuality(quality, grid, written) ? 0 : 1;
 }
 
 int convert(const QString &input, const QString &outDir, QString deck, bool pvd)
