@@ -30,6 +30,7 @@
 #include <vector>
 
 class QComboBox;
+class QDoubleSpinBox;
 class QDockWidget;
 class QLabel;
 class QPlainTextEdit;
@@ -86,6 +87,11 @@ public:
     // the box) ends 8 pixels inside the view.
     // The mesh as the next run gets it, with the groups' sets.
     const gf::core::ResultsSeries &mesh() const { return m_mesh; }
+
+    // A factor for the deformed shape that makes the largest displacement
+    // about a tenth of the model's size, rounded down to 1, 2 or 5 times a
+    // power of ten; never below 1 (true scale).
+    static double autoDeform(double modelSize, double largestDisplacement);
 
     static double legendLeft(double viewPixels, double boxPixels, double titlePixels);
 
@@ -162,6 +168,8 @@ private:
     QAction *m_runAction = nullptr;
     QAction *m_stopAction = nullptr;
     QComboBox *m_colourBy = nullptr;
+    QDoubleSpinBox *m_deform = nullptr;
+    QAction *m_autoDeform = nullptr;
     QLabel *m_increments = nullptr;
     QAction *m_openParaView = nullptr;
     QAction *m_rescale = nullptr;

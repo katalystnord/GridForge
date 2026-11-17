@@ -40,7 +40,13 @@ public:
 
     // The model (the file's Model block) at time point k, with the field
     // asked for as its point scalars (named "shown").
-    vtkSmartPointer<vtkUnstructuredGrid> model(int k, const QString &field);
+    // Moved by the displacements times `deform` (0: undeformed), as
+    // ParaView's Warp By Vector; the colours are of the field all the same.
+    vtkSmartPointer<vtkUnstructuredGrid> model(int k, const QString &field, double deform = 0);
+    // Whether the file holds displacements to deform by.
+    bool canDeform() const { return !m_displacement.isEmpty(); }
+    // The largest displacement at time point k (0 if none).
+    double largestDisplacement(int k);
     std::pair<double, double> range(int k, const QString &field);
 
 private:
@@ -48,6 +54,7 @@ private:
     vtkSmartPointer<vtkHDFReader> m_reader;
     std::vector<double> m_times;
     QStringList m_fields;
+    QString m_displacement;  // the point field of displacements, if any
 };
 
 } // namespace gf::gui

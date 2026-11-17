@@ -13,6 +13,7 @@
 #include <vtkInformation.h>
 #include <vtkPartitionedDataSetCollection.h>
 #include <vtkPointData.h>
+#include <vtkPoints.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 
 #include <cmath>
@@ -75,7 +76,12 @@ bool ResultsFile::open(const QString &path, QString *error)
     if (!g)
         return fail(path + ": no Model block (not a GridForge results file)");
     m_fields.clear();
+    m_displacement.clear();
     vtkPointData *pd = g->GetPointData();
+    // The displacements, by the names toolkits give them (CalculiX: DISP).
+    for (const char *name : {"DISP", "U", "displacement"})
+        if (vtkDataArray *d = pd->GetArray(name); d && d->GetNumberOfComponents() == 3 && m_displacement.isEmpty())
+            m_displacement = name;
     for (int a = 0; a < pd->GetNumberOfArrays(); ++a) {
         vtkDataArray *d = pd->GetArray(a);
         if (!d || QString(d->GetName()) == "node id")
@@ -99,7 +105,12 @@ QString ResultsFile::preferredField() const
     return m_fields.value(0);
 }
 
-vtkSmartPointer<vtkUnstructuredGrid> ResultsFile::model(int k, const QString &field)
+double ResultsFile::largestDisplacement(int k)
+{
+    return canDeform() ? range(k, m_displacement + magnitude).second : 0;
+}
+
+vtkSmartPointer<vtkUnstructuredGrid> ResultsFile::model(int k, const QString &field, double deform)
 {
     if (!m_reader || k < 0 || k >= timeCount())
         return nullptr;
@@ -109,6 +120,20 @@ vtkSmartPointer<vtkUnstructuredGrid> ResultsFile::model(int k, const QString &fi
         return nullptr;
     auto out = vtkSmartPointer<vtkUnstructuredGrid>::New();
     out->ShallowCopy(g);
+    if (vtkDataArray *u = deform != 0 && canDeform() ? g->GetPointData()->GetArray(m_displacement.toUtf8().constData())
+                                                     : nullptr) {
+        // New points: the reader's own are shared, and stay as read.
+        vtkNew<vtkPoints> moved;
+        moved->SetDataTypeToDouble();
+        moved->SetNumberOfPoints(g->GetNumberOfPoints());
+        for (vtkIdType i = 0; i < g->GetNumberOfPoints(); ++i) {
+            double x[3], d[3];
+            g->GetPoint(i, x);
+            u->GetTuple(i, d);
+            moved->SetPoint(i, x[0] + deform * d[0], x[1] + deform * d[1], x[2] + deform * d[2]);
+        }
+        out->SetPoints(moved);
+    }
     const bool isMagnitude = field.endsWith(magnitude);
     const QString name = isMagnitude ? field.chopped(int(strlen(magnitude))) : field;
     vtkDataArray *d = out->GetPointData()->GetArray(name.toUtf8().constData());

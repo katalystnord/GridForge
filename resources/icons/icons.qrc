@@ -31,6 +31,7 @@
   <file alias="pqResetCameraClosest.svg">paraview/pqResetCameraClosest.svg</file>
   <file alias="pqResetCenter.svg">paraview/pqResetCenter.svg</file>
   <file alias="pqResetRange.svg">paraview/pqResetRange.svg</file>
+  <file alias="pqWarp.svg">paraview/pqWarp.svg</file>
   <file alias="pqResetRangeCustom.svg">paraview/pqResetRangeCustom.svg</file>
   <file alias="pqRotateCameraCCW.svg">paraview/pqRotateCameraCCW.svg</file>
   <file alias="pqRotateCameraCW.svg">paraview/pqRotateCameraCW.svg</file>

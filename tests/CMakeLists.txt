@@ -456,6 +456,12 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the deformed shape: the cases red against
+# stubs (no deformation, a factor of 1 always); then the factor ignored:
+# red; the shape not said beside the increment: red; the rounding margin
+# taken out: at first green (a feared case, 10 / 1e-5, rounds right
+# anyway), so a case found where it matters (5 / 1e-5: 20000, not 50000):
+# red.
 # NEGATIVE CHECKS, 2026-11-17, the Deck dock: the protocol, adapter and
 # walkthrough cases red before the role was read, said or shown (6 cases);
 # the runner taking a deck line for the results: red (the stand-in toolkit

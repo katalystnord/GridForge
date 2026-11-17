@@ -14,6 +14,7 @@
 #include <vtkIntArray.h>
 #include <vtkPointData.h>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -139,6 +140,36 @@ CASE(a_file_that_cannot_be_read_is_said)
     QString error;
     CHECK(!r.open("/no/such/results.vtkhdf", &error));
     CHECK(error == "cannot read /no/such/results.vtkhdf");
+}
+
+// A node's place in a model.
+static std::array<double, 3> pointAt(vtkUnstructuredGrid *g, int id)
+{
+    vtkDataArray *ids = g->GetPointData()->GetArray("node id");
+    for (vtkIdType p = 0; ids && p < g->GetNumberOfPoints(); ++p)
+        if (static_cast<int>(ids->GetTuple1(p)) == id) {
+            std::array<double, 3> x;
+            g->GetPoint(p, x.data());
+            return x;
+        }
+    return {NAN, NAN, NAN};
+}
+
+CASE(the_model_is_deformed_by_its_displacements_times_a_factor)
+{
+    QTemporaryDir dir;
+    ResultsFile r;
+    QString error;
+    r.open(barResults(dir), &error);
+    CHECK(r.canDeform());
+    const auto at = pointAt(r.model(3, "DISP (magnitude)"), 20);  // undeformed by default
+    // The tip moves 0.1 in z at the last increment (the bar's known answer).
+    const auto once = pointAt(r.model(3, "DISP (magnitude)", 1.0), 20);
+    const auto tenfold = pointAt(r.model(3, "DISP (magnitude)", 10.0), 20);
+    CHECK(std::abs(once[2] - at[2] - 0.1) < 1e-6);
+    CHECK(std::abs(tenfold[2] - at[2] - 1.0) < 1e-5);
+    // The colour is of the field, not moved by the factor.
+    CHECK(shownAt(r.model(3, "DISP (magnitude)", 10.0), 20) == shownAt(r.model(3, "DISP (magnitude)"), 20));
 }
 
 int main()

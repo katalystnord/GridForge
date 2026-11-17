@@ -15,6 +15,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -426,7 +427,7 @@ private slots:
             auto *colourBy = w.findChild<QComboBox *>("colourBy");
             QCOMPARE(colourBy->currentText(), QString("von Mises stress (derived)"));
             QVERIFY(colourBy->findText("DISP (magnitude)") >= 0);
-            QCOMPARE(w.findChild<QLabel *>("incrementLabel")->text().trimmed(), QString("increment 1 of 1, time 1"));
+            QCOMPARE(w.findChild<QLabel *>("incrementLabel")->text().trimmed(), QString("increment 1 of 1, time 1, true scale"));
             QVERIFY(w.findChild<QAction *>("lastIncrement")->isEnabled());
             QVERIFY(w.findChild<QAction *>("openInParaView")->isEnabled());
             auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
@@ -582,6 +583,47 @@ private slots:
         QVERIFY(!emberAt(w, top));
         tree->setCurrentItem(findItem(tree, "Steel"));
         QVERIFY(!emberAt(w, side));
+    }
+
+    void the_auto_factor_makes_the_largest_displacement_a_tenth_of_the_model_in_round_numbers()
+    {
+        // 0.01 mm on a 37 mm box: a tenth of it is 3.7 mm, 370 times; the
+        // factor is rounded down to 1, 2 or 5 times a power of ten.
+        QCOMPARE(MainWindow::autoDeform(37.4, 0.01), 200.0);
+        QCOMPARE(MainWindow::autoDeform(100, 0.1), 100.0);
+        QCOMPARE(MainWindow::autoDeform(100, 0.04), 200.0);
+        QCOMPARE(MainWindow::autoDeform(100, 0.02), 500.0);
+        // 0.1 x 5 / 1e-5 is 49999.99999999999 in doubles: still 50000.
+        QCOMPARE(MainWindow::autoDeform(5, 1e-5), 50000.0);
+        // Already large (a plastic dogbone): never shrunk below true scale.
+        QCOMPARE(MainWindow::autoDeform(150, 20), 1.0);
+        QCOMPARE(MainWindow::autoDeform(150, 0), 1.0);
+    }
+
+    void the_results_are_shown_deformed_and_say_by_how_much()
+    {
+        stand_in_ccx(false);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        w.findChild<QAction *>("run")->trigger();
+        auto *label = w.findChild<QLabel *>("incrementLabel");
+        QTRY_VERIFY_WITH_TIMEOUT(label->text().contains("increment 1 of 1"), 60000);
+        auto *factor = w.findChild<QDoubleSpinBox *>("deformFactor");
+        QVERIFY(factor && factor->isEnabled());
+        QCOMPARE(factor->value(), 1.0);  // true scale first
+        QVERIFY2(label->text().contains("true scale"), qPrintable(label->text()));
+        w.findChild<QAction *>("autoDeform")->trigger();
+        QVERIFY(factor->value() > 1);
+        if (!screenshot.isEmpty()) {
+            QTest::qWait(100);
+            w.grab().save(screenshot.chopped(4) + "-deformed.png");
+        }
+        QVERIFY2(label->text().contains(QString("deformed \u00d7%1").arg(factor->value())), qPrintable(label->text()));
+        factor->setValue(0);
+        QVERIFY2(label->text().contains("undeformed"), qPrintable(label->text()));
     }
 
     void a_long_legend_title_moves_the_legend_into_the_view()

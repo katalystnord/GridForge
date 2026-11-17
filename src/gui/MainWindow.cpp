@@ -32,11 +32,13 @@
 #include <QFont>
 #include <QPalette>
 #include <QProgressBar>
+#include <QDoubleSpinBox>
 #include <QFontDatabase>
 #include <QMouseEvent>
 #include <QSignalBlocker>
 
 #include <algorithm>
+#include <cmath>
 #include <array>
 #include <QStatusBar>
 #include <QTabBar>
@@ -405,6 +407,25 @@ void MainWindow::buildActions()
     m_rescale = results->addAction(icon("pqResetRange"), tr("Rescale to data range"));
     m_rescale->setObjectName(QStringLiteral("rescale"));
     connect(m_rescale, &QAction::triggered, this, [this] { showIncrement(m_increment); });
+    // The deformed shape, as ParaView's Warp By Vector: true scale first.
+    results->addWidget(new QLabel(tr(" Deform \u00d7 "), this));
+    m_deform = new QDoubleSpinBox(this);
+    m_deform->setObjectName(QStringLiteral("deformFactor"));
+    m_deform->setRange(0, 1e7);
+    m_deform->setDecimals(2);
+    m_deform->setValue(1);
+    m_deform->setToolTip(tr("The displacements times this: 1 is true scale, 0 the undeformed shape"));
+    m_deform->setEnabled(false);
+    connect(m_deform, &QDoubleSpinBox::valueChanged, this, [this] { showIncrement(m_increment); });
+    results->addWidget(m_deform);
+    m_autoDeform = results->addAction(icon("pqWarp"), tr("Exaggerate the deformation to see it"));
+    m_autoDeform->setObjectName(QStringLiteral("autoDeform"));
+    m_autoDeform->setToolTip(tr("Exaggerate the deformation so the largest displacement is about a tenth of the "
+                                "model; the factor is shown beside the increment"));
+    connect(m_autoDeform, &QAction::triggered, this, [this] {
+        vtkSmartPointer<vtkUnstructuredGrid> g = m_results.model(m_increment, {});
+        m_deform->setValue(autoDeform(g ? g->GetLength() : 0, m_results.largestDisplacement(m_increment)));
+    });
     m_openParaView = results->addAction(icon("pqOpen"), tr("Open in ParaView"));
     m_openParaView->setObjectName(QStringLiteral("openInParaView"));
     m_openParaView->setToolTip(tr("Hand the results file to ParaView, for everything beyond a quick look"));
@@ -780,6 +801,8 @@ void MainWindow::updateActions()
         a->setEnabled(results);
     m_colourBy->setEnabled(results);
     m_rescale->setEnabled(results);
+    m_deform->setEnabled(results && m_results.canDeform());
+    m_autoDeform->setEnabled(results && m_results.canDeform());
     m_openParaView->setEnabled(results);
     updateBanner();
 }
@@ -1072,6 +1095,20 @@ void MainWindow::makeGroup()
         }
 }
 
+double MainWindow::autoDeform(double modelSize, double largestDisplacement)
+{
+    if (!(largestDisplacement > 0) || !(modelSize > 0))
+        return 1;
+    // A hair over: 0.1 x 5 / 1e-5 is 49999.99999999999 in doubles, and must
+    // still give 50000, not 20000.
+    const double raw = 0.1 * modelSize / largestDisplacement * (1 + 1e-9);
+    if (raw <= 1)
+        return 1;
+    const double power = std::pow(10.0, std::floor(std::log10(raw)));
+    const double m = raw / power;
+    return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * power;
+}
+
 double MainWindow::legendLeft(double viewPixels, double boxPixels, double titlePixels)
 {
     if (viewPixels <= 0)
@@ -1157,7 +1194,8 @@ void MainWindow::showIncrement(int k)
         return;
     m_increment = std::clamp(k, 0, m_results.timeCount() - 1);
     const QString field = m_colourBy->currentText();
-    vtkSmartPointer<vtkUnstructuredGrid> model = m_results.model(m_increment, field);
+    const double deform = m_results.canDeform() ? m_deform->value() : 0;
+    vtkSmartPointer<vtkUnstructuredGrid> model = m_results.model(m_increment, field, deform);
     if (!model)
         return;
     double range[2] = {0, 1};
@@ -1206,10 +1244,17 @@ void MainWindow::showIncrement(int k)
     m_resultsActor->SetMapper(mapper);
     m_scalarBar->SetLookupTable(colours);
     m_scalarBar->SetTitle(field.toUtf8().constData());
-    m_increments->setText(tr(" increment %1 of %2, time %3 ")
+    // Said beside the increment, so an exaggerated shape is never taken
+    // for the real one (tenet 9).
+    const QString shape = !m_results.canDeform() ? tr("undeformed (no displacements)")
+                          : deform == 0          ? tr("undeformed")
+                          : deform == 1          ? tr("true scale")
+                                                 : tr("deformed \u00d7%1").arg(deform);
+    m_increments->setText(tr(" increment %1 of %2, time %3, %4 ")
                               .arg(m_increment + 1)
                               .arg(m_results.timeCount())
-                              .arg(m_results.time(m_increment)));
+                              .arg(m_results.time(m_increment))
+                              .arg(shape));
     showLayer(m_layouts->currentIndex());
     updateActions();
 }
