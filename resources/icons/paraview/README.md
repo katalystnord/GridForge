@@ -5,7 +5,8 @@ commit `134c57f96c8bc6da32becbbb217001e3df7e8c61` (2026-11-17), so GridForge loo
 (docs/survey/kitware-icons.md, section 6; David, 2026-11-17). The `pq`
 names are kept so a later diff against ParaView is easy.
 
-- From `Qt/Components/Resources/Icons/`: every `.svg` here except the three below.
+- From `Qt/Components/Resources/Icons/`: every `.svg` here except the three below
+  (`pqWarp.svg`, Warp By Vector's, added 2026-11-17 from the same commit).
 - From `Qt/Widgets/Resources/Icons/`: `pqDelete.svg`, `pqPlus.svg`, `pqMinus.svg`.
 
 Licence: ParaView's BSD-3-Clause, `Copyright.txt` here as ParaView ships it
