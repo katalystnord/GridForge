@@ -1,6 +1,6 @@
-** written by GridForge 0.0.1 (build 37b7da9168a9-dirty)
+** written by GridForge 0.0.1 (build f3007ad0b1f7-dirty)
 ** units: mm-N-s (lengths mm, forces N, stresses MPa)
-** material Steel: YoungsModulus 210000, PoissonRatio 0.3, entered in the study
+** material Steel: YoungsModulus 210000 (entered in the study), PoissonRatio 0.3 (entered in the study)
 *INCLUDE, INPUT=mesh.inp
 *MATERIAL, NAME=Steel
 *ELASTIC

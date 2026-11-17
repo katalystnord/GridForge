@@ -55,6 +55,10 @@ set(GF_NETGEN_STAMP ${CMAKE_SOURCE_DIR}/build-netgen/install/.gridforge-netgen-c
 file(STRINGS ${GF_NETGEN_STAMP} GF_NETGEN_COMMIT LIMIT_COUNT 1)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GF_NETGEN_STAMP})
 
+# yaml-cpp (MIT, Ubuntu's libyaml-cpp-dev): FreeCAD's material cards are
+# YAML. What a card means is read by GridForge (core/MaterialCard).
+find_package(yaml-cpp REQUIRED)
+
 enable_testing()
 
 add_subdirectory(src)

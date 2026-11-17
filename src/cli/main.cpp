@@ -23,6 +23,7 @@
 #include "calculix/FrdToVtk.h"
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/MaterialCard.h"
 #include "core/Setup.h"
 #include "mesh/Groups.h"
 #include "core/ApplicationInfo.h"
@@ -183,7 +184,9 @@ int deck(const QString &setupFile, const QString &part, const QString &size, con
         return 1;
     }
     QString error;
-    const gf::core::Setup setup = gf::core::readSetup(doc.object()["setup"].toObject(), &error);
+    gf::core::Setup setup = gf::core::readSetup(doc.object()["setup"].toObject(), &error);
+    if (error.isEmpty())
+        gf::core::fillFromCards(setup, QFileInfo(setupFile).absolutePath(), &error);
     if (!error.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s: %s\n", qPrintable(setupFile), qPrintable(error));
         return 1;

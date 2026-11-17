@@ -1,0 +1,11 @@
+---
+# Written by hand for GridForge's tests: a Poisson's ratio given a unit,
+# which it cannot have. Refused, not read as 0.3.
+General:
+  UUID: "00000000-0000-4000-8000-000000000003"
+  Name: "Poisson with a unit"
+Models:
+  IsotropicLinearElastic:
+    UUID: 'f6f9e48c-b116-4e82-ad7f-3659a9219c50'
+    PoissonRatio: "0.3 MPa"
+    YoungsModulus: "200000 MPa"

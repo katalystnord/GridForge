@@ -1,0 +1,18 @@
+---
+# Written by hand for GridForge's tests: FreeCAD 1.x's card layout, the
+# values in other units than the shipped cards use. Known answers:
+#   YoungsModulus 70 GPa = 70000 MPa = 7e10 Pa
+#   PoissonRatio 0.33
+#   Density 2.7 g/cm^3 = 2700 kg/m^3 = 2.7e-9 t/mm^3
+General:
+  UUID: "00000000-0000-4000-8000-000000000001"
+  Name: "Hand units"
+  Author: "GridForge tests"
+Models:
+  IsotropicLinearElastic:
+    UUID: 'f6f9e48c-b116-4e82-ad7f-3659a9219c50'
+    PoissonRatio: "0.33"
+    YoungsModulus: "70 GPa"
+  Density:
+    UUID: '454661e5-265b-4320-8e6f-fcf6223ac3af'
+    Density: "2.7 g/cm^3"

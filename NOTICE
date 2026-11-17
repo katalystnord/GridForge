@@ -19,6 +19,14 @@ builds it from its fork, https://github.com/katalystnord/netgen
 Open CASCADE Technology, Open Cascade SAS, LGPL-2.1 with the Open CASCADE
 exception. https://dev.opencascade.org/
 
+yaml-cpp, Jesse Beder and contributors, MIT. https://github.com/jbeder/yaml-cpp
+
+Test data
+---------
+
+tests/fixtures/materials/Steel-Generic.FCMat is FreeCAD's material card
+by Juergen Riegel, CC-BY-3.0, copied unchanged from FreeCAD 1.1.4.
+
 Programs run, not included
 --------------------------
 

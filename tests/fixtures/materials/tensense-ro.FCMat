@@ -1,0 +1,17 @@
+---
+# Made by TenSense 0.3.0 from ro-continuous.csv (SHA-256 d05dbf333b8b84f97ca35c749e9625bbe10ac01aeb413711a0fcb95becab71d9)
+# Aligned with ISO 6892-1:2019, not to the standard (see results.json for why)
+# Values as reported. A tensile test does not measure Poisson's ratio or density;
+# enter them in FreeCAD before a FEM analysis. Ultimate strain is left out: FreeCAD 1.1 gives it a pressure unit.
+# YieldStrength is Rp0.2.
+General:
+  UUID: "92039420-a2ae-43d5-ac0f-80b7b767c1d6"
+  Name: "TenSense material"
+  Author: "TenSense 0.3.0"
+  Description: "Measured; Aligned with ISO 6892-1:2019, not to the standard (see results.json for why)"
+Models:
+  LinearElastic:
+    UUID: '7b561d1d-fb9b-44f6-9da9-56a4f74d7536'
+    YoungsModulus: "199.9 GPa"
+    YieldStrength: "300 MPa"
+    UltimateTensileStrength: "500 MPa"

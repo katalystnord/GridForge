@@ -5,6 +5,7 @@
 // numbers); ccx solving it is fixture box-setup (test_mesh_to_ccx).
 
 #include "calculix/DeckWriter.h"
+#include "core/MaterialCard.h"
 #include "core/Setup.h"
 #include "mesh/Groups.h"
 #include "mesh/Mesher.h"
@@ -108,7 +109,9 @@ QString deckWith(const std::function<void(QJsonObject &)> &change, QString *erro
 {
     QJsonObject o = json(example);
     change(o);
-    const Setup s = setup(o);
+    Setup s = setup(o);
+    if (!gf::core::fillFromCards(s, GF_FIXTURES, error))
+        return {};
     ResultsSeries m = mesh(file);
     if (!gf::mesh::addGroupSets(m, s, error))
         return {};
@@ -195,7 +198,8 @@ CASE(the_specs_example_gives_the_hand_written_deck)
     const QStringList l = deck.split('\n');
     CHECK(l.value(0).startsWith("** written by GridForge "));
     CHECK(l.contains("** units: mm-N-s (lengths mm, forces N, stresses MPa)"));
-    CHECK(l.contains("** material Steel: YoungsModulus 210000, PoissonRatio 0.3, entered in the study"));
+    CHECK(l.contains("** material Steel: YoungsModulus 210000 (entered in the study), PoissonRatio 0.3 "
+                     "(entered in the study)"));
     CHECK(l.contains("** step Pull"));
 }
 
@@ -238,7 +242,27 @@ CASE(a_material_without_an_elastic_value_is_refused)
     deckWith([](QJsonObject &o) {
         o["materials"] = QJsonDocument::fromJson(R"({"Steel": {"values": {"YoungsModulus": 210000}}})").object();
     }, &error);
-    CHECK(error == "material Steel: no PoissonRatio given in the study (reading cards is not written yet)");
+    CHECK(error == "material Steel: no PoissonRatio given in the study, and it has no card");
+    deckWith([](QJsonObject &o) {
+        o["materials"] = QJsonDocument::fromJson(R"({"Steel": {"card": "materials/tensense-ro.FCMat"}})").object();
+    }, &error);
+    CHECK(error == "material Steel: no PoissonRatio, neither in the study nor in its card");
+}
+
+CASE(a_material_from_its_card_says_where_each_value_came_from)
+{
+    QString error;
+    const QString deck = deckWith([](QJsonObject &o) {
+        o["materials"] = QJsonDocument::fromJson(R"({"Steel": {"card": "materials/Steel-Generic.FCMat",
+            "values": {"YoungsModulus": 210000}}})").object();
+    }, &error);
+    CHECK(error.isEmpty());
+    const QStringList b = body(deck), l = deck.split('\n');
+    const int at = b.indexOf("*ELASTIC");
+    CHECK(at > 0 && b.value(at + 1) == "210000, 0.3" && b.value(at + 2) == "*DENSITY"
+          && b.value(at + 3) == "7.9e-09");
+    CHECK(l.contains("** material Steel: YoungsModulus 210000 (entered in the study), PoissonRatio 0.3 "
+                     "(0.3 in Steel-Generic.FCMat), Density 7.9e-09 (7900 kg/m^3 in Steel-Generic.FCMat)"));
 }
 
 CASE(an_output_not_known_is_refused)

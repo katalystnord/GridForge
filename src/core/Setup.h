@@ -36,6 +36,9 @@ struct Material {
     // ("YoungsModulus", "PoissonRatio", "Density"), in the study's units.
     // They fill or replace the card's, and are recorded as entered by hand.
     std::map<QString, double> values;
+    // Where each value came from, for the deck's comments: "entered in the
+    // study", or the card and the value as written there.
+    std::map<QString, QString> source;
 };
 
 // A given movement of some directions (the others free), or none.

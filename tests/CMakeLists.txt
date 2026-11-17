@@ -55,6 +55,20 @@ add_test(NAME the_setup_is_read_and_checked COMMAND test_setup)
 # missing; any direction name taken; a group of faces given a material;
 # y read as z; face 0 accepted: each red.
 
+# FreeCAD material cards in a study's units (fixtures/materials).
+add_executable(test_material_card test_material_card.cpp)
+target_link_libraries(test_material_card PRIVATE gf_core)
+target_compile_definitions(test_material_card PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME material_cards_are_read_in_the_studys_units COMMAND test_material_card)
+# NEGATIVE CHECKS, 2026-11-17, material cards: the 8 cases written first,
+# red against a stub (the fill case crashed on the missing values). Then
+# each rule broken, the tests run, restored: density in mm off by 1000;
+# GPa taken as kPa; an unknown unit passed as is; the card overruling the
+# study's own value; the LinearElastic model (TenSense's) not read: each
+# red; a Poisson's ratio with a unit passed: survived at first (no card
+# had one); poisson-unit.FCMat added, now red.
+
 # CalculiX results: the .frd reader against files written by ccx 2.23, each
 # with an answer known by hand (fixtures/calculix/*/README.md).
 add_executable(test_frd_reader test_frd_reader.cpp)

@@ -1,0 +1,11 @@
+---
+# Written by hand for GridForge's tests: a modulus in a unit GridForge
+# does not convert (pounds per square inch).
+General:
+  UUID: "00000000-0000-4000-8000-000000000002"
+  Name: "Odd unit"
+Models:
+  IsotropicLinearElastic:
+    UUID: 'f6f9e48c-b116-4e82-ad7f-3659a9219c50'
+    PoissonRatio: "0.3"
+    YoungsModulus: "29000000 psi"

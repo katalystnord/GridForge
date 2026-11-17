@@ -103,14 +103,19 @@ QString write(const gf::core::Setup &setup, const gf::core::ResultsSeries &mesh,
     for (const gf::core::Material &m : setup.materials) {
         QStringList given;
         for (const char *key : {"YoungsModulus", "PoissonRatio", "Density"})
-            if (m.values.count(key))
-                given << QString("%1 %2").arg(key, inpNumber(m.values.at(key)));
+            if (m.values.count(key)) {
+                const auto source = m.source.find(key);
+                given << QString("%1 %2 (%3)")
+                             .arg(key, inpNumber(m.values.at(key)),
+                                  source != m.source.end() ? source->second : QString("entered in the study"));
+            }
         for (const char *key : {"YoungsModulus", "PoissonRatio"})
             if (!m.values.count(key))
-                fault(QString("material %1: no %2 given in the study (reading cards is not written yet)")
-                          .arg(m.name, key));
+                fault(m.card.isEmpty()
+                          ? QString("material %1: no %2 given in the study, and it has no card").arg(m.name, key)
+                          : QString("material %1: no %2, neither in the study nor in its card").arg(m.name, key));
         if (!given.isEmpty())
-            text += QString("** material %1: %2, entered in the study\n").arg(m.name, given.join(", "));
+            text += QString("** material %1: %2\n").arg(m.name, given.join(", "));
         materials += QString("*MATERIAL, NAME=%1\n*ELASTIC\n%2, %3\n")
                          .arg(inpName(m.name), inpNumber(m.values.at("YoungsModulus")),
                               inpNumber(m.values.at("PoissonRatio")));
