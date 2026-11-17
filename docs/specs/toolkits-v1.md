@@ -123,7 +123,8 @@ job/
 
 Results come back as **VTKHDF** (or `.vtu` + `.pvd`) with
 `results/results.json`: the toolkit and its version, the solver and its
-version, `trust`, and what was converted or derived. A toolkit whose
+version, `trust`, what was converted or derived, and the time points
+(`"time points"`: VTK 9.5's reader reports none for a file of one). A toolkit whose
 solver writes ParaView-readable files already (OpenFOAM) may point at
 them instead of copying.
 

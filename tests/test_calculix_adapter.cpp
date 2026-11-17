@@ -166,6 +166,7 @@ CASE(the_results_say_who_solved_them_and_hold_the_sets)
     CHECK(j["toolkit"].toString() == "calculix");
     CHECK(j["solver"].toString() == "CalculiX Version 2.23");
     CHECK(j["trust"].toString() == "solved");
+    CHECK(j["time points"].toArray() == QJsonArray({1.0}));  // box-setup: one increment, at 1
     CHECK(j["files"].toArray() == QJsonArray({"results/results.vtkhdf"}));
     CHECK(j["provenance"].toArray().size() > 2);
 

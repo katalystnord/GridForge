@@ -23,6 +23,9 @@
 #include <QJsonDocument>
 #include <QPlainTextEdit>
 #include <QProgressBar>
+#include <QSignalBlocker>
+
+#include <algorithm>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QToolBar>
@@ -37,8 +40,15 @@
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkNew.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkColorTransferFunction.h>
+#include <vtkPointData.h>
 #include <vtkProperty.h>
 #include <vtkRenderer.h>
+#include <vtkScalarBarActor.h>
+#include <vtkTextProperty.h>
+
+#include <QProcess>
+#include <QStandardPaths>
 
 namespace gf::gui {
 
@@ -125,6 +135,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_layouts->setExpanding(false);  // tabs at the left, as ParaView's
     m_layouts->addTab(tr("Model"));
     m_layouts->addTab(tr("Results"));
+    connect(m_layouts, &QTabBar::currentChanged, this, &MainWindow::showLayer);
     m_view = new QVTKOpenGLNativeWidget(centre);
     m_view->setObjectName(QStringLiteral("view"));
     vtkNew<vtkGenericOpenGLRenderWindow> window;
@@ -160,6 +171,9 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     m_meshWatch.waitForFinished();
+    for (vtkObject *o : std::initializer_list<vtkObject *>{m_meshActor, m_resultsActor, m_scalarBar})
+        if (o)
+            o->UnRegister(nullptr);
 }
 
 void MainWindow::buildDocks()
@@ -262,7 +276,6 @@ void MainWindow::buildActions()
     connect(m_stopAction, &QAction::triggered, &m_runner, &core::JobRunner::stop);
     runBar->addAction(m_runAction);
     runBar->addAction(m_stopAction);
-    updateActions();
 
     QToolBar *camera = addToolBar(tr("Camera"));
     camera->setObjectName(QStringLiteral("cameraToolbar"));
@@ -294,10 +307,26 @@ void MainWindow::buildActions()
 
     QToolBar *vcr = addToolBar(tr("Increments"));
     vcr->setObjectName(QStringLiteral("vcrToolbar"));
-    for (const char *name : {"pqVcrFirst", "pqVcrBack", "pqVcrPlay", "pqVcrForward", "pqVcrLast"}) {
-        QAction *a = vcr->addAction(icon(name), QString(name).mid(5));
-        a->setEnabled(false);  // results come in a later slice
+    const struct {
+        const char *icon, *name, *text;
+        int step;  // -2 first, -1 back, +1 forward, +2 last
+    } buttons[] = {{"pqVcrFirst", "firstIncrement", "First increment", -2},
+                   {"pqVcrBack", "previousIncrement", "Previous increment", -1},
+                   {"pqVcrForward", "nextIncrement", "Next increment", 1},
+                   {"pqVcrLast", "lastIncrement", "Last increment", 2}};
+    for (const auto &b : buttons) {
+        QAction *a = vcr->addAction(icon(b.icon), tr(b.text));
+        a->setObjectName(b.name);
+        const int step = b.step;
+        connect(a, &QAction::triggered, this, [this, step] {
+            const int last = m_results.timeCount() - 1;
+            showIncrement(step == -2 ? 0 : step == 2 ? last : std::clamp(m_increment + step, 0, last));
+        });
+        m_vcr << a;
     }
+    m_increments = new QLabel(this);
+    m_increments->setObjectName(QStringLiteral("incrementLabel"));
+    vcr->addWidget(m_increments);
 
     addToolBarBreak();
     QToolBar *stepBar = addToolBar(tr("Step"));
@@ -307,6 +336,34 @@ void MainWindow::buildActions()
     m_step->setObjectName(QStringLiteral("stepChooser"));
     m_step->setMinimumContentsLength(16);
     stepBar->addWidget(m_step);
+
+    QToolBar *results = addToolBar(tr("Results"));
+    results->setObjectName(QStringLiteral("resultsToolbar"));
+    results->addWidget(new QLabel(tr(" Colour by: "), this));
+    m_colourBy = new QComboBox(this);
+    m_colourBy->setObjectName(QStringLiteral("colourBy"));
+    m_colourBy->setMinimumContentsLength(22);
+    connect(m_colourBy, &QComboBox::currentTextChanged, this, [this] { showIncrement(m_increment); });
+    results->addWidget(m_colourBy);
+    m_rescale = results->addAction(icon("pqResetRange"), tr("Rescale to data range"));
+    m_rescale->setObjectName(QStringLiteral("rescale"));
+    connect(m_rescale, &QAction::triggered, this, [this] { showIncrement(m_increment); });
+    m_openParaView = results->addAction(icon("pqOpen"), tr("Open in ParaView"));
+    m_openParaView->setObjectName(QStringLiteral("openInParaView"));
+    m_openParaView->setToolTip(tr("Hand the results file to ParaView, for everything beyond a quick look"));
+    connect(m_openParaView, &QAction::triggered, this, [this] {
+        const QStringList cmd =
+            paraviewCommand(m_results.path(), !QStandardPaths::findExecutable("paraview").isEmpty(),
+                            !QStandardPaths::findExecutable("flatpak").isEmpty()
+                                && QProcess::execute("flatpak", {"info", "org.paraview.ParaView"}) == 0);
+        if (cmd.isEmpty())
+            say(tr("ParaView was not found (neither paraview on PATH nor its Flatpak)"), true);
+        else if (QProcess::startDetached(cmd.first(), cmd.mid(1)))
+            say(tr("Opened in ParaView: %1").arg(m_results.path()));
+        else
+            say(tr("ParaView did not start: %1").arg(cmd.join(' ')), true);
+    });
+    updateActions();  // every action and control now exists
 }
 
 void MainWindow::setCamera(double dx, double dy, double dz, double ux, double uy, double uz)
@@ -346,7 +403,17 @@ bool MainWindow::openStudy(const QString &path)
     m_units->setText(unitsText(m_study.setup.units));
     setWindowTitle(QStringLiteral("%1 - %2").arg(core::applicationName(), QDir(m_study.folder).dirName()));
     say(tr("Opened %1").arg(m_study.folder));
+    m_results = ResultsFile();
+    if (m_meshActor) {
+        m_meshActor->UnRegister(nullptr);
+        m_meshActor = nullptr;
+    }
+    m_layouts->setCurrentIndex(0);
+    const QString earlier = latestResults();
+    if (!earlier.isEmpty() && showResults(earlier))
+        m_layouts->setCurrentIndex(0);  // the model first; the results are a tab away
     startMeshing();
+    updateActions();
     return true;
 }
 
@@ -427,8 +494,9 @@ void MainWindow::onMeshed()
     actor->GetProperty()->SetColor(0.9, 0.9, 0.9);
     actor->GetProperty()->EdgeVisibilityOn();
     actor->GetProperty()->SetEdgeColor(0.25, 0.25, 0.35);
-    m_renderer->RemoveAllViewProps();
-    m_renderer->AddActor(actor);
+    m_meshActor = actor;
+    actor->Register(nullptr);  // kept while the Results layer is shown instead
+    showLayer(m_layouts->currentIndex());
     setCamera(-1, -1, -1, 0, 0, 1);
 
     const QString detail = tr("%1 tetrahedra, %2 nodes; %3")
@@ -450,6 +518,12 @@ void MainWindow::updateActions()
     const bool meshed = !m_mesh.points.empty();
     m_runAction->setEnabled(meshed && !m_runner.running() && !m_study.stepsOf("solve").empty());
     m_stopAction->setEnabled(m_runner.running());
+    const bool results = m_results.timeCount() > 0;
+    for (QAction *a : m_vcr)
+        a->setEnabled(results);
+    m_colourBy->setEnabled(results);
+    m_rescale->setEnabled(results);
+    m_openParaView->setEnabled(results);
 }
 
 void MainWindow::setJobState(const QString &state)
@@ -559,8 +633,133 @@ void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
             i->setToolTip(1, results);
         }
         say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results));
+        showResults(results);
     }
     updateActions();
+}
+
+QStringList MainWindow::paraviewCommand(const QString &file, bool paraviewOnPath, bool flatpak)
+{
+    if (paraviewOnPath)
+        return {"paraview", file};
+    if (flatpak)
+        return {"flatpak", "run", "--filesystem=" + QFileInfo(file).absolutePath(), "org.paraview.ParaView", file};
+    return {};
+}
+
+QString MainWindow::latestResults() const
+{
+    const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
+    if (solves.empty())
+        return {};
+    const QDir runs(QDir(m_study.folder).filePath("steps/" + solves.front()->id + "/runs"));
+    int best = 0;
+    for (const QString &n : runs.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+        if (QFileInfo(runs.filePath(n + "/results/results.vtkhdf")).isFile())
+            best = std::max(best, n.toInt());
+    return best ? runs.filePath(QString("%1/results/results.vtkhdf").arg(best)) : QString();
+}
+
+bool MainWindow::showResults(const QString &resultsFile)
+{
+    QString error;
+    if (!m_results.open(resultsFile, &error)) {
+        say(tr("Cannot show the results: %1").arg(error), true);
+        return false;
+    }
+    const QString run = QFileInfo(resultsFile).absoluteDir().absolutePath().section('/', -2, -2);
+    QFile report(QFileInfo(resultsFile).absoluteDir().filePath("results.json"));
+    report.open(QIODevice::ReadOnly);
+    const QJsonObject r = QJsonDocument::fromJson(report.readAll()).object();
+    for (QTreeWidgetItem *i : m_tree->findItems(tr("Results"), Qt::MatchExactly)) {
+        i->setText(1, tr("run %1, %2 by %3").arg(run, r["trust"].toString(), r["solver"].toString()));
+        i->setToolTip(1, resultsFile);
+    }
+    {
+        const QSignalBlocker quiet(m_colourBy);
+        m_colourBy->clear();
+        m_colourBy->addItems(m_results.fields());
+        m_colourBy->setCurrentText(m_results.preferredField());
+    }
+    m_increment = m_results.timeCount() - 1;
+    m_layouts->setCurrentIndex(1);
+    showIncrement(m_increment);
+    updateActions();
+    return true;
+}
+
+void MainWindow::showIncrement(int k)
+{
+    if (m_results.timeCount() == 0)
+        return;
+    m_increment = std::clamp(k, 0, m_results.timeCount() - 1);
+    const QString field = m_colourBy->currentText();
+    vtkSmartPointer<vtkUnstructuredGrid> model = m_results.model(m_increment, field);
+    if (!model)
+        return;
+    double range[2] = {0, 1};
+    if (vtkDataArray *shown = model->GetPointData()->GetArray("shown"))
+        shown->GetRange(range);
+    if (range[1] <= range[0])
+        range[1] = range[0] + 1e-12;
+
+    // ParaView's default colours, "Cool to Warm".
+    vtkNew<vtkColorTransferFunction> colours;
+    colours->SetColorSpaceToDiverging();
+    colours->AddRGBPoint(range[0], 0.231373, 0.298039, 0.752941);
+    colours->AddRGBPoint((range[0] + range[1]) / 2, 0.865003, 0.865003, 0.865003);
+    colours->AddRGBPoint(range[1], 0.705882, 0.0156863, 0.14902);
+    vtkNew<vtkDataSetSurfaceFilter> surface;
+    surface->SetInputData(model);
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputConnection(surface->GetOutputPort());
+    mapper->SetLookupTable(colours);
+    mapper->SetScalarModeToUsePointFieldData();
+    mapper->SelectColorArray("shown");
+    mapper->SetScalarRange(range);
+    mapper->ScalarVisibilityOn();
+    if (!m_resultsActor) {
+        m_resultsActor = vtkActor::New();
+        m_scalarBar = vtkScalarBarActor::New();
+        // As ParaView's legend: plain text at fixed sizes, four digits.
+        m_scalarBar->SetNumberOfLabels(5);
+        m_scalarBar->SetLabelFormat("%-#.4g");
+        m_scalarBar->UnconstrainedFontSizeOn();
+        m_scalarBar->SetBarRatio(0.2);
+        m_scalarBar->SetMaximumWidthInPixels(130);
+        for (vtkTextProperty *t : {m_scalarBar->GetTitleTextProperty(), m_scalarBar->GetLabelTextProperty()}) {
+            t->BoldOff();
+            t->ItalicOff();
+            t->ShadowOff();
+            t->SetColor(1, 1, 1);
+        }
+        m_scalarBar->GetTitleTextProperty()->SetFontSize(14);
+        m_scalarBar->GetLabelTextProperty()->SetFontSize(13);
+        m_scalarBar->SetPosition(0.86, 0.12);
+        m_scalarBar->SetWidth(0.12);
+        m_scalarBar->SetHeight(0.7);
+    }
+    m_resultsActor->SetMapper(mapper);
+    m_scalarBar->SetLookupTable(colours);
+    m_scalarBar->SetTitle(field.toUtf8().constData());
+    m_increments->setText(tr(" increment %1 of %2, time %3 ")
+                              .arg(m_increment + 1)
+                              .arg(m_results.timeCount())
+                              .arg(m_results.time(m_increment)));
+    showLayer(m_layouts->currentIndex());
+    updateActions();
+}
+
+void MainWindow::showLayer(int layout)
+{
+    m_renderer->RemoveAllViewProps();
+    if (layout == 1 && m_resultsActor) {
+        m_renderer->AddActor(m_resultsActor);
+        m_renderer->AddActor2D(m_scalarBar);
+    } else if (m_meshActor) {
+        m_renderer->AddActor(m_meshActor);
+    }
+    m_view->renderWindow()->Render();
 }
 
 } // namespace gf::gui

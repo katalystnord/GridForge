@@ -84,11 +84,12 @@ target_compile_definitions(gf_mesh PRIVATE OCCGEOMETRY  # Netgen's OCC interface
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
+    gui/ResultsFile.cpp
     ${CMAKE_SOURCE_DIR}/resources/icons/icons.qrc
 )
 set_target_properties(gf_gui PROPERTIES AUTORCC ON)
 target_link_libraries(gf_gui PUBLIC gf_core gf_mesh Qt6::Widgets Qt6::OpenGLWidgets Qt6::Concurrent
-    VTK::FiltersGeometry VTK::RenderingCore VTK::RenderingOpenGL2 VTK::InteractionStyle VTK::GUISupportQt)
+    VTK::FiltersGeometry VTK::RenderingAnnotation VTK::RenderingCore VTK::RenderingOpenGL2 VTK::InteractionStyle VTK::GUISupportQt)
 vtk_module_autoinit(TARGETS gf_gui MODULES ${VTK_LIBRARIES})
 target_compile_definitions(gf_gui PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits")
 add_dependencies(gf_gui gf-calculix)

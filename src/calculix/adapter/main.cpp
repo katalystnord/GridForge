@@ -199,6 +199,9 @@ int main(int argc, char *argv[])
     QJsonArray provenance;
     for (const QString &line : results.provenance)
         provenance.append(line);
+    QJsonArray times;  // also in the .vtkhdf; listed here for readers that drop a single one
+    for (const gf::core::TimePoint &t : results.points)
+        times.append(t.time);
     const QJsonObject report{{"format", "gridforge-results"},
                              {"version", "1.0"},
                              {"toolkit", "calculix"},
@@ -206,6 +209,7 @@ int main(int argc, char *argv[])
                              {"solver", version.hasMatch() ? version.captured(0) : QString("CalculiX (version not said)")},
                              {"trust", "solved"},
                              {"files", QJsonArray{"results/results.vtkhdf"}},
+                             {"time points", times},
                              {"notes", QJsonArray::fromStringList(notes)},
                              {"provenance", provenance}};
     if (!writeText(job.filePath("results/results.json"), QJsonDocument(report).toJson()))

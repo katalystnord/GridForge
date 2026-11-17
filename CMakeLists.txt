@@ -36,6 +36,7 @@ find_package(VTK REQUIRED COMPONENTS
     IOXML                     # .vtu/.pvd out, for ParaView and PyVista
     IOHDF                     # .vtkhdf out: one file, every time point, sets as blocks
     FiltersGeometry           # the mesh's surface for the view
+    RenderingAnnotation       # the legend (scalar bar)
     RenderingCore
     RenderingOpenGL2
     InteractionStyle

@@ -19,6 +19,7 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QStatusBar>
+#include <QTabBar>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,6 +28,7 @@
 #include <QTreeWidget>
 #include <QVTKOpenGLNativeWidget.h>
 
+#include <vtkActor2DCollection.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkRendererCollection.h>
@@ -217,6 +219,61 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 2)"), 60000);
         QVERIFY(QDir(QDir(dir.path()).filePath("box-tension/steps/solve/runs/1")).exists());
+    }
+
+    void the_results_are_shown_after_a_solve_and_on_reopening()
+    {
+        stand_in_ccx(false);
+        QTemporaryDir dir;
+        {
+            MainWindow w;
+            w.show();
+            QVERIFY(w.openStudy(boxStudy(dir)));
+            QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+            QVERIFY(!w.findChild<QAction *>("lastIncrement")->isEnabled());  // no results yet
+            w.findChild<QAction *>("run")->trigger();
+            auto *tree = w.findChild<QTreeWidget *>("studyTree");
+            QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"), 60000);
+            QCOMPARE(w.findChild<QTabBar *>("layouts")->currentIndex(), 1);  // Results
+            auto *colourBy = w.findChild<QComboBox *>("colourBy");
+            QCOMPARE(colourBy->currentText(), QString("von Mises stress (derived)"));
+            QVERIFY(colourBy->findText("DISP (magnitude)") >= 0);
+            QCOMPARE(w.findChild<QLabel *>("incrementLabel")->text().trimmed(), QString("increment 1 of 1, time 1"));
+            QVERIFY(w.findChild<QAction *>("lastIncrement")->isEnabled());
+            QVERIFY(w.findChild<QAction *>("openInParaView")->isEnabled());
+            auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+            vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
+            QCOMPARE(r->GetActors()->GetNumberOfItems(), 1);
+            QCOMPARE(r->GetActors2D()->GetNumberOfItems(), 1);  // the legend
+            colourBy->setCurrentText("DISP (magnitude)");
+            // The Model tab shows the mesh again, without the legend.
+            w.findChild<QTabBar *>("layouts")->setCurrentIndex(0);
+            QCOMPARE(r->GetActors2D()->GetNumberOfItems(), 0);
+            if (!screenshot.isEmpty()) {
+                w.findChild<QTabBar *>("layouts")->setCurrentIndex(1);
+                colourBy->setCurrentText("von Mises stress (derived)");
+                w.resize(1500, 950);
+                QTest::qWait(500);
+                view->renderWindow()->Render();
+                w.grab().save(screenshot.chopped(4) + "-results.png");
+            }
+        }
+        MainWindow again;
+        again.show();
+        QVERIFY(again.openStudy(QDir(dir.path()).filePath("box-tension")));
+        auto *tree = again.findChild<QTreeWidget *>("studyTree");
+        QCOMPARE(findItem(tree, "Results")->text(1), QString("run 1, solved by CalculiX Version 2.23"));
+        QCOMPARE(again.findChild<QTabBar *>("layouts")->currentIndex(), 0);  // the model first
+        QVERIFY(again.findChild<QAction *>("lastIncrement")->isEnabled());
+    }
+
+    void paraview_is_found_on_path_or_as_its_flatpak()
+    {
+        QCOMPARE(MainWindow::paraviewCommand("/r/results.vtkhdf", true, true),
+                 QStringList({"paraview", "/r/results.vtkhdf"}));
+        QCOMPARE(MainWindow::paraviewCommand("/r/results.vtkhdf", false, true),
+                 QStringList({"flatpak", "run", "--filesystem=/r", "org.paraview.ParaView", "/r/results.vtkhdf"}));
+        QVERIFY(MainWindow::paraviewCommand("/r/results.vtkhdf", false, false).isEmpty());
     }
 
     void stop_cancels_a_running_solve()

@@ -405,6 +405,12 @@ set_tests_properties(cli_solves_a_setup_through_its_toolkit PROPERTIES
     ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup"
     PASS_REGULAR_EXPRESSION "solving with CalculiX .*100%  step 1, increment 1\n.*results: [^\n]*solve-out/results/results\\.vtkhdf \\(solved by CalculiX Version 2\\.23\\)")
 
+# A run's results as the window reads them (no display needed).
+add_executable(test_results_file test_results_file.cpp)
+target_link_libraries(test_results_file PRIVATE gf_gui gf_calculix)
+target_compile_definitions(test_results_file PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME a_runs_results_are_read_for_the_window COMMAND test_results_file)
+
 # --- Walkthrough: the real window (layout A) --------------------------------
 add_executable(test_main_window_walkthrough test_main_window_walkthrough.cpp)
 target_link_libraries(test_main_window_walkthrough PRIVATE gf_gui Qt6::Test)
@@ -432,6 +438,13 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, results in the window: the reader's cases
+# and the window's results cases written first, red. Found on the way: the
+# window crashed at start (the actions' states set before the results
+# toolbar existed), and showed "time 0" for a run of one increment: VTK
+# 9.5's HDF reader reports no time step (nor its value) for a file of one,
+# so results.json now lists the time points and the window reads them
+# there (a_single_time_point_keeps_its_time, red before).
 # NEGATIVE CHECKS, 2026-11-17, running from the window: the run, stop and
 # no-ccx cases written first, red (Run disabled for ever). Then: Stop not
 # wired: the stop case red; every run in runs/1: the window case and the

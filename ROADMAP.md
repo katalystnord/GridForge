@@ -136,8 +136,14 @@ walkthrough test on a private X server. Running a solve from the window:
 Run (F5) and Stop, the Job dock filled as the toolkit reports, progress
 in the status bar, each run in its own folder (steps/<id>/runs/<n>), the
 tree saying solved, cancelled or failed; gf-study solve and the window
-share one runner (core::JobRunner). Next: results in the view with the
-increments, editing in Properties, picking faces.
+share one runner (core::JobRunner). Results in the window: after a run,
+or on opening a study with runs, the latest run in the Results tab,
+coloured by plastic strain or von Mises stress (vectors as magnitudes)
+with ParaView's Cool to Warm and a legend; the increment buttons step
+through it; Open in ParaView hands the file over (paraview on PATH, else
+its Flatpak). Next: the identity layer (David, 2026-11-17: tell GridForge
+from ParaView at a glance; the next-step banner, the view's background,
+an accent colour), editing in Properties, picking faces.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

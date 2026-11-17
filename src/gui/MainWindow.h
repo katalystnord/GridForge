@@ -15,6 +15,7 @@
 // The window never waits (tenet 7): meshing runs on another thread.
 
 #include "core/JobRunner.h"
+#include "gui/ResultsFile.h"
 #include "core/ResultsSeries.h"
 #include "core/Study.h"
 
@@ -33,6 +34,8 @@ class QTreeWidgetItem;
 class QVTKOpenGLNativeWidget;
 class QFormLayout;
 class vtkRenderer;
+class vtkActor;
+class vtkScalarBarActor;
 
 namespace gf::gui {
 
@@ -62,6 +65,13 @@ public:
     // in (or said why not), not only while the meshing thread runs.
     bool meshing() const { return m_meshPending; }
 
+    // Shows a run's results in the Results tab (and switches to it).
+    bool showResults(const QString &resultsFile);
+
+    // The command that opens a file in ParaView: paraview where it is on
+    // PATH, else ParaView's Flatpak (sharing the file's folder), else none.
+    static QStringList paraviewCommand(const QString &file, bool paraviewOnPath, bool flatpak);
+
 signals:
     void meshReady();
 
@@ -78,6 +88,9 @@ private:
     void onJobFinished(int exitCode, const QString &results, bool stopped);
     void setJobState(const QString &state);
     void updateActions();
+    void showLayer(int layout);
+    void showIncrement(int k);
+    QString latestResults() const;
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -87,6 +100,11 @@ private:
     gf::core::JobRunner m_runner;
     QString m_solveStep, m_toolkitName;
     int m_runNumber = 0;
+    ResultsFile m_results;
+    int m_increment = 0;
+    vtkActor *m_meshActor = nullptr;     // owned by the renderer while shown
+    vtkActor *m_resultsActor = nullptr;
+    vtkScalarBarActor *m_scalarBar = nullptr;
 
     QVTKOpenGLNativeWidget *m_view = nullptr;
     vtkRenderer *m_renderer = nullptr;
@@ -103,6 +121,11 @@ private:
     QProgressBar *m_progress = nullptr;
     QAction *m_runAction = nullptr;
     QAction *m_stopAction = nullptr;
+    QComboBox *m_colourBy = nullptr;
+    QLabel *m_increments = nullptr;
+    QAction *m_openParaView = nullptr;
+    QAction *m_rescale = nullptr;
+    QList<QAction *> m_vcr;  // first, back, forward, last
 };
 
 } // namespace gf::gui
