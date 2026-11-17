@@ -180,7 +180,11 @@ full access to the program, but optional and installed as a toolkit.
   variants of a study, runs them through CalculiX or OpenFOAM®, and
   collects the results as a training set (section 6).
 
-No Python interpreter is embedded in the application (tenet 6).
+David, 2026-11-17: how Python is wired (an importable module, a console
+in the window, this API) is decided when it is built; Python works both
+ways, into GridForge and out from it to other tools. GridForge runs
+without it. (This section's "out of process" is the first candidate, not
+settled.)
 
 ## 8. What the first toolkits declare
 
