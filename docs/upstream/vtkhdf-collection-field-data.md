@@ -1,7 +1,7 @@
 # DRAFT for VTK's issue tracker: VTKHDF drops field data on collection blocks
 
-**Status:** drafted 2026-11-16, not filed. Filing is David's call (it goes
-out under his account on gitlab.kitware.com/vtk/vtk). Searched before
+**Status:** drafted 2026-11-16; not to be filed for now (David,
+2026-11-17). Kept so it is ready if that changes. Searched before
 drafting: no matching issue found; the nearest is
 [vtk#19030](https://gitlab.kitware.com/vtk/vtk/-/issues/19030) (field data
 on image data).

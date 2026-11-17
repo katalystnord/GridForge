@@ -47,16 +47,14 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   Done 2026-11-16: bar-tension, bar-sets, bar-increments, bar-binary,
   cantilever-te10, cube-* (4), shell-* (5), plane-cps4, beam-* (2).
 - Exit: ParaView 6.x opens our output with every variable and set; the
-  same numbers as cgx shows for the fixtures. Offer the reader upstream
-  (ParaView plugin or beside ccx2paraview).
+  same numbers as cgx shows for the fixtures.
   Status 2026-11-16: ParaView 6.2.0 opens the `.vtkhdf` with every time
   point, variable and set. Open: ParaView 6.2 (VTK 9.7.1) drops field
   data on the blocks of a VTKHDF collection, so the provenance is in the
-  file but not shown there (it is in the `.vtu` fallback); to raise with
-  Kitware. The numbers match cgx 2.21's at every node of the sixteen result
+  file but not shown there (it is in the `.vtu` fallback). The numbers match cgx 2.21's at every node of the sixteen result
   fixtures, raw and derived (test the_numbers_match_what_cgx_shows; cgx's
-  values committed beside each fixture). Offering the reader upstream is
-  David's call.
+  values committed beside each fixture). Not filing the VTK issue and not
+  offering the reader upstream, for now (David, 2026-11-17).
 
 ## Phase 2: Study model, deck writer, running ccx (M)
 
