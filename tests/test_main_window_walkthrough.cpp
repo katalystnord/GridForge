@@ -7,6 +7,7 @@
 
 #include "gui/MainWindow.h"
 #include "gui/Style.h"
+#include "gui/Tone.h"
 
 #include <QAction>
 #include <QApplication>
@@ -24,6 +25,7 @@
 #include <QPlainTextEdit>
 #include <QStatusBar>
 #include <QTabBar>
+#include <QTextBlock>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
 #include <QTest>
@@ -396,6 +398,27 @@ private slots:
             "no solve toolkit for structural.static is ready; CalculiX: missing ccx"));
         QVERIFY(!QDir(QDir(dir.path()).filePath("box-tension/steps")).exists());
         stand_in_ccx(false);
+    }
+
+    void messages_are_coloured_by_what_they_mean()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir empty;
+        w.openStudy(empty.path());  // a problem
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        auto *messages = w.findChild<QPlainTextEdit *>("messages");
+        auto colourOf = [&](const QString &start) {
+            for (QTextBlock b = messages->document()->begin(); b.isValid(); b = b.next())
+                if (b.text().startsWith(start) && b.begin() != b.end())
+                    return b.begin().fragment().charFormat().foreground().color();
+            return QColor();
+        };
+        QCOMPARE(colourOf("Problem: Cannot open the study"), gf::gui::toneColour(gf::gui::Tone::Problem));
+        QCOMPARE(colourOf("Meshed: "), gf::gui::toneColour(gf::gui::Tone::Done));
+        QCOMPARE(colourOf("Opened "), w.palette().color(QPalette::Text));
     }
 
     void a_study_that_cannot_be_read_is_said_in_messages()

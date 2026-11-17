@@ -87,6 +87,7 @@ add_library(gf_gui STATIC
     gui/ResultsFile.cpp
     gui/NextStep.cpp
     gui/Style.cpp
+    gui/Tone.cpp
     ${CMAKE_SOURCE_DIR}/resources/icons/icons.qrc
 )
 set_target_properties(gf_gui PROPERTIES AUTORCC ON)

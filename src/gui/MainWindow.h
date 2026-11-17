@@ -17,6 +17,7 @@
 #include "core/JobRunner.h"
 #include "gui/NextStep.h"
 #include "gui/ResultsFile.h"
+#include "gui/Tone.h"
 #include "core/ResultsSeries.h"
 #include "core/Study.h"
 
@@ -79,7 +80,7 @@ signals:
 private:
     void buildActions();
     void buildDocks();
-    void say(const QString &message, bool problem = false);
+    void say(const QString &message, Tone tone = Tone::Normal);
     void showProperties(QTreeWidgetItem *item);
     void startMeshing();
     void onMeshed();

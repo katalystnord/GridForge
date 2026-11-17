@@ -390,11 +390,11 @@ void MainWindow::buildActions()
                             !QStandardPaths::findExecutable("flatpak").isEmpty()
                                 && QProcess::execute("flatpak", {"info", "org.paraview.ParaView"}) == 0);
         if (cmd.isEmpty())
-            say(tr("ParaView was not found (neither paraview on PATH nor its Flatpak)"), true);
+            say(tr("ParaView was not found (neither paraview on PATH nor its Flatpak)"), Tone::Problem);
         else if (QProcess::startDetached(cmd.first(), cmd.mid(1)))
             say(tr("Opened in ParaView: %1").arg(m_results.path()));
         else
-            say(tr("ParaView did not start: %1").arg(cmd.join(' ')), true);
+            say(tr("ParaView did not start: %1").arg(cmd.join(' ')), Tone::Problem);
     });
     updateActions();  // every action and control now exists
 }
@@ -409,9 +409,10 @@ void MainWindow::setCamera(double dx, double dy, double dz, double ux, double uy
     m_view->renderWindow()->Render();
 }
 
-void MainWindow::say(const QString &message, bool problem)
+void MainWindow::say(const QString &message, Tone tone)
 {
-    m_messages->appendPlainText((problem ? QStringLiteral("Problem: ") : QString()) + message);
+    // "Problem:" in words as well as red, for whoever cannot tell the colours.
+    appendLine(m_messages, (tone == Tone::Problem ? QStringLiteral("Problem: ") : QString()) + message, tone);
     statusBar()->showMessage(message);
 }
 
@@ -420,7 +421,7 @@ bool MainWindow::openStudy(const QString &path)
     QString error;
     core::Study study = core::readStudy(path, &error);
     if (!error.isEmpty()) {
-        say(tr("Cannot open the study: %1").arg(error), true);
+        say(tr("Cannot open the study: %1").arg(error), Tone::Problem);
         return false;
     }
     m_study = study;
@@ -483,7 +484,7 @@ void MainWindow::startMeshing()
     const QString link = step.inputs.count("geometry") ? step.inputs.at("geometry").value(0) : QString();
     const core::StudyStep *input = m_study.step(link.section('.', 0, 0));
     if (!input) {
-        say(tr("The mesh step has no geometry"), true);
+        say(tr("The mesh step has no geometry"), Tone::Problem);
         return;
     }
     const QString file = QDir(m_study.folder).filePath(input->file);
@@ -515,7 +516,7 @@ void MainWindow::onMeshed()
     m_meshPending = false;
     if (!done.error.isEmpty() || done.mesh.points.empty()) {
         m_meshProblem = done.error;
-        say(tr("The mesh could not be made: %1").arg(done.error), true);
+        say(tr("The mesh could not be made: %1").arg(done.error), Tone::Problem);
         updateActions();
         return;
     }
@@ -547,7 +548,7 @@ void MainWindow::onMeshed()
         item->setToolTip(1, detail);
     }
     m_information->setText(mesh::summary(quality).join('\n'));
-    say(tr("Meshed: %1").arg(detail));
+    say(tr("Meshed: %1").arg(detail), quality.solverReady() ? Tone::Done : Tone::Warning);
     updateActions();
     emit meshReady();
 }
@@ -617,31 +618,31 @@ void MainWindow::run()
     QString why;
     const core::Toolkit *toolkit = core::readyToolkit(toolkits, "solve", step.parameters["kind"].toString("structural.static"), &why);
     if (!toolkit) {
-        say(tr("Cannot run: %1").arg(why), true);
+        say(tr("Cannot run: %1").arg(why), Tone::Problem);
         return;
     }
 
     // The set-up filled from its cards; the job folder for this run.
     core::Setup setup = m_study.setup;
     if (!core::fillFromCards(setup, m_study.folder, &why)) {
-        say(tr("Cannot run: %1").arg(why), true);
+        say(tr("Cannot run: %1").arg(why), Tone::Problem);
         return;
     }
     const QString folder = core::nextRunFolder(m_study, step.id);
     if (!core::writeSolveJob(folder, step.parameters["kind"].toString("structural.static"), setup,
                              m_study.setupJson, m_study.folder, m_mesh, &why)) {
-        say(tr("Cannot run: %1").arg(why), true);
+        say(tr("Cannot run: %1").arg(why), Tone::Problem);
         return;
     }
     m_solveStep = step.id;
     m_toolkitName = toolkit->name;
     m_runNumber = QDir(folder).dirName().toInt();
     m_job->clear();
-    m_job->appendPlainText(tr("Run %1 with %2, in %3").arg(m_runNumber).arg(toolkit->name, folder));
+    appendLine(m_job, tr("Run %1 with %2, in %3").arg(m_runNumber).arg(toolkit->name, folder), Tone::Detail);
     if (auto *d = findChild<QDockWidget *>("jobDock"))
         d->raise();
     if (!m_runner.start(*toolkit, folder, &why)) {
-        say(tr("Cannot run: %1").arg(why), true);
+        say(tr("Cannot run: %1").arg(why), Tone::Problem);
         return;
     }
     setJobState(tr("running (run %1)").arg(m_runNumber));
@@ -659,7 +660,7 @@ void MainWindow::onJobLine(const core::ProtocolLine &l)
     using Type = core::ProtocolLine::Type;
     switch (l.type) {
     case Type::Progress:
-        m_job->appendPlainText(QString("%1%  %2").arg(100 * l.fraction, 3, 'f', 0).arg(l.text));
+        appendLine(m_job, QString("%1%  %2").arg(100 * l.fraction, 3, 'f', 0).arg(l.text), toneOf(l));
         m_progress->setValue(qRound(100 * l.fraction));
         m_progressText = l.text;
         m_percent = qRound(100 * l.fraction);
@@ -667,17 +668,17 @@ void MainWindow::onJobLine(const core::ProtocolLine &l)
         statusBar()->showMessage(tr("%1: %2").arg(m_toolkitName, l.text));
         break;
     case Type::Metric:
-        m_job->appendPlainText(QString("        %1: %2 (%3)").arg(l.name).arg(l.value).arg(l.text));
+        appendLine(m_job, QString("        %1: %2 (%3)").arg(l.name).arg(l.value).arg(l.text), toneOf(l));
         break;
     case Type::Log:
-        m_job->appendPlainText(QString("  %1: %2").arg(l.level, l.text));
+        appendLine(m_job, QString("  %1: %2").arg(l.level, l.text), toneOf(l));
         if (l.level == "warning" || l.level == "error")
-            m_messages->appendPlainText(QString("%1 (%2): %3").arg(m_toolkitName, l.level, l.text));
+            say(QString("%1 (%2): %3").arg(m_toolkitName, l.level, l.text), toneOf(l));
         break;
     case Type::File:
         break;
     case Type::Other:
-        m_job->appendPlainText("  " + l.text);
+        appendLine(m_job, "  " + l.text, toneOf(l));
         break;
     }
 }
@@ -690,10 +691,10 @@ void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
                                                        : WindowState::Outcome::Solved;
     if (exitCode == 3) {
         setJobState(tr("cancelled (run %1)").arg(m_runNumber));
-        say(tr("Run %1 cancelled; its files are kept").arg(m_runNumber));
+        say(tr("Run %1 cancelled; its files are kept").arg(m_runNumber), Tone::Warning);
     } else if (exitCode != 0 || results.isEmpty()) {
         setJobState(tr("failed (run %1)").arg(m_runNumber));
-        say(tr("Run %1 failed (exit code %2): see the Job dock").arg(m_runNumber).arg(exitCode), true);
+        say(tr("Run %1 failed (exit code %2): see the Job dock").arg(m_runNumber).arg(exitCode), Tone::Problem);
     } else {
         QFile report(QFileInfo(results).absoluteDir().filePath("results.json"));
         report.open(QIODevice::ReadOnly);
@@ -704,7 +705,7 @@ void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
             i->setText(1, detail);
             i->setToolTip(1, results);
         }
-        say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results));
+        say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results), Tone::Done);
         showResults(results);
     }
     updateActions();
@@ -736,7 +737,7 @@ bool MainWindow::showResults(const QString &resultsFile)
 {
     QString error;
     if (!m_results.open(resultsFile, &error)) {
-        say(tr("Cannot show the results: %1").arg(error), true);
+        say(tr("Cannot show the results: %1").arg(error), Tone::Problem);
         return false;
     }
     const QString run = QFileInfo(resultsFile).absoluteDir().absolutePath().section('/', -2, -2);
@@ -762,7 +763,7 @@ bool MainWindow::showResults(const QString &resultsFile)
         }
     }
     for (const QJsonValue &note : r["notes"].toArray())
-        say(tr("Note on run %1: %2").arg(run, note.toString()));
+        say(tr("Note on run %1: %2").arg(run, note.toString()), Tone::Warning);
     {
         const QSignalBlocker quiet(m_colourBy);
         m_colourBy->clear();

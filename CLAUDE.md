@@ -79,6 +79,8 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   next-step banner (TenSense's), ember orange (226, 92, 29) for the
   accent (the banner, selections, a line under every selected tab, drawn
   by gui/Style, a proxy over Fusion), a dark graphite gradient in the view.
+  Messages and Job lines coloured by meaning (gui/Tone): problem red,
+  warning amber, done green, detail grey; "Problem:" in words too.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,

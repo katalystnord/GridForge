@@ -1,6 +1,7 @@
 // The banner's next step for each state of the window.
 
 #include "gui/NextStep.h"
+#include "gui/Tone.h"
 
 #include <cstdio>
 
@@ -47,6 +48,30 @@ int main()
     s.outcome = WindowState::Outcome::None;
     s.canSolve = false;
     check(s, "Mesh ready. The study has no solve step to run.");
+    // The tone of each kind of line a toolkit writes.
+    using gf::core::ProtocolLine;
+    using gf::core::readProtocolLine;
+    auto tone = [&](const char *line, Tone expected) {
+        if (toneOf(readProtocolLine(line)) != expected) {
+            std::printf("FAIL tone of %s\n", line);
+            ++failures;
+        }
+    };
+    tone(R"({"type": "progress", "fraction": 0.42, "text": "step 1, increment 7"})", Tone::Normal);
+    tone(R"({"type": "progress", "fraction": 1, "text": "step 1, increment 29"})", Tone::Done);
+    tone(R"({"type": "metric", "name": "force residual", "value": 0.1})", Tone::Detail);
+    tone(R"({"type": "log", "level": "info", "text": "ccx started"})", Tone::Detail);
+    tone(R"({"type": "log", "level": "warning", "text": "PE below 0"})", Tone::Warning);
+    tone(R"({"type": "log", "level": "error", "text": "*ERROR reading *NODE"})", Tone::Problem);
+    tone(" *ERROR reading *MATERIAL. Card image:", Tone::Problem);
+    tone(" *WARNING in contact: overclosure", Tone::Warning);
+    tone(" Using up to 1 cpu(s) for spooles.", Tone::Detail);
+    // Problems and warnings are told apart from the ember accent and each other.
+    if (toneColour(Tone::Problem) == toneColour(Tone::Warning) || toneColour(Tone::Warning) == QColor(226, 92, 29)
+        || toneColour(Tone::Normal).isValid()) {
+        std::printf("FAIL tone colours\n");
+        ++failures;
+    }
     std::printf("%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }
