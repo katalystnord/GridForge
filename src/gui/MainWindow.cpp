@@ -64,6 +64,7 @@
 #include <vtkRenderer.h>
 #include <vtkScalarBarActor.h>
 #include <vtkCellPicker.h>
+#include <vtkStaticCellLocator.h>
 #include <vtkCellData.h>
 #include <vtkUnsignedCharArray.h>
 #include <vtkPolyData.h>
@@ -201,6 +202,7 @@ MainWindow::MainWindow(QWidget *parent)
     lights->AddLightsToRenderer(renderer);
     m_view->setRenderWindow(window);
     m_view->installEventFilter(this);
+    m_view->setMouseTracking(true);  // the face under the mouse, before a click
     column->addWidget(m_layouts);
     column->addWidget(m_view, 1);
     setCentralWidget(centre);
@@ -530,6 +532,8 @@ bool MainWindow::openStudy(const QString &path)
         m_meshActor->UnRegister(nullptr);
         m_meshActor = nullptr;
         m_surface = nullptr;
+        m_surfaceLocator = nullptr;
+        m_hovered = 0;
     }
     m_layouts->setCurrentIndex(0);
     const QString earlier = latestResults();
@@ -710,6 +714,8 @@ void MainWindow::onMeshed()
     // outer faces of the elements, each knowing its geometry face, so a
     // face can be picked and a group's faces lit (in ember).
     m_surface = mesh::outerSurface(m_mesh);
+    m_surfaceLocator = nullptr;
+    m_hovered = 0;
     vtkNew<vtkPolyDataMapper> mapper;
     mapper->SetInputData(m_surface);
     mapper->SetScalarModeToUseCellData();
@@ -978,6 +984,13 @@ QString facesText(const std::vector<int> &faces)
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_view && event->type() == QEvent::MouseMove) {
+        auto *e = static_cast<QMouseEvent *>(event);
+        // While a button is held the view turns: no tint then.
+        hover(e->buttons() == Qt::NoButton && m_layouts->currentIndex() == 0 ? faceAt(e->position().toPoint()) : 0);
+    } else if (watched == m_view && event->type() == QEvent::Leave) {
+        hover(0);
+    }
     if (watched == m_view && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease)) {
         auto *e = static_cast<QMouseEvent *>(event);
         if (e->button() == Qt::LeftButton) {
@@ -994,21 +1007,46 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     return QMainWindow::eventFilter(watched, event);  // the view still gets it
 }
 
-void MainWindow::pickAt(const QPoint &at, bool add)
+int MainWindow::faceAt(const QPoint &at)
 {
     if (!m_surface || !m_meshActor)
-        return;
+        return 0;
+    if (!m_surfaceLocator) {
+        // Built once per mesh: a ray finds its triangle without trying all.
+        m_surfaceLocator = vtkSmartPointer<vtkStaticCellLocator>::New();
+        m_surfaceLocator->SetDataSet(m_surface);
+        m_surfaceLocator->BuildLocator();
+    }
     vtkNew<vtkCellPicker> picker;
     picker->SetTolerance(0.0005);
     picker->PickFromListOn();
     picker->AddPickList(m_meshActor);
+    picker->AddLocator(m_surfaceLocator);
     const double k = m_view->devicePixelRatioF();
-    int face = 0;
-    if (picker->Pick(at.x() * k, (m_view->height() - at.y()) * k, 0, m_renderer) && picker->GetCellId() >= 0) {
-        vtkDataArray *faces = m_surface->GetCellData()->GetArray("face");
-        if (faces && picker->GetCellId() < faces->GetNumberOfTuples())
-            face = int(faces->GetComponent(picker->GetCellId(), 0));
-    }
+    if (!picker->Pick(at.x() * k, (m_view->height() - at.y()) * k, 0, m_renderer) || picker->GetCellId() < 0)
+        return 0;
+    vtkDataArray *faces = m_surface->GetCellData()->GetArray("face");
+    return faces && picker->GetCellId() < faces->GetNumberOfTuples() ? int(faces->GetComponent(picker->GetCellId(), 0))
+                                                                     : 0;
+}
+
+void MainWindow::hover(int face)
+{
+    if (face == m_hovered)
+        return;
+    m_hovered = face;
+    if (face > 0)
+        statusBar()->showMessage(tr("Face %1: click to pick it, Ctrl+click to add it").arg(face));
+    else if (statusBar()->currentMessage().startsWith(tr("Face ")))
+        statusBar()->clearMessage();  // the name goes with the tint
+    lightFaces(m_lit);
+}
+
+void MainWindow::pickAt(const QPoint &at, bool add)
+{
+    if (!m_surface || !m_meshActor)
+        return;
+    const int face = faceAt(at);
     if (!add) {
         m_picked = face > 0 ? std::vector<int>{face} : std::vector<int>{};
     } else if (face > 0) {
@@ -1029,6 +1067,7 @@ void MainWindow::pickAt(const QPoint &at, bool add)
 
 void MainWindow::lightFaces(const std::vector<int> &faces)
 {
+    m_lit = faces;
     if (!m_surface)
         return;
     vtkDataArray *face = m_surface->GetCellData()->GetArray("face");
@@ -1039,8 +1078,9 @@ void MainWindow::lightFaces(const std::vector<int> &faces)
     for (vtkIdType c = 0; c < m_surface->GetNumberOfCells(); ++c) {
         const int f = face ? int(face->GetComponent(c, 0)) : 0;
         const bool lit = std::find(faces.begin(), faces.end(), f) != faces.end();
-        // Light grey so the part reads on graphite; ember where lit.
-        const QColor c3 = lit ? ember : QColor(219, 222, 227);
+        // Light grey so the part reads on graphite; ember where lit; pale
+        // ember under the mouse (FreeCAD's preselection, in our colour).
+        const QColor c3 = lit ? ember : f > 0 && f == m_hovered ? QColor(250, 160, 110) : QColor(219, 222, 227);
         colours->SetTypedTuple(c, std::array<unsigned char, 3>{uchar(c3.red()), uchar(c3.green()), uchar(c3.blue())}.data());
     }
     m_surface->GetCellData()->SetScalars(colours);

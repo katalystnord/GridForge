@@ -46,6 +46,7 @@ class vtkRenderer;
 class vtkActor;
 class vtkScalarBarActor;
 class vtkPolyData;
+class vtkStaticCellLocator;
 
 namespace gf::gui {
 
@@ -123,6 +124,8 @@ private:
     void updateBanner();
     void applyEdits();
     QString selectedKey() const;
+    int faceAt(const QPoint &at);  // the geometry face drawn there; 0 if none
+    void hover(int face);
     void pickAt(const QPoint &at, bool add);
     void lightFaces(const std::vector<int> &faces);
     void showPicked();
@@ -150,6 +153,9 @@ private:
     vtkSmartPointer<vtkPolyData> m_surface;  // the mesh as shown, each triangle with its geometry face
     size_t m_meshOwnSets = 0;
     std::vector<int> m_picked;  // faces picked in the view, in order
+    std::vector<int> m_lit;     // faces lit in ember now
+    int m_hovered = 0;          // the face under the mouse; 0 if none
+    vtkSmartPointer<vtkStaticCellLocator> m_surfaceLocator;
     QPoint m_pressedAt{-1, -1};
 
     QVTKOpenGLNativeWidget *m_view = nullptr;

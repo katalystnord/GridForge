@@ -456,6 +456,12 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the face under the mouse: the case red before
+# hover was written; then no tint: red; not named: red; the name left after
+# the tint: red. Two at first green: a tint while dragging (VTK turns the
+# camera on the same move, so the pixels cannot tell; the status bar does:
+# red), and the tint kept on leaving the view (the test only moved off the
+# model; a real Leave event then: red).
 # NEGATIVE CHECKS, 2026-11-17, the Steps dock: the cases red against a stub
 # table and before the dock was a table; then a value never said kept:
 # red; nothing kept from step to step: red; a click selecting nothing: red.

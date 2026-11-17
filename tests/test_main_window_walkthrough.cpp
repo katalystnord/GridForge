@@ -142,6 +142,24 @@ bool emberAt(MainWindow &w, const QPoint &at)
     return ember > 81 / 2;
 }
 
+// Whether the view shows the pale ember of a face under the mouse around a
+// point: not ember, but red well over green and blue (the bare mesh's grey
+// is even).
+bool paleAt(MainWindow &w, const QPoint &at)
+{
+    auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+    const QImage image = view->grabFramebuffer();
+    const double k = view->devicePixelRatioF();
+    int pale = 0;
+    for (int dx = -4; dx <= 4; ++dx)
+        for (int dy = -4; dy <= 4; ++dy) {
+            const QColor c = image.pixelColor(int(at.x() * k) + dx, int(at.y() * k) + dy);
+            if (c.red() > c.green() + 25 && c.red() > c.blue() + 50 && !(c.red() > 1.6 * c.green() + 8))
+                ++pale;
+        }
+    return pale > 81 / 2;
+}
+
 } // namespace
 
 class MainWindowWalkthrough : public QObject
@@ -553,6 +571,39 @@ private slots:
         QVERIFY(!emberAt(w, side));
     }
 
+    void the_face_under_the_mouse_is_tinted_and_named()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        QVERIFY(!paleAt(w, side));
+        QTest::mouseMove(view, side);
+        QTRY_VERIFY(paleAt(w, side));
+        QVERIFY(!paleAt(w, top));
+        QVERIFY2(w.statusBar()->currentMessage().startsWith("Face 2:"), qPrintable(w.statusBar()->currentMessage()));
+        // Picked, it is ember, not pale; the next face under the mouse is.
+        QTest::mouseClick(view, Qt::LeftButton, {}, side);
+        QVERIFY(emberAt(w, side));
+        QTest::mouseMove(view, top);
+        QTRY_VERIFY(paleAt(w, top));
+        QVERIFY(emberAt(w, side));
+        // Off the model: no tint.
+        QTest::mouseMove(view, QPoint(5, 5));
+        QTRY_VERIFY(!paleAt(w, top));
+        // Out of the view (to another window, say): no tint left behind.
+        QTest::mouseMove(view, top);
+        QTRY_VERIFY(paleAt(w, top));
+        QEvent leave(QEvent::Leave);
+        QCoreApplication::sendEvent(view, &leave);
+        QVERIFY(!paleAt(w, top));
+        QVERIFY(!w.statusBar()->currentMessage().startsWith("Face"));  // nor its name
+    }
+
     void a_drag_turns_the_view_and_picks_nothing()
     {
         MainWindow w;
@@ -563,7 +614,12 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
         const QPoint side = onScreen(w, 10, 10, 15);
+        const QPoint top = onScreen(w, 5, 10, 30);
         QTest::mousePress(view, Qt::LeftButton, {}, side);
+        QTest::mouseMove(view, top);
+        // Turning the view: no face is taken to be under the mouse (the
+        // camera turns too, so the status bar, not the pixels, tells).
+        QVERIFY2(!w.statusBar()->currentMessage().startsWith("Face"), qPrintable(w.statusBar()->currentMessage()));
         QTest::mouseMove(view, side + QPoint(40, 0));
         QTest::mouseRelease(view, Qt::LeftButton, {}, side + QPoint(40, 0));
         QCOMPARE(propertyValue(w.findChild<QWidget *>("properties"), "Picked"), QString());
