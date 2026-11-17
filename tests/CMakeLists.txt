@@ -456,6 +456,7 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECK, 2026-11-17, Properties scrolled: red before the scroll area.
 # NEGATIVE CHECKS, 2026-11-17, curved faces drawn curved: the volume case
 # red with corner triangles only (8706.38 against 8699.69 both ways), the
 # edges case red against a stub. The bound was first a quarter of the

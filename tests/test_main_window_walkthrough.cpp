@@ -27,6 +27,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QPlainTextEdit>
 #include <QStatusBar>
 #include <QTabBar>
@@ -255,6 +256,18 @@ private slots:
         QCOMPARE(w.findChild<QLabel *>("units")->text(), QString("mm, N, s, MPa"));
         QCOMPARE(w.findChild<QComboBox *>("stepChooser")->currentText(), QString("Pull"));
         QVERIFY(w.windowTitle().contains("dogbone"));
+    }
+
+    void properties_taller_than_its_dock_can_be_scrolled()
+    {
+        // Seen: the hint under the study's values cut off at the dock's foot.
+        MainWindow w;
+        w.show();
+        w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone");
+        auto *props = w.findChild<QWidget *>("properties");
+        auto *scroll = w.findChild<QScrollArea *>("propertiesScroll");
+        QVERIFY(scroll && scroll->widget() == props && scroll->widgetResizable());
+        QCOMPARE(scroll->horizontalScrollBarPolicy(), Qt::ScrollBarAlwaysOff);  // text wraps instead
     }
 
     void selecting_an_item_shows_it_in_properties()

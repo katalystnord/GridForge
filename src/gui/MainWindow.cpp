@@ -34,6 +34,7 @@
 #include <QProgressBar>
 #include <QDoubleSpinBox>
 #include <QFontDatabase>
+#include <QScrollArea>
 #include <QTableWidget>
 #include <QMouseEvent>
 #include <QSignalBlocker>
@@ -287,7 +288,15 @@ void MainWindow::buildDocks()
     auto *steps = m_steps;
 
     QDockWidget *study = dock(this, tr("Study"), "studyDock", m_tree);
-    QDockWidget *properties = dock(this, tr("Properties"), "propertiesDock", m_properties);
+    // Scrolled when taller than its dock; long text wraps rather than
+    // scrolling sideways.
+    auto *propertiesScroll = new QScrollArea(this);
+    propertiesScroll->setObjectName(QStringLiteral("propertiesScroll"));
+    propertiesScroll->setWidget(m_properties);
+    propertiesScroll->setWidgetResizable(true);
+    propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    propertiesScroll->setFrameShape(QFrame::NoFrame);
+    QDockWidget *properties = dock(this, tr("Properties"), "propertiesDock", propertiesScroll);
     QDockWidget *information = dock(this, tr("Information"), "informationDock", m_information);
     addDockWidget(Qt::LeftDockWidgetArea, study);
     addDockWidget(Qt::LeftDockWidgetArea, properties);
