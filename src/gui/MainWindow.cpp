@@ -421,7 +421,10 @@ void MainWindow::say(const QString &message, Tone tone)
 {
     // "Problem:" in words as well as red, for whoever cannot tell the colours.
     appendLine(m_messages, (tone == Tone::Problem ? QStringLiteral("Problem: ") : QString()) + message, tone);
-    statusBar()->showMessage(message);
+    // Shortened to fit beside the units; the whole of it is in Messages.
+    const int room = statusBar()->width() - m_units->sizeHint().width()
+                     - (m_progress->isVisible() ? m_progress->width() : 0) - 48;
+    statusBar()->showMessage(statusBar()->fontMetrics().elidedText(message, Qt::ElideRight, std::max(200, room)));
 }
 
 bool MainWindow::openStudy(const QString &path)

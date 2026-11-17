@@ -490,6 +490,23 @@ private slots:
         QCOMPARE(colourOf("Opened "), w.palette().color(QPalette::Text));
     }
 
+    void a_long_message_is_shortened_in_the_status_bar_not_in_messages()
+    {
+        // Seen by David: a long note ran over the units in the status bar.
+        stand_in_ccx(false);
+        MainWindow w;
+        w.resize(1200, 800);
+        w.show();
+        QTemporaryDir dir;
+        const QString longName = QString("a-folder-with-a-very-long-name-").repeated(6);
+        QVERIFY(QDir(dir.path()).mkpath(longName));  // there, but no study.json in it: said in full
+        QVERIFY(!w.openStudy(QDir(dir.path()).filePath(longName)));
+        const QString shown = w.statusBar()->currentMessage();
+        QVERIFY(shown.endsWith(QChar(0x2026)));  // shortened, with an ellipsis
+        QVERIFY(w.statusBar()->fontMetrics().horizontalAdvance(shown) < w.statusBar()->width());
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(longName));
+    }
+
     void a_study_that_cannot_be_read_is_said_in_messages()
     {
         MainWindow w;

@@ -443,6 +443,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the status bar (seen by David: a note ran
+# over the units): the case red first for the test's own fault (a folder
+# that did not exist is named by its parent, short); then the message not
+# shortened: red.
 # NEGATIVE CHECKS, 2026-11-17, editing in Properties: the core cases red
 # against a stub (it crashed on a missing value); the window's cases passed
 # at once, so: the mesh never kept: red (meshed twice); Apply never lit:
