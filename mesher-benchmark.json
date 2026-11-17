@@ -1,0 +1,72 @@
+{
+    "format": "gridforge-mesh-benchmark",
+    "mesher": "Netgen 6.2.2608-104-g7420b2f9 (github.com/katalystnord/netgen at 7420b2f995f7b4a584c16022b576b9074b274b03)",
+    "models": {
+        "bracket": {
+            "average mean ratio": 0.8639944337811005,
+            "cells": 13304,
+            "min dihedral": 17.081333535474045,
+            "min mean ratio": 0.44526055524122476,
+            "nodes": 22945,
+            "order": 2,
+            "outside error": 0.0005979440869927632,
+            "seconds": 0.927,
+            "size": 3,
+            "solver ready": true,
+            "volume error": 5.89834779418652e-06
+        },
+        "dogbone": {
+            "average mean ratio": 0.8823837485535847,
+            "cells": 6292,
+            "min dihedral": 26.98983231316342,
+            "min mean ratio": 0.6174325952594092,
+            "nodes": 11714,
+            "order": 2,
+            "outside error": 0.0002515048300495426,
+            "seconds": 0.5,
+            "size": 2,
+            "solver ready": true,
+            "volume error": 1.6930800095238396e-08
+        },
+        "duct": {
+            "average mean ratio": 0.8562692433194584,
+            "cells": 29140,
+            "min dihedral": 17.5434683378096,
+            "min mean ratio": 0.45937886810693235,
+            "nodes": 47041,
+            "order": 2,
+            "outside error": -0.0016478995725275336,
+            "seconds": 2.127,
+            "size": 2,
+            "solver ready": true,
+            "volume error": -1.3927250540612945e-06
+        },
+        "thinwall": {
+            "average mean ratio": 0.889963342684435,
+            "cells": 55862,
+            "min dihedral": 8.203621204910235,
+            "min mean ratio": 0.27573588843932345,
+            "nodes": 112330,
+            "order": 2,
+            "outside error": 5.10702591327572e-15,
+            "seconds": 5.68,
+            "size": 1.5,
+            "solver ready": true,
+            "volume error": -9.43689570931383e-15
+        },
+        "twoparts": {
+            "average mean ratio": 0.8717950731122899,
+            "cells": 7877,
+            "min dihedral": 20.79767133930332,
+            "min mean ratio": 0.548497808364555,
+            "nodes": 12733,
+            "order": 2,
+            "outside error": -0.0005366523037341198,
+            "seconds": 0.502,
+            "size": 3,
+            "solver ready": true,
+            "volume error": -1.513622025384187e-06
+        }
+    },
+    "version": "1.0"
+}

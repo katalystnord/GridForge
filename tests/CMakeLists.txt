@@ -221,6 +221,24 @@ add_test(NAME mesh_quality_is_measured_as_by_hand COMMAND test_mesh_quality)
 # 26.989832 degrees, the same to 11 digits (and the same mesh as the
 # released Netgen 6.2.2608 made in the study).
 
+# The meshing study's benchmark, kept as a test: the five models at the
+# study's sizes, quadratic, against OpenCASCADE's volumes and areas and
+# the committed baseline (tools/mesh-bench/gridforge-baseline.json). The
+# table is printed and written to mesher-benchmark.json here.
+add_executable(test_mesher_benchmark test_mesher_benchmark.cpp)
+target_link_libraries(test_mesher_benchmark PRIVATE gf_mesh)
+target_compile_definitions(test_mesher_benchmark PRIVATE
+    GF_BENCH="${CMAKE_SOURCE_DIR}/tools/mesh-bench")
+add_test(NAME the_mesher_holds_the_benchmark COMMAND test_mesher_benchmark)
+# NEGATIVE CHECKS, 2026-11-17, benchmark: the baseline raised by hand
+# (dogbone's worst mean ratio +0.1, bracket's outside error a tenth): both
+# red; the solids not joined: the two parts red (outside +10.3 %, as every
+# mesher in the study); quadratic middle nodes misordered: every model
+# red (folded, volume). First run (2026-11-17) against the study's
+# Netgen 6.2.2608 numbers: the same cells for the four single solids
+# (6292, 13304, 55862, 29140) and the same curved volume errors; the two
+# parts, now joined, 7877 cells and outside -0.05 % (straight facets).
+
 # gf-study mesh: a STEP in, one .vtkhdf out with its solids and faces as
 # sets, said on the terminal.
 add_test(NAME cli_meshes_a_step_with_its_solids_and_faces_as_sets

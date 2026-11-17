@@ -20,6 +20,7 @@ measured against the same models.
 | `cfd_surface.py`, `cfd/` | the duct's surface with named patches; snappyHexMesh and cfMesh cases (`cfd/*-system`), run by `cfd/run-foam.sh` inside OpenFOAM v2512 |
 | `cfd_layers.py`, `netgen_layers.py` | the duct with wall layers by Gmsh and by Netgen, and plain Gmsh tets for polyDualMesh |
 | `results.jsonl` | the run of 2026-11-17 |
+| `gridforge-baseline.json` | GridForge's own mesher on the same models, the numbers `tests/test_mesher_benchmark.cpp` holds it to on every change. Written again with `test_mesher_benchmark --baseline FILE` when a change is meant to move them, and the change said in the commit |
 
 ## Running it
 

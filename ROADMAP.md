@@ -80,8 +80,11 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   name. The quality report (any VTK grid, Gmsh's too): inverted and
   folded elements, mean ratio, dihedral angles, the worst elements by
   id; a verdict on the terminal, `<mesh>.quality.json` for agents, and
-  each cell's mean ratio for ParaView. Next, in the study's order: the
-  polyhedral dual, wall layers with coverage, an octree hex core.
+  each cell's mean ratio for ParaView. The study's benchmark kept as a test
+  (the five models, against OpenCASCADE and a committed baseline).
+  Next: the CalculiX deck from `gf_mesh`'s mesh; then, for OpenFOAM, in
+  the study's order: the polyhedral dual, wall layers with coverage, an
+  octree hex core.
   Started 2026-11-17: the `.msh` 4.1 reader (ASCII and binary, every
   element type a ccx deck takes) and its hand-off to ParaView with the
   physical groups as sets (`gf-study convert mesh.msh`), against boxes
