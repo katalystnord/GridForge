@@ -127,6 +127,39 @@ private slots:
         QVERIFY(!reset->icon().pixmap(24, 24).isNull());
     }
 
+    void gridforge_is_told_from_paraview_at_a_glance()
+    {
+        // David, 2026-11-17: ParaView's layout, GridForge's own colours.
+        MainWindow w;
+        w.show();
+        auto *banner = w.findChild<QLabel *>("nextStep");
+        QVERIFY(banner && banner->isVisible());
+        QCOMPARE(banner->text(), QString("Open a study: File, Open Study (a folder with a study.json)."));
+        QCOMPARE(banner->palette().color(QPalette::Window), QColor(226, 92, 29));  // ember
+        QCOMPARE(w.palette().color(QPalette::Highlight), QColor(226, 92, 29));
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
+        QVERIFY(r->GetGradientBackground());
+        double bottom[3];
+        r->GetBackground(bottom);
+        QVERIFY(bottom[0] < 0.15 && bottom[2] < 0.15);  // graphite, not ParaView's (0.32, 0.34, 0.43)
+    }
+
+    void the_banner_follows_the_study_through_a_solve()
+    {
+        stand_in_ccx(false);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        auto *banner = w.findChild<QLabel *>("nextStep");
+        QCOMPARE(banner->text(), QString("Meshing box.step ... the window stays yours meanwhile."));
+        QTRY_COMPARE_WITH_TIMEOUT(banner->text(), QString("Mesh ready. Press Run (F5) to solve with CalculiX."), 60000);
+        w.findChild<QAction *>("run")->trigger();
+        QTRY_COMPARE_WITH_TIMEOUT(
+            banner->text(), QString("Run 1 solved. Step through the increments in Results, or Open in ParaView."), 60000);
+    }
+
     void opening_the_dogbone_fills_the_tree_and_the_units()
     {
         MainWindow w;

@@ -141,9 +141,9 @@ or on opening a study with runs, the latest run in the Results tab,
 coloured by plastic strain or von Mises stress (vectors as magnitudes)
 with ParaView's Cool to Warm and a legend; the increment buttons step
 through it; Open in ParaView hands the file over (paraview on PATH, else
-its Flatpak). Next: the identity layer (David, 2026-11-17: tell GridForge
-from ParaView at a glance; the next-step banner, the view's background,
-an accent colour), editing in Properties, picking faces.
+its Flatpak). The identity layer (David, 2026-11-17): the next-step banner
+in ember orange, ember selections, a graphite view. Next: editing in
+Properties, picking faces, the Steps and Deck docks.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

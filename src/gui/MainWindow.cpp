@@ -24,6 +24,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPlainTextEdit>
+#include <QFont>
+#include <QPalette>
 #include <QProgressBar>
 #include <QSignalBlocker>
 
@@ -57,6 +59,13 @@ namespace gf::gui {
 namespace {
 
 QIcon icon(const QString &name) { return QIcon(":/icons/" + name + ".svg"); }
+
+// GridForge's identity (David, 2026-11-17): ParaView's layout, but its own
+// colours, so the two are told apart at a glance. Ember orange for the
+// accent (the banner, selections), dark graphite for the view.
+const QColor ember(226, 92, 29);
+const double graphiteBottom[3] = {0.105, 0.112, 0.122};
+const double graphiteTop[3] = {0.305, 0.318, 0.337};
 
 // The tree's icon for an outline item: FreeCAD's FEM icons for what FreeCAD
 // users know (supports, loads, materials, the mesh), ParaView's for the rest.
@@ -124,6 +133,10 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setWindowTitle(core::applicationName() + " - " + core::applicationSubtitle());
+    QPalette accent = palette();
+    accent.setColor(QPalette::Highlight, ember);
+    accent.setColor(QPalette::HighlightedText, Qt::white);
+    setPalette(accent);
     setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowTabbedDocks);
     setTabPosition(Qt::AllDockWidgetAreas, QTabWidget::North);  // as ParaView
 
@@ -132,6 +145,21 @@ MainWindow::MainWindow(QWidget *parent)
     auto *column = new QVBoxLayout(centre);
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
+    // The one next step, across the top of the view (as TenSense's banner).
+    m_banner = new QLabel(centre);
+    m_banner->setObjectName(QStringLiteral("nextStep"));
+    m_banner->setAutoFillBackground(true);
+    QPalette bannerColours = m_banner->palette();
+    bannerColours.setColor(QPalette::Window, ember);
+    bannerColours.setColor(QPalette::WindowText, Qt::white);
+    m_banner->setPalette(bannerColours);
+    m_banner->setMargin(7);
+    QFont bannerFont = m_banner->font();
+    bannerFont.setPointSizeF(bannerFont.pointSizeF() * 1.08);
+    bannerFont.setWeight(QFont::DemiBold);
+    m_banner->setFont(bannerFont);
+    m_banner->setWordWrap(true);
+    column->addWidget(m_banner);
     m_layouts = new QTabBar(centre);
     m_layouts->setObjectName(QStringLiteral("layouts"));
     m_layouts->setExpanding(false);  // tabs at the left, as ParaView's
@@ -142,7 +170,9 @@ MainWindow::MainWindow(QWidget *parent)
     m_view->setObjectName(QStringLiteral("view"));
     vtkNew<vtkGenericOpenGLRenderWindow> window;
     vtkNew<vtkRenderer> renderer;
-    renderer->SetBackground(0.32, 0.34, 0.43);  // ParaView's default background
+    renderer->GradientBackgroundOn();  // graphite, lighter towards the top: not ParaView's blue-grey
+    renderer->SetBackground(graphiteBottom[0], graphiteBottom[1], graphiteBottom[2]);
+    renderer->SetBackground2(graphiteTop[0], graphiteTop[1], graphiteTop[2]);
     window->AddRenderer(renderer);
     m_renderer = renderer;
     m_view->setRenderWindow(window);
@@ -394,6 +424,10 @@ bool MainWindow::openStudy(const QString &path)
     }
     m_study = study;
     ++m_opening;
+    m_meshProblem.clear();
+    m_outcome = WindowState::Outcome::None;
+    m_runNumber = 0;
+    m_toolkitName.clear();
     m_mesh = {};
     m_renderer->RemoveAllViewProps();
     m_tree->clear();
@@ -479,7 +513,9 @@ void MainWindow::onMeshed()
         return;  // for a study since replaced
     m_meshPending = false;
     if (!done.error.isEmpty() || done.mesh.points.empty()) {
+        m_meshProblem = done.error;
         say(tr("The mesh could not be made: %1").arg(done.error), true);
+        updateActions();
         return;
     }
     m_mesh = done.mesh;
@@ -515,6 +551,29 @@ void MainWindow::onMeshed()
     emit meshReady();
 }
 
+void MainWindow::updateBanner()
+{
+    WindowState s;
+    s.studyOpen = !m_study.folder.isEmpty();
+    for (const core::StudyStep *i : m_study.stepsOf("input"))
+        s.geometry = QFileInfo(i->file).fileName();
+    s.meshing = m_meshPending;
+    s.meshProblem = m_meshProblem;
+    s.meshed = !m_mesh.points.empty();
+    const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
+    s.canSolve = !solves.empty();
+    if (!m_toolkitName.isEmpty())
+        s.toolkit = m_toolkitName;
+    else if (!solves.empty())
+        s.toolkit = solves.front()->by == "calculix" ? QStringLiteral("CalculiX") : solves.front()->by;
+    s.running = m_runner.running();
+    s.run = m_runNumber;
+    s.progress = m_progressText;
+    s.percent = m_percent;
+    s.outcome = m_outcome;
+    m_banner->setText(nextStep(s));
+}
+
 void MainWindow::updateActions()
 {
     const bool meshed = !m_mesh.points.empty();
@@ -526,6 +585,7 @@ void MainWindow::updateActions()
     m_colourBy->setEnabled(results);
     m_rescale->setEnabled(results);
     m_openParaView->setEnabled(results);
+    updateBanner();
 }
 
 void MainWindow::setJobState(const QString &state)
@@ -584,6 +644,9 @@ void MainWindow::run()
         return;
     }
     setJobState(tr("running (run %1)").arg(m_runNumber));
+    m_outcome = WindowState::Outcome::None;
+    m_progressText.clear();
+    m_percent = 0;
     m_progress->setValue(0);
     m_progress->setVisible(true);
     say(tr("Solving with %1 (run %2)...").arg(toolkit->name).arg(m_runNumber));
@@ -597,6 +660,9 @@ void MainWindow::onJobLine(const core::ProtocolLine &l)
     case Type::Progress:
         m_job->appendPlainText(QString("%1%  %2").arg(100 * l.fraction, 3, 'f', 0).arg(l.text));
         m_progress->setValue(qRound(100 * l.fraction));
+        m_progressText = l.text;
+        m_percent = qRound(100 * l.fraction);
+        updateBanner();
         statusBar()->showMessage(tr("%1: %2").arg(m_toolkitName, l.text));
         break;
     case Type::Metric:
@@ -618,6 +684,9 @@ void MainWindow::onJobLine(const core::ProtocolLine &l)
 void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
 {
     m_progress->setVisible(false);
+    m_outcome = exitCode == 3 ? WindowState::Outcome::Cancelled
+                : (exitCode != 0 || results.isEmpty()) ? WindowState::Outcome::Failed
+                                                       : WindowState::Outcome::Solved;
     if (exitCode == 3) {
         setJobState(tr("cancelled (run %1)").arg(m_runNumber));
         say(tr("Run %1 cancelled; its files are kept").arg(m_runNumber));
@@ -687,6 +756,8 @@ bool MainWindow::showResults(const QString &resultsFile)
             const core::Toolkit *t = toolkits.find(solves.front()->by);
             m_toolkitName = t ? t->name : solves.front()->by;
             setJobState(tr("solved (run %1)").arg(run));
+            m_runNumber = run.toInt();
+            m_outcome = WindowState::Outcome::Solved;
         }
     }
     for (const QJsonValue &note : r["notes"].toArray())

@@ -15,6 +15,7 @@
 // The window never waits (tenet 7): meshing runs on another thread.
 
 #include "core/JobRunner.h"
+#include "gui/NextStep.h"
 #include "gui/ResultsFile.h"
 #include "core/ResultsSeries.h"
 #include "core/Study.h"
@@ -91,6 +92,7 @@ private:
     void showLayer(int layout);
     void showIncrement(int k);
     QString latestResults() const;
+    void updateBanner();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -100,6 +102,9 @@ private:
     gf::core::JobRunner m_runner;
     QString m_solveStep, m_toolkitName;
     int m_runNumber = 0;
+    QString m_meshProblem, m_progressText;
+    int m_percent = 0;
+    WindowState::Outcome m_outcome = WindowState::Outcome::None;
     ResultsFile m_results;
     int m_increment = 0;
     vtkActor *m_meshActor = nullptr;     // owned by the renderer while shown
@@ -118,6 +123,7 @@ private:
     QPlainTextEdit *m_deck = nullptr;
     QComboBox *m_step = nullptr;
     QLabel *m_units = nullptr;
+    QLabel *m_banner = nullptr;
     QProgressBar *m_progress = nullptr;
     QAction *m_runAction = nullptr;
     QAction *m_stopAction = nullptr;

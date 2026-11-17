@@ -405,6 +405,11 @@ set_tests_properties(cli_solves_a_setup_through_its_toolkit PROPERTIES
     ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup"
     PASS_REGULAR_EXPRESSION "solving with CalculiX .*100%  step 1, increment 1\n.*results: [^\n]*solve-out/results/results\\.vtkhdf \\(solved by CalculiX Version 2\\.23\\)")
 
+# The banner's next step for each state of the window.
+add_executable(test_next_step test_next_step.cpp)
+target_link_libraries(test_next_step PRIVATE gf_gui)
+add_test(NAME the_banner_says_the_one_next_step COMMAND test_next_step)
+
 # A run's results as the window reads them (no display needed).
 add_executable(test_results_file test_results_file.cpp)
 target_link_libraries(test_results_file PRIVATE gf_gui gf_calculix)
@@ -438,6 +443,9 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the identity layer: the banner's function
+# and its tests were written together; then the running state and the
+# mesh problem each left unsaid: test_next_step red each.
 # NEGATIVE CHECKS, 2026-11-17, reopening (seen by David): the tree said
 # "not run" beside run 1's results, and the results' notes were not shown.
 # Both cases written with the fix; then the job's state and the notes
