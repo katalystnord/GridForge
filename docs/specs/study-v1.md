@@ -103,6 +103,10 @@ repeatable is shown as such wherever its outputs are used (tenet 9).
 - **A node view**, later, once there are several toolkits: the graph
   drawn, what is out of date, and what a run would redo. Mostly for
   reading; not the main way to work (David, 2026-11-17).
+  Candidate to draw it (David, 2026-11-17): QtNodes,
+  github.com/paceholder/nodeeditor: BSD-3-Clause, Qt 6 by default (Qt
+  Widgets, no QML), active (last push 2026-11-14), no tagged releases.
+  To be measured against our needs when the view is built.
 
 ## 3. Not in version 1
 
