@@ -1,8 +1,7 @@
 # The study file, version 1
 
-**Status: DRAFT, for David's review (2026-11-17). Written so far: the
-graph (section 2). The set-up itself (geometry groups, materials, steps,
-loads, supports, units) is still to write (section 4).**
+**Status: DRAFT, for David's review (2026-11-17): the graph (section 2)
+and the set-up (section 4).**
 
 ## 1. What a study is
 
@@ -117,16 +116,171 @@ repeatable is shown as such wherever its outputs are used (tenet 9).
 - **Loops** (optimisation, mesh refinement until converged): outside the
   graph; a script or a toolkit that runs the study repeatedly.
 
-## 4. To write
+## 4. The set-up
 
-The set-up: units; geometry and its named groups; materials (FreeCAD's
-`.FCMat` and TenSense's plastic data); analysis steps; loads and
-supports by set name; how they reach a solve step's job folder.
+What a solve step needs besides its mesh: units, named groups of the
+geometry, materials, analysis steps, supports and loads. It lives in
+`study.json` under `"setup"`, shared by every solve step that uses it
+(two solvers of one set-up are compared like for like).
+
+The first worked example is the fixture `box-gfmesh`: its hand-written
+`tension.inp` is exactly what the set-up below must produce (4.8), and
+will be the test of it.
+
+```json
+"setup": {
+  "units": "mm-N-s",
+  "groups": {
+    "Steel part": {"solids": [1]},
+    "Back":   {"faces": [1]},
+    "Side":   {"faces": [3]},
+    "Bottom": {"faces": [5]},
+    "Pulled": {"faces": [2]}
+  },
+  "materials": {
+    "Steel": {"card": "inputs/Steel-Generic.FCMat"}
+  },
+  "assign": {"Steel part": "Steel"},
+  "supports": [
+    {"group": "Back",   "symmetry": true},
+    {"group": "Side",   "symmetry": true},
+    {"group": "Bottom", "symmetry": true}
+  ],
+  "steps": [
+    {"name": "Pull", "kind": "static",
+     "loads": [{"group": "Pulled", "displacement": {"x": 0.01}}],
+     "output": ["displacement", "reaction", "stress", "strain"]}
+  ]
+}
+```
+
+### 4.1 Units
+
+One consistent system per study, named, never mixed: `"mm-N-s"`
+(lengths in mm, forces in N, stresses in MPa, density in t/mm3, the
+CalculiX and FreeCAD FEM habit) or `"m-N-s"` (SI). Every number in the
+set-up is in the study's units. A value that arrives with its own unit
+(a material card's `"200000 MPa"`, `"7900 kg/m^3"`) is converted on
+reading, and the conversion is kept in the run record. The solver gets
+plain numbers (ccx has no units).
+
+### 4.2 Named groups
+
+A group names faces or solids of the geometry, by their numbers as
+`gf_mesh` gives them (OpenCASCADE's order, after joining; see
+`src/mesh/Mesher.h`). A group of faces becomes a node set in the mesh
+(and, for a pressure, a surface: 4.6); a group of solids an element set
+and a node set. Group names are what the user sees and what the deck
+uses; a name a solver cannot take (ccx: a space or a comma) is written
+with underscores in the deck, and the deck's comments say so.
+
+When the geometry file changes, face numbers may change with it. Each
+group also keeps each face's signature when it was made (its kind:
+plane, cylinder, ...; its area; its centre). On a new geometry a face
+that still matches its signature keeps its place; one that does not is
+**said, never guessed**: the group is marked out of date and the window
+asks. (Matching faces across CAD changes in general is a known hard
+problem; version 1 only notices.)
+
+### 4.3 Materials
+
+A material is a FreeCAD 1.x material card (`.FCMat`, YAML), copied into
+`inputs/` so the study stays whole. Read, by their model UUIDs:
+
+| FreeCAD model | UUID | read |
+|---|---|---|
+| IsotropicLinearElastic | f6f9e48c-b116-4e82-ad7f-3659a9219c50 | YoungsModulus, PoissonRatio |
+| LinearElastic | 7b561d1d-fb9b-44f6-9da9-56a4f74d7536 | YoungsModulus, PoissonRatio |
+| Density | 454661e5-265b-4320-8e6f-fcf6223ac3af | Density |
+
+(FreeCAD 1.1's own cards use the first; TenSense writes the second.
+Both checked in FreeCAD 1.1.4's model files.)
+
+Plastic behaviour comes from TenSense: its `<name>-plastic.inp`, a
+`*PLASTIC` block of true stress against true plastic strain, in MPa for
+mm, N, s (TenSense's exports spec, section 1), named in the material:
+
+```json
+"Measured steel": {"card": "inputs/S355.FCMat", "plastic": "inputs/S355-plastic.inp"}
+```
+
+It is passed to the deck as it is, by `*INCLUDE`; its comment lines say
+where it came from. A value the analysis needs and the card lacks is
+refused by name: a TenSense card holds no Poisson's ratio (a tensile test
+does not measure it), so the study asks for one, and records that it was
+entered by hand, not measured.
+
+### 4.4 Assigning materials
+
+`"assign"` gives each group of solids its material. Every solid has
+exactly one; an unassigned solid, or one assigned twice, is refused,
+naming it. Version 1 has solid sections only (no shells or beams).
+
+### 4.5 Analysis steps
+
+An ordered list, one CalculiX `*STEP` each. Version 1:
+
+| field | meaning |
+|---|---|
+| `name` | for people and for the results |
+| `kind` | `static` first; `modal` and `dynamic` later |
+| `nonlinear geometry` | large displacements (`NLGEOM`); off by default, on when a plastic material is used |
+| `increments` | initial, period, smallest, largest; absent: the solver's defaults |
+| `loads`, `supports` | added in this step (4.6) |
+| `output` | `displacement`, `reaction`, `stress`, `strain`, `plastic strain`, ... |
+| `raw` | keyword lines given by hand, written into this step unchanged and marked in the deck as such (the roadmap's passthrough) |
+
+What a step changes **stays** for the following steps, as in CalculiX,
+unless the step says `"replace": true` (ccx's `OP=NEW`).
+
+### 4.6 Supports and loads
+
+Supports, at the start (outside any step) or in a step:
+
+| support | means | ccx |
+|---|---|---|
+| `"fixed": true` | no movement in x, y, z | `*BOUNDARY`, dofs 1 to 3 |
+| `"displacement": {"x": 0.01}` | given movement of the named directions; the others free | `*BOUNDARY`, each dof given |
+| `"symmetry": true` | no movement across the face | `*BOUNDARY` on the dof normal to it; version 1 takes faces normal to x, y or z, and refuses others by name |
+
+Loads, in a step:
+
+| load | means | ccx |
+|---|---|---|
+| `"force": {"x": 1000}` | a total force on the group, spread over its faces by area | `*CLOAD` at the nodes, each node's share from the faces' element areas (with quadratic elements' midside weights), summing exactly to the total |
+| `"pressure": 5` | normal pressure on the group's faces, positive inward | `*DLOAD`, `Pn` on the element faces of a `*SURFACE` made from the group |
+| `"gravity": {"z": -9810}` | an acceleration on solids (mm/s2 in mm-N-s) | `*DLOAD`, `GRAV`; needs density |
+
+A displacement given in a step is a load in the user's words and a
+`*BOUNDARY` in ccx's; the deck follows ccx, the set-up the user.
+
+### 4.7 What reaches the solve step
+
+The solve step's job folder (toolkits-v1, section 4) gets the mesh
+(`mesh/mesh.vtu`, its sets by group name) and `job.json` with the set-up
+resolved: units, plain numbers, materials with their values, sets named.
+The CalculiX toolkit's adapter writes the deck from it: the mesh part by
+`*INCLUDE` (`calculix/InpWriter`, written), then materials, sections,
+supports and steps.
+
+### 4.8 The first test
+
+The set-up above, with the box and Steel-Generic's values replaced by
+`E = 210000`, `nu = 0.3`, must give a deck that ccx solves as
+`fixtures/calculix/box-gfmesh/tension.inp` did: the same displacements,
+stresses and the 126000 N reaction. (Not the same text: the hand deck
+names faces by number; the written one by group.)
 
 ## 5. Open questions for David
 
-1. Hashes: SHA-256 of every input and output file is simple and exact;
+1. Units: mm-N-s and m-N-s only, or any consistent system the user
+   names?
+2. Is a displacement given in a step better shown as a support or as a
+   load? (4.6: shown as a load, written as ccx's `*BOUNDARY`.)
+3. Should `"nonlinear geometry"` turn on by itself when a plastic
+   material is used, or only when asked?
+4. Hashes: SHA-256 of every input and output file is simple and exact;
    for large results it costs time on every check. Hash on write and
    trust file times after that?
-2. Should a study keep the outputs of earlier runs of a step (a history),
+5. Should a study keep the outputs of earlier runs of a step (a history),
    or only the latest, with the run records of earlier ones?
