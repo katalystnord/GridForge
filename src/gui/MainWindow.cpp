@@ -994,15 +994,7 @@ void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
         setJobState(tr("failed (run %1)").arg(m_runNumber));
         say(tr("Run %1 failed (exit code %2): see the Job dock").arg(m_runNumber).arg(exitCode), Tone::Problem);
     } else {
-        QFile report(QFileInfo(results).absoluteDir().filePath("results.json"));
-        report.open(QIODevice::ReadOnly);
-        const QJsonObject r = QJsonDocument::fromJson(report.readAll()).object();
         setJobState(tr("solved (run %1)").arg(m_runNumber));
-        const QString detail = tr("run %1, %2 by %3").arg(m_runNumber).arg(r["trust"].toString(), r["solver"].toString());
-        for (QTreeWidgetItem *i : m_tree->findItems(tr("Results"), Qt::MatchExactly)) {
-            i->setText(1, detail);
-            i->setToolTip(1, results);
-        }
         say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results), Tone::Done);
         showResults(results);
     }
@@ -1346,11 +1338,17 @@ bool MainWindow::showResults(const QString &resultsFile)
         return false;
     }
     const QString run = QFileInfo(resultsFile).absoluteDir().absolutePath().section('/', -2, -2);
+    // Who solved them and how far to trust them (tenet 9): from results.json
+    // beside them; if it is missing, that is said, never left blank.
     QFile report(QFileInfo(resultsFile).absoluteDir().filePath("results.json"));
-    report.open(QIODevice::ReadOnly);
-    const QJsonObject r = QJsonDocument::fromJson(report.readAll()).object();
+    const bool reported = report.open(QIODevice::ReadOnly);
+    const QJsonObject r = reported ? QJsonDocument::fromJson(report.readAll()).object() : QJsonObject();
+    if (!reported)
+        say(tr("Run %1 has no results.json: who solved it, and how far to trust it, is not known").arg(run),
+            Tone::Warning);
     for (QTreeWidgetItem *i : m_tree->findItems(tr("Results"), Qt::MatchExactly)) {
-        i->setText(1, tr("run %1, %2 by %3").arg(run, r["trust"].toString(), r["solver"].toString()));
+        i->setText(1, reported ? tr("run %1, %2 by %3").arg(run, r["trust"].toString(), r["solver"].toString())
+                               : tr("run %1, who solved it not known").arg(run));
         i->setToolTip(1, resultsFile);
     }
     // The job that made them, and what the results say about themselves
@@ -1460,7 +1458,7 @@ void MainWindow::showLayer(int layout)
     m_renderer->RemoveAllViewProps();
     if (layout == 1 && m_resultsActor) {
         m_renderer->AddActor(m_resultsActor);
-        m_renderer->AddActor2D(m_scalarBar);
+        m_renderer->AddViewProp(m_scalarBar);
     } else if (m_meshActor) {
         m_renderer->AddActor(m_meshActor);
         m_renderer->AddActor(m_edgesActor);

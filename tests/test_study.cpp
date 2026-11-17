@@ -49,7 +49,7 @@ const QString dogbone = QString(GF_FIXTURES) + "/studies/dogbone";
 QJsonObject example()
 {
     QFile f(dogbone + "/study.json");
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     return QJsonDocument::fromJson(f.readAll()).object();
 }
 
@@ -64,7 +64,7 @@ QString errorWith(const std::function<void(QJsonObject &)> &change)
     QJsonObject o = example();
     change(o);
     QFile out(QDir(dir.path()).filePath("study.json"));
-    out.open(QIODevice::WriteOnly);
+    CHECK(out.open(QIODevice::WriteOnly));
     out.write(QJsonDocument(o).toJson());
     out.close();
     QString error;
@@ -350,7 +350,7 @@ CASE(an_edit_the_study_cannot_take_is_refused_and_the_file_kept)
     QTemporaryDir dir;
     const QString folder = copyDogbone(dir);
     QFile f(QDir(folder).filePath("study.json"));
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     const QByteArray before = f.readAll();
     f.close();
     QString error;
@@ -362,7 +362,7 @@ CASE(an_edit_the_study_cannot_take_is_refused_and_the_file_kept)
     CHECK(error == "nothing to edit at load:0:9");
     CHECK(!editStudy(folder, "load:0:0", {{"w", 1.0}}, &error));
     CHECK(error == "load:0:0 has no w to edit");
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     CHECK(f.readAll() == before);
 }
 
@@ -384,7 +384,7 @@ CASE(a_group_without_a_name_faces_or_a_name_of_its_own_is_refused)
     QTemporaryDir dir;
     const QString folder = copyDogbone(dir);
     QFile f(QDir(folder).filePath("study.json"));
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     const QByteArray before = f.readAll();
     f.close();
     QString error;
@@ -396,7 +396,7 @@ CASE(a_group_without_a_name_faces_or_a_name_of_its_own_is_refused)
     CHECK(error == "no faces picked");
     CHECK(!addFaceGroup(folder, "New", {0}, &error));
     CHECK(error == "faces are numbered from 1");
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     CHECK(f.readAll() == before);
 }
 
@@ -426,7 +426,7 @@ CASE(a_rename_or_delete_the_study_cannot_take_is_refused_and_the_file_kept)
     QTemporaryDir dir;
     const QString folder = copyDogbone(dir);
     QFile f(QDir(folder).filePath("study.json"));
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     const QByteArray before = f.readAll();
     f.close();
     QString error;
@@ -443,7 +443,7 @@ CASE(a_rename_or_delete_the_study_cannot_take_is_refused_and_the_file_kept)
     CHECK(error == "Fixed grip is used by the supports; take that out first");
     CHECK(!deleteGroup(folder, "Dogbone", &error));
     CHECK(error == "Dogbone is used by the material assignment; take that out first");
-    f.open(QIODevice::ReadOnly);
+    CHECK(f.open(QIODevice::ReadOnly));
     CHECK(f.readAll() == before);
 }
 

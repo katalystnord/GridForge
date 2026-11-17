@@ -126,7 +126,7 @@ CASE(a_single_time_point_keeps_its_time)
     }
     // The toolkit's results.json beside it lists the time points.
     QFile report(QDir(dir.path()).filePath("results.json"));
-    report.open(QIODevice::WriteOnly);
+    CHECK(report.open(QIODevice::WriteOnly));
     report.write(R"({"format": "gridforge-results", "time points": [1]})");
     report.close();
     ResultsFile r;

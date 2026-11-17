@@ -493,6 +493,34 @@ private slots:
         QVERIFY(again.findChild<QDockWidget *>("deckDock")->windowTitle().contains("run 1"));
     }
 
+    void results_without_their_report_are_shown_and_the_lack_said()
+    {
+        // results.json says who solved them and how far to trust them
+        // (tenet 9); if it is missing, the window says so, never quietly
+        // leaves it blank.
+        stand_in_ccx(false);
+        QTemporaryDir dir;
+        const QString study = boxStudy(dir);
+        {
+            MainWindow w;
+            w.show();
+            QVERIFY(w.openStudy(study));
+            QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+            w.findChild<QAction *>("run")->trigger();
+            QTRY_COMPARE_WITH_TIMEOUT(findItem(w.findChild<QTreeWidget *>("studyTree"), "solve")->text(1),
+                                      QString("CalculiX, solved (run 1)"), 60000);
+        }
+        QVERIFY(QFile::remove(QDir(study).filePath("steps/solve/runs/1/results/results.json")));
+        MainWindow w;
+        w.show();
+        QVERIFY(w.openStudy(study));
+        QVERIFY(w.findChild<QAction *>("lastIncrement")->isEnabled());  // shown all the same
+        QCOMPARE(findItem(w.findChild<QTreeWidget *>("studyTree"), "Results")->text(1),
+                 QString("run 1, who solved it not known"));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Run 1 has no results.json: who solved it, and how far to trust it, is not known"));
+    }
+
     void the_results_notes_are_said_when_they_load()
     {
         // results.json's notes (a plastic strain below zero, extrapolated by
