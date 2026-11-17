@@ -39,6 +39,21 @@ QString locate(const QString &folder, const QString &program)
     return QStandardPaths::findExecutable(program);
 }
 
+// A required program: where GF_<PROGRAM> names it (the name upper-cased,
+// other than letters and digits as "_": GF_CCX), else as locate finds it.
+QString locateRequired(const QString &folder, const QString &program)
+{
+    QString variable = "GF_" + program.toUpper();
+    for (QChar &c : variable)
+        if (!c.isLetterOrNumber())
+            c = '_';
+    if (qEnvironmentVariableIsSet(variable.toLocal8Bit().constData())) {
+        const QFileInfo named(qEnvironmentVariable(variable.toLocal8Bit().constData()));
+        return named.isFile() && named.isExecutable() ? named.absoluteFilePath() : QString();
+    }
+    return locate(folder, program);
+}
+
 } // namespace
 
 Toolkit readToolkit(const QString &folder, QString *error)
@@ -190,7 +205,7 @@ Availability availability(const Toolkit &t)
     for (const ToolkitRequirement &r : t.requirements) {
         bool any = false;
         for (const QString &p : r.oneOf)
-            any = any || !locate(t.folder, p).isEmpty();
+            any = any || !locateRequired(t.folder, p).isEmpty();
         if (!any)
             a.missing << r.oneOf.join(" or ");
     }

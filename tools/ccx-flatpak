@@ -1,0 +1,10 @@
+#!/bin/sh
+# ccx from FreeCAD's Flatpak, for GridForge's CalculiX toolkit when ccx is
+# not installed on its own:
+#
+#   GF_CCX=/path/to/GridForge/tools/ccx-flatpak gf-study solve ...
+#
+# The CalculiX adapter runs ccx in a job's work/ folder; the folder above it
+# (the job, with materials/) is shared with the Flatpak too. A path with
+# ".." in it is refused by Flatpak, so the parent is named outright.
+exec flatpak run --filesystem="$(dirname "$PWD")" --command=ccx org.freecad.FreeCAD "$@"

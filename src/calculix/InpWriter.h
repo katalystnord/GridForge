@@ -33,7 +33,10 @@ namespace gf::calculix {
 QString inpName(const QString &name);
 
 // A number as the deck writes it: the shortest text that reads back as the
-// same double, never "-0".
+// same double, never "-0", and never longer than 20 characters (ccx 2.23
+// refuses a number with an exponent longer than 21): a longer one loses
+// its last digits (14 significant digits left with a sign and a two-digit
+// exponent, 5e-14 of it at worst; 13 with a three-digit one, 5e-13).
 QString inpNumber(double x);
 
 // The deck's text; empty with *error set if the mesh cannot be written

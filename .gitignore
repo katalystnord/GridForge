@@ -44,3 +44,4 @@ build-sanitize/
 # cover redistribution; see CLAUDE.md, Fixtures).
 tests/fetched/
 .cache/
+examples/*/job/

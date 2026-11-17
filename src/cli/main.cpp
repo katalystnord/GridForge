@@ -16,6 +16,10 @@
 //       a CalculiX job from a set-up (study spec, section 4; the file holds
 //       the "setup" object): the part meshed, its groups as sets, written
 //       to mesh.inp, and the analysis deck <setup name>.inp around it
+//   gf-study solve setup.json part.step --size H [--order 2] -o JOB
+//       the same set-up solved: the job folder written (toolkits spec,
+//       section 4), the solve toolkit found by its manifest and run, its
+//       progress shown; the results left in JOB/results
 //   Both mesh commands measure the mesh: the verdict and measures on the
 //   terminal, the report for agents in <name>.quality.json beside it, and
 //   each cell's "mean ratio" on the grid for ParaView.
@@ -23,7 +27,9 @@
 #include "calculix/FrdToVtk.h"
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/Job.h"
 #include "core/MaterialCard.h"
+#include "core/Toolkit.h"
 #include "core/Setup.h"
 #include "mesh/Groups.h"
 #include "core/ApplicationInfo.h"
@@ -37,6 +43,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QProcess>
 #include <QSaveFile>
 
 #include <vtkCellData.h>
@@ -168,38 +175,148 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
     return reportQuality(quality, grid, written) ? 0 : 1;
 }
 
-int deck(const QString &setupFile, const QString &part, const QString &size, const QString &order,
-         const QString &outDir)
+// The set-up read and filled from its cards, and the part meshed with its
+// groups as sets: what both deck and solve start from.
+bool prepare(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+             gf::core::Setup *setup, QJsonObject *setupJson, gf::core::ResultsSeries *mesh)
 {
     QFile f(setupFile);
     if (!f.open(QIODevice::ReadOnly)) {
         std::fprintf(stderr, "gf-study: cannot read %s\n", qPrintable(setupFile));
-        return 1;
+        return false;
     }
     QJsonParseError parse;
     const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &parse);
     if (parse.error != QJsonParseError::NoError) {
         std::fprintf(stderr, "gf-study: %s: %s at byte %d\n", qPrintable(setupFile),
                      qPrintable(parse.errorString()), parse.offset);
-        return 1;
+        return false;
     }
     QString error;
-    gf::core::Setup setup = gf::core::readSetup(doc.object()["setup"].toObject(), &error);
+    *setupJson = doc.object()["setup"].toObject();
+    *setup = gf::core::readSetup(*setupJson, &error);
     if (error.isEmpty())
-        gf::core::fillFromCards(setup, QFileInfo(setupFile).absolutePath(), &error);
+        gf::core::fillFromCards(*setup, QFileInfo(setupFile).absolutePath(), &error);
     if (!error.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s: %s\n", qPrintable(setupFile), qPrintable(error));
-        return 1;
+        return false;
     }
     bool sizeOk = false, orderOk = false;
     const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
     if (!sizeOk || (!order.isEmpty() && !orderOk)) {
-        std::fprintf(stderr, "gf-study: deck needs --size, and --order 1 or 2\n");
+        std::fprintf(stderr, "gf-study: --size is needed, and --order is 1 or 2\n");
+        return false;
+    }
+    *mesh = gf::mesh::meshStep(part, recipe, &error);
+    if (error.isEmpty())
+        gf::mesh::addGroupSets(*mesh, *setup, &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return false;
+    }
+    return true;
+}
+
+int solve(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+          const QString &jobDir)
+{
+    if (jobDir.isEmpty()) {
+        std::fprintf(stderr, "gf-study: solve needs -o JOB, the job folder to write\n");
         return 1;
     }
-    gf::core::ResultsSeries mesh = gf::mesh::meshStep(part, recipe, &error);
-    if (error.isEmpty())
-        gf::mesh::addGroupSets(mesh, setup, &error);
+    gf::core::Setup setup;
+    QJsonObject setupJson;
+    gf::core::ResultsSeries mesh;
+    if (!prepare(setupFile, part, size, order, &setup, &setupJson, &mesh))
+        return 1;
+    QString error;
+    if (!gf::core::writeSolveJob(jobDir, "structural.static", setup, setupJson,
+                                 QFileInfo(setupFile).absolutePath(), mesh, &error)) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    std::printf("wrote the job %s (%lld nodes, %lld elements)\n", qPrintable(QDir(jobDir).absolutePath()),
+                static_cast<long long>(mesh.points.front().grid->GetNumberOfPoints()),
+                static_cast<long long>(mesh.points.front().grid->GetNumberOfCells()));
+
+    // The solve toolkit, by its manifest; this program's own folder is
+    // searched for its command first (the shipped adapters sit beside it).
+    qputenv("PATH", (QCoreApplication::applicationDirPath() + ":" + qEnvironmentVariable("PATH")).toLocal8Bit());
+    const gf::core::ToolkitSet toolkits = gf::core::findToolkits({GF_SHIPPED_TOOLKITS});
+    std::vector<gf::core::Offer> offers = toolkits.offers("solve", "structural.static", {});
+    const gf::core::Toolkit *toolkit = nullptr;
+    for (const gf::core::Offer &o : offers)
+        if (o.can && !toolkit && gf::core::availability(*o.toolkit).ready)
+            toolkit = o.toolkit;
+    if (!toolkit) {
+        std::fprintf(stderr, "gf-study: no solve toolkit for structural.static is ready\n");
+        for (const gf::core::Offer &o : offers)
+            std::fprintf(stderr, "  %s: %s\n", qPrintable(o.toolkit->name),
+                         qPrintable(o.can ? "missing " + gf::core::availability(*o.toolkit).missing.join(", ") : o.why));
+        return 1;
+    }
+    const QStringList command = gf::core::commandFor(*toolkit, QDir(jobDir).absolutePath());
+    std::printf("solving with %s (%s)\n", qPrintable(toolkit->name), qPrintable(command.join(' ')));
+    std::fflush(stdout);
+
+    QProcess process;
+    process.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    process.start(command.first(), command.mid(1));
+    if (!process.waitForStarted(10000)) {
+        std::fprintf(stderr, "gf-study: %s did not start\n", qPrintable(command.first()));
+        return 1;
+    }
+    QByteArray pending;
+    QString result;
+    auto show = [&](const QByteArray &line) {
+        const QJsonObject o = QJsonDocument::fromJson(line).object();
+        const QString type = o["type"].toString();
+        if (type == "progress")
+            std::printf("  %3.0f%%  %s\n", 100 * o["fraction"].toDouble(), qPrintable(o["text"].toString()));
+        else if (type == "metric")
+            std::printf("        %s: %g (%s)\n", qPrintable(o["name"].toString()), o["value"].toDouble(),
+                        qPrintable(o["text"].toString()));
+        else if (type == "log")
+            std::printf("  %s: %s\n", qPrintable(o["level"].toString()), qPrintable(o["text"].toString()));
+        else if (type == "file")
+            result = o["path"].toString();
+        else if (!line.trimmed().isEmpty())
+            std::printf("  %s\n", line.constData());  // kept, as the spec says: anything else is the log
+        std::fflush(stdout);
+    };
+    while (process.state() != QProcess::NotRunning) {
+        process.waitForReadyRead(200);
+        pending += process.readAllStandardOutput();
+        qsizetype nl;
+        while ((nl = pending.indexOf('\n')) >= 0) {
+            show(pending.left(nl));
+            pending.remove(0, nl + 1);
+        }
+    }
+    pending += process.readAllStandardOutput();
+    for (const QByteArray &line : pending.split('\n'))
+        show(line);
+    if (process.exitCode() != 0 || result.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s stopped with exit code %d\n", qPrintable(toolkit->name), process.exitCode());
+        return 1;
+    }
+    QFile reportFile(QDir(jobDir).filePath("results/results.json"));
+    reportFile.open(QIODevice::ReadOnly);
+    const QJsonObject report = QJsonDocument::fromJson(reportFile.readAll()).object();
+    std::printf("results: %s (%s by %s)\n", qPrintable(QDir(jobDir).absoluteFilePath(result)),
+                qPrintable(report["trust"].toString()), qPrintable(report["solver"].toString()));
+    return 0;
+}
+
+int deck(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+         const QString &outDir)
+{
+    gf::core::Setup setup;
+    QJsonObject setupJson;
+    gf::core::ResultsSeries mesh;
+    if (!prepare(setupFile, part, size, order, &setup, &setupJson, &mesh))
+        return 1;
+    QString error;
     const QString text = error.isEmpty() ? gf::calculix::analysisInp(setup, mesh, "mesh.inp", &error) : QString();
     if (!error.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
@@ -293,7 +410,9 @@ int main(int argc, char *argv[])
                                      "  mesh part.step    the STEP's solids meshed with "
                                      "tetrahedra, each solid and face as a set\n"
                                      "  deck setup.json part.step   a CalculiX job from a set-up: "
-                                     "mesh.inp and the deck around it");
+                                     "mesh.inp and the deck around it\n"
+                                     "  solve setup.json part.step -o JOB   the set-up solved by "
+                                     "its toolkit, results in JOB/results");
     parser.addHelpOption();
     const QCommandLineOption versionOpt("version", "Print the version and build.");
     const QCommandLineOption outOpt({"o", "out"},
@@ -336,6 +455,8 @@ int main(int argc, char *argv[])
         }
         return convertMesh(args[1], parser.value(outOpt), parser.isSet(pvdOpt));
     }
+    if (args.size() == 3 && args[0] == "solve")
+        return solve(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt));
     if (args.size() == 3 && args[0] == "deck")
         return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt));
     if (args.size() == 2 && args[0] == "mesh")

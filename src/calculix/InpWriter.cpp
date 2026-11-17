@@ -22,8 +22,13 @@ QString inpNumber(double x)
 {
     if (x == 0)
         return "0";
-    char buffer[32];
-    const auto result = std::to_chars(buffer, buffer + sizeof buffer, x);
+    // The shortest text that reads back exactly, if it fits in 20
+    // characters; ccx 2.23 refuses a number with an exponent longer than
+    // 21 (tried 2026-11-17). Else as many digits as 20 characters hold.
+    char buffer[40];
+    auto result = std::to_chars(buffer, buffer + sizeof buffer, x);
+    for (int digits = 16; result.ptr - buffer > 20 && digits > 0; --digits)
+        result = std::to_chars(buffer, buffer + sizeof buffer, x, std::chars_format::general, digits);
     return QString::fromLatin1(buffer, static_cast<int>(result.ptr - buffer));
 }
 

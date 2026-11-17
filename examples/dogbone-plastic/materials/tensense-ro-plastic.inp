@@ -1,0 +1,26 @@
+** Derived by TenSense 0.3.0 from ro-continuous.csv (SHA-256 d05dbf333b8b84f97ca35c749e9625bbe10ac01aeb413711a0fcb95becab71d9)
+** Aligned with ISO 6892-1:2019, not to the standard (see results.json for why)
+** True stress = engineering stress (1 + e); true plastic strain = ln(1 + e) - true stress / E, with e counted from the zero point and E = 199946.09 MPa
+** Initial yield is Rp0.2 at plastic strain 0; then the curve's own plastic strains from Rp0.2 to the maximum force (necking excluded)
+** Units: MPa (N/mm2) and true plastic strain, for a model in mm, N, s.
+*PLASTIC
+301.05504, 0
+301.05504, 0.0019886356
+380.90102, 0.017672358
+412.69469, 0.033356081
+436.09162, 0.049039804
+455.86152, 0.064723527
+473.64888, 0.080407249
+490.22192, 0.096090972
+506.00592, 0.1117747
+521.25994, 0.12745842
+536.15524, 0.14314214
+550.81071, 0.15882586
+565.31326, 0.17450959
+579.72806, 0.19019331
+594.10597, 0.20587703
+608.4874, 0.22156075
+622.90539, 0.23724448
+637.3872, 0.2529282
+651.95618, 0.26861192
+666.63175, 0.28429565

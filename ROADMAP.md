@@ -73,6 +73,15 @@ logic are in Phase 0; each phase below adds to the door what it needs.
   converted, each value's source in the deck). Forces, pressure
   and gravity, each solved by ccx to its hand answer (fixtures
   box-pressure, box-force, box-gravity). Not yet: replacing steps.
+- Started 2026-11-17: the job folder (`core/Job`), `gf-calculix` (the
+  CalculiX toolkit's adapter: deck, ccx as its own process, progress as
+  JSON lines from .sta and .cvg, results to VTKHDF with results.json) and
+  `gf-study solve`. **The phase's exit reached by hand:** the plastic
+  dogbone from a study file to ParaView with no hand edits
+  (examples/dogbone-plastic, ccx 2.23). Still to do: the results file's
+  size (each set carries every field at every time point: 199 MB against
+  ccx's 34 MB; sets as ids only, or fields on the model only), cancel,
+  and the window.
 - The job folder and the progress protocol (toolkits spec, sections 4
   and 5); `gf-calculix`, the CalculiX toolkit's adapter, as their first
   user. ccx as a watched child process: log, `.sta`/`.cvg` increments,

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Stands in for ccx in the adapter's tests, so they run where ccx is not
+# installed. Called as ccx is (ccx -i JOB, in the job's work folder), it
+# replays what ccx 2.23 really wrote for the fixture in $FAKE_CCX_FROM
+# (its job "tension"): the log on standard output, then .sta, .cvg and
+# .frd under the job name asked for. With FAKE_CCX_FAIL set it fails as
+# ccx does on a bad deck: an *ERROR line and a non-zero exit (or, with
+# FAKE_CCX_FAIL=quiet, exit 0).
+set -eu
+[ "$1" = "-i" ] || { echo "fake ccx: called without -i" >&2; exit 2; }
+job=$2
+[ -f "$job.inp" ] || { echo "fake ccx: no $job.inp" >&2; exit 2; }
+from=${FAKE_CCX_FROM:?FAKE_CCX_FROM must name a fixture folder}
+if [ -n "${FAKE_CCX_FAIL:-}" ]; then
+    echo " *ERROR reading *MATERIAL. Card image:"
+    echo "        *MATERIAL"
+    # "quiet": the error printed, the results written all the same, and
+    # exit 0, which no ccx has been seen to do; the adapter must not pass
+    # such results on.
+    [ "$FAKE_CCX_FAIL" = quiet ] || exit 201
+fi
+cat "$from/ccx.log"
+cp "$from/tension.sta" "$job.sta"
+cp "$from/tension.cvg" "$job.cvg"
+cp "$from/tension.frd" "$job.frd"

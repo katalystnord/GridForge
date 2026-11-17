@@ -90,6 +90,10 @@ Each toolkit is a folder holding `toolkit.json`:
 - **`requires`**: programs the toolkit needs, each `{"program": name}` or
   `{"one_of": [names]}` (OpenFOAM's two lines name their solvers
   differently); checked before running it, and a missing one is named.
+  A program may be named by the environment variable `GF_<PROGRAM>`
+  (upper case, other characters as `_`: `GF_CCX`), for one not on PATH
+  (ccx from FreeCAD's Flatpak, through a wrapper); the adapter uses the
+  same variable.
   (Later: the found version shown, "ccx 2.21 from /usr/bin".)
 - **`notices`**: text that must be shown where the toolkit is described
   (OpenFOAM's: OpenCFD's Disclaimer and Acknowledgement).

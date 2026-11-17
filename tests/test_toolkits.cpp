@@ -134,6 +134,23 @@ CASE(a_toolkit_whose_programs_are_missing_says_which)
     CHECK(!a.missing.contains("run.sh"));
 }
 
+CASE(a_required_program_may_be_named_by_the_environment)
+{
+    // GF_<PROGRAM> names where a required program is (toolkits spec,
+    // section 3): ccx from FreeCAD's Flatpak, say, through a wrapper.
+    const ToolkitSet set = findToolkits({fixture("needs-missing/..")});
+    const Toolkit *t = set.find("needs-missing");
+    CHECK(t);
+    if (!t)
+        return;
+    qputenv("GF_NO_SUCH_PROGRAM_GF_TEST", QDir(fixture("needs-missing")).absoluteFilePath("run.sh").toLocal8Bit());
+    CHECK(availability(*t).ready);
+    qputenv("GF_NO_SUCH_PROGRAM_GF_TEST", "/no/such/file");
+    CHECK(!availability(*t).ready);  // named, but not there: still missing
+    qunsetenv("GF_NO_SUCH_PROGRAM_GF_TEST");
+    CHECK(!availability(*t).ready);
+}
+
 CASE(the_command_names_the_job_folder)
 {
     const ToolkitSet set = findToolkits({fixture("needs-missing/..")});

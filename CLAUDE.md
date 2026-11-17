@@ -119,7 +119,9 @@ src/core/   gf_core   the solver-neutral model and the toolkit door, headless
 toolkits/   the shipped toolkits' manifests (calculix, openfoam)
 src/gui/    gf_gui    the window; GridForge
 src/mesh/   gf_mesh   GridForge's mesher, headless; Netgen fills the volume
+src/calculix/adapter/  gf-calculix, the CalculiX toolkit's adapter
 src/cli/    gf-study  the same work without a window
+examples/   worked studies, run end to end (inputs only; results are made)
 third_party/netgen    our Netgen fork (submodule, gridforge-dev), built by
                       tools/build-netgen.sh into build-netgen/install
 tests/      one executable per subject; fixtures/ committed data

@@ -80,6 +80,28 @@ add_test(NAME a_job_folder_holds_everything_a_toolkit_needs COMMAND test_job)
 # the plastic block left outside the job: each red; the set arrays left
 # on the grid: survived at first, now checked, red.
 
+# gf-calculix with a stand-in ccx replaying ccx 2.23's own files.
+add_executable(test_calculix_adapter test_calculix_adapter.cpp)
+target_link_libraries(test_calculix_adapter PRIVATE gf_mesh)
+target_compile_definitions(test_calculix_adapter PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    GF_ADAPTER="$<TARGET_FILE:gf-calculix>")
+add_dependencies(test_calculix_adapter gf-calculix)
+add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
+# NEGATIVE CHECKS, 2026-11-17, the adapter: the 6 cases written first, all
+# red against a stub. Then each rule broken, the tests run, restored:
+#   sets left out of the results: red;
+#   the progress from the step's time only: survived at first (one step:
+#   the same); box-twosteps, solved by ccx, added, now red;
+#   an *ERROR with exit 0 passed: survived twice (the stand-in's quiet
+#   failure first wrote no results either); it now writes them, now red;
+#   the plastic block's path not seen from work/: no build at first (an
+#   empty if); kept, a plastic job added, now red.
+# Found by the real run (the dogbone, examples/dogbone-plastic), not by
+# the stand-in: ccx 2.23 refuses a number with an exponent longer than 21
+# characters (a Netgen coordinate, -4.7717021973877325e-06); the deck
+# writer now keeps every number to 20 (test_inp_writer).
+
 # CalculiX results: the .frd reader against files written by ccx 2.23, each
 # with an answer known by hand (fixtures/calculix/*/README.md).
 add_executable(test_frd_reader test_frd_reader.cpp)
@@ -338,6 +360,16 @@ set_tests_properties(cli_meshes_a_step_with_its_solids_and_faces_as_sets PROPERT
 add_test(NAME cli_mesh_without_a_size_is_refused
     COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step)
 set_tests_properties(cli_mesh_without_a_size_is_refused PROPERTIES WILL_FAIL TRUE)
+
+# gf-study solve: the job written, the CalculiX toolkit found by its
+# manifest and run (with the stand-in ccx), its progress shown.
+add_test(NAME cli_solves_a_setup_through_its_toolkit
+    COMMAND gf-study solve ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --order 2
+            -o ${CMAKE_CURRENT_BINARY_DIR}/solve-out)
+set_tests_properties(cli_solves_a_setup_through_its_toolkit PROPERTIES
+    ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup"
+    PASS_REGULAR_EXPRESSION "solving with CalculiX .*100%  step 1, increment 1\n.*results: [^\n]*solve-out/results/results\\.vtkhdf \\(solved by CalculiX Version 2\\.23\\)")
 
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)

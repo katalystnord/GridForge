@@ -16,6 +16,7 @@
 #include <vtkPointData.h>
 #include <vtkPoints.h>
 
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <vector>
@@ -152,6 +153,25 @@ CASE(the_deck_reads_back_with_its_sets)
     CHECK(fixed && fixed->ids == std::vector<int>({101, 106}));
     CHECK(second && second->ids == std::vector<int>({8}));
     CHECK(fixedElements && fixedElements->ids == std::vector<int>({7, 9}));
+}
+
+CASE(no_number_is_longer_than_ccx_reads)
+{
+    // ccx 2.23 refuses a number with an exponent longer than 21
+    // characters ("-4.7717021973877325e-06", a Netgen coordinate of the
+    // dogbone, is 23; tried 2026-11-17, plain decimals read at 25). Every
+    // number is kept to 20, as close as 20 characters allow.
+    for (double x : {-4.7717021973877325e-06, 4.7717021973877325e-06, -1.2345678901234567e-300,
+                     -123456789.12345678, 47.95895725502116, 0.1, -0.0, 1e300}) {
+        const QString s = inpNumber(x);
+        CHECK(s.size() <= 20);
+        // 20 characters hold 14 significant digits with a sign and a
+        // two-digit exponent (5e-14 of the value at worst; the dogbone's
+        // -4.7717021973877325e-06 loses 6.7e-15), 13 with a three-digit one
+        // (5e-13; -1.2345678901234567e-300 loses 3.7e-13).
+        CHECK(x == 0 ? s == "0" : std::abs(s.toDouble() - x) <= 5e-13 * std::abs(x));
+    }
+    CHECK(inpNumber(47.95895725502116) == "47.95895725502116");  // fits: every digit kept
 }
 
 CASE(quadratic_tetrahedra_are_c3d10)

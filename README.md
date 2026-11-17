@@ -25,6 +25,16 @@ git submodule update --init
 tools/run-tests.sh
 ```
 
+## Running a study
+
+    gf-study solve setup.json part.step --size H --order 2 -o JOB
+
+meshes the part, writes the job folder, runs the CalculiX toolkit (ccx
+on PATH, or where `GF_CCX` names it; `tools/ccx-flatpak` runs FreeCAD's
+Flatpak ccx) and leaves the results for ParaView in
+`JOB/results/results.vtkhdf`. A worked example:
+[examples/dogbone-plastic](examples/dogbone-plastic/README.md).
+
 ## Licence
 
 LGPL-2.1-or-later. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

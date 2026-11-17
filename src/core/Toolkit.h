@@ -67,7 +67,8 @@ struct Availability {
     QStringList missing;  // programs not found: the command's, or a requirement
 };
 // Whether the toolkit's programs are there: its command's program (in its
-// folder or on PATH) and each requirement (on PATH).
+// folder or on PATH) and each requirement (where GF_<PROGRAM> names it,
+// e.g. GF_CCX, else on PATH).
 Availability availability(const Toolkit &t);
 
 // The command to run for a job folder.

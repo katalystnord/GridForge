@@ -89,6 +89,16 @@ vtk_module_autoinit(TARGETS gf_gui MODULES ${VTK_LIBRARIES})
 add_executable(GridForge gui/main.cpp)
 target_link_libraries(GridForge PRIVATE gf_gui)
 
+# --- gf-calculix: the CalculiX toolkit's adapter -------------------------------
+# A separate program behind the toolkit door (toolkits spec): a job folder
+# in, ccx run as its own process, progress as JSON lines, results out.
+add_executable(gf-calculix calculix/adapter/main.cpp)
+target_link_libraries(gf-calculix PRIVATE gf_calculix)
+
 # --- gf-study: the same work without a window ----------------------------------
 add_executable(gf-study cli/main.cpp)
 target_link_libraries(gf-study PRIVATE gf_core gf_calculix gf_gmsh gf_mesh)
+# The shipped toolkits' manifests, from the source tree until there is an
+# install layout; their adapters (gf-calculix) sit beside gf-study.
+target_compile_definitions(gf-study PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits")
+add_dependencies(gf-study gf-calculix)
