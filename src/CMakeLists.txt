@@ -11,6 +11,7 @@ add_library(gf_core STATIC
     core/ResultsSeries.cpp
     core/Setup.cpp
     core/MaterialCard.cpp
+    core/Job.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel

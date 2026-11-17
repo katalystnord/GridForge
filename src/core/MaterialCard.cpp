@@ -106,7 +106,7 @@ bool fillFromCards(Setup &setup, const QString &studyDir, QString *error)
 {
     for (Material &m : setup.materials) {
         for (const auto &[key, value] : m.values)
-            m.source[key] = "entered in the study";
+            m.source.emplace(key, "entered in the study");  // a job's set-up already says
         if (m.card.isEmpty())
             continue;
         const MaterialCard card = readMaterialCard(QDir(studyDir).filePath(m.card), setup.units);

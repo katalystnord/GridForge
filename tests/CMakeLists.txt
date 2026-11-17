@@ -69,6 +69,17 @@ add_test(NAME material_cards_are_read_in_the_studys_units COMMAND test_material_
 # red; a Poisson's ratio with a unit passed: survived at first (no card
 # had one); poisson-unit.FCMat added, now red.
 
+# A solve stage's job folder: written from a set-up and mesh, read back.
+add_executable(test_job test_job.cpp)
+target_link_libraries(test_job PRIVATE gf_mesh)
+target_compile_definitions(test_job PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME a_job_folder_holds_everything_a_toolkit_needs COMMAND test_job)
+# NEGATIVE CHECKS, 2026-11-17, job folder: the 4 cases written first, all
+# red against a stub. Then each rule broken, the tests run, restored: set
+# members lost; the values' sources dropped (crashed: read back missing);
+# the plastic block left outside the job: each red; the set arrays left
+# on the grid: survived at first, now checked, red.
+
 # CalculiX results: the .frd reader against files written by ccx 2.23, each
 # with an answer known by hand (fixtures/calculix/*/README.md).
 add_executable(test_frd_reader test_frd_reader.cpp)

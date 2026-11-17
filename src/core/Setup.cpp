@@ -117,6 +117,10 @@ Setup read(const QJsonObject &o)
                 fault(where + ".values." + v.key(), "not a number");
             material.values[v.key()] = v.value().toDouble();
         }
+        // Where the values came from, in a job's resolved set-up.
+        const QJsonObject source = m["source"].toObject();
+        for (auto v = source.begin(); v != source.end(); ++v)
+            material.source[v.key()] = v.value().toString();
         s.materials.push_back(material);
     }
 
