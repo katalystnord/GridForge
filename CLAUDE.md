@@ -64,7 +64,8 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   is an optional, installable toolkit; when installed it has full access
   to GridForge, so GridForge can serve as one large Python tool in a
   modelling toolchain (as FreeCAD and ParaView can, but without setting
-  paths by hand). How it is wired (an importable module, a console in
+  paths by hand). It works the other way too: from inside GridForge,
+  Python reaches out to other tools and libraries. How it is wired (an importable module, a console in
   the window, the local API) is decided when it is built.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
