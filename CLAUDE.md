@@ -12,28 +12,38 @@ The survey that shaped it: [docs/survey/](docs/survey/README.md). The
 plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
 [gridforge-notes.md](gridforge-notes.md).
 
-# THE TENETS (DRAFT, adapted from TenSense's; for David to settle)
+# THE TENETS (settled by David, 2026-11-17)
 
 1. **Geometry and materials in, solved and trustworthy results out.**
    Set-up, solve and hand-off; everything else only augments them.
-2. **There is no open, Linux-native, step-based set-up tool for nonlinear
-   solids, and no clean road from CalculiX to ParaView.** This is why it
-   exists.
-3. **We write our own core and readers from the formats' specifications.**
-   Existing code is a source of ideas, not a parent.
+2. **There are no robust open-source GUI tools that fill the space
+   between geometry (FreeCAD) and visualisation (ParaView).** We want a
+   vetted, packaged solution that reliably meshes a geometry, sets up its
+   materials, loads and conditions, solves it, and shows how it responds.
+3. **GridForge's domain is the mesher pipeline, the model, the readers and
+   the writers**, written from the formats' specifications. If viable and
+   vetted open-source solutions exist, we can include and build on them.
 4. **We incorporate vetted good solutions** from wherever they come.
 5. **We hold no allegiance to any solver or upstream at the code level**:
    licensing and attribution only.
-6. **All interoperability happens at the file level**, never at the model
-   or code level. Solvers and meshers are separate processes.
+6. **All interoperability with other tools in the modelling chain happens
+   at the file level**, never at the model or code level. What is inside
+   GridForge is one program, and its parts work together freely.
 7. **The GUI is also the product.** A UX defect is a defect. The window
    never freezes while a solver runs.
 8. **We break with inherited approaches** whenever that is required.
 9. **We say how far results can be trusted**: what was derived, what was
    converted, which solver and version produced it.
-10. **We keep the study and its results pristine with provenance**: the
-    generated deck, the solver's own files and every conversion are kept
-    and named; nothing is lost silently.
+10. **GridForge's goal is that all processing and data is reproducible
+    and traceable.** The same study and recipe give the same mesh and the
+    same deck. Every input, generated
+    file, solver output and conversion is kept, named and traced to what
+    made it, and nothing is lost silently.
+11. **GridForge is built to be modular and open**, including optional
+    tools such as solvers, meshers and other tools as toolkits. Each
+    toolkit is treated as a separate, optional program, but can be used
+    and collectively orchestrated from within GridForge, for example
+    through Python.
 
 ## Settled decisions
 
@@ -48,9 +58,14 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   standing in for FEM). Every toolkit, the shipped ones included, is a
   separate program behind one door: a `toolkit.json` manifest and a job
   folder (`docs/specs/toolkits-v1.md`, DRAFT). Every toolkit is optional and
-  installable (David, 2026-11-16). Python has full access to the program
-  through a local API the program serves, out of process, never embedded. No in-process plugins. A
-  surrogate's results are labelled as predictions everywhere.
+  installable (David, 2026-11-16). A surrogate's results are labelled as
+  predictions everywhere.
+- **Python (David, 2026-11-17):** GridForge runs without Python. Python
+  is an optional, installable toolkit; when installed it has full access
+  to GridForge, so GridForge can serve as one large Python tool in a
+  modelling toolchain (as FreeCAD and ParaView can, but without setting
+  paths by hand). How it is wired (an importable module, a console in
+  the window, the local API) is decided when it is built.
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,

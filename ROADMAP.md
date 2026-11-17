@@ -12,7 +12,7 @@ hand) before there is any window.
 
 - Repository, CMake skeleton (`gf_core` headless, `gf_gui`, `GridForge`,
   `gf-study`), test regime, hook, CI. Done in the skeleton commit.
-- CLAUDE.md with tenets (DRAFT until David settles them).
+- CLAUDE.md with tenets (settled by David, 2026-11-17).
 - Written specs, reviewed by David before code: toolkits (v1, drafted
   2026-11-14), the study file (v1) and
   the results hand-off (v1: what a VTKHDF/.pvd from us holds).
@@ -126,6 +126,6 @@ studies, Elmer for heat and coupled problems.
 
 | When | Need |
 |---|---|
-| Phase 0 | Settle the tenets; approve the three specs (toolkits, drafted; study file and results hand-off, to write); where the repository lives (GitHub katalystnord, the forge, or both). |
+| Phase 0 | Tenets settled 2026-11-17. Approve the three specs (toolkits, drafted; study file and results hand-off, to write); where the repository lives (GitHub katalystnord, the forge, or both). |
 | Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenSense's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
 | Phase 3 | Whether the AppImage bundles ccx and gmsh (with their sources on the release page) or uses the user's own. |
