@@ -1,0 +1,2 @@
+gmsh 4.14.0-git tet.geo -3 -format msh41 -order 2
+Info    : 1736 nodes 1481 elements

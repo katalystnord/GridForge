@@ -1,0 +1,2 @@
+gmsh 4.14.0-git hex.geo -3 -format msh41 -order 2 -string Mesh.SecondOrderIncomplete=1;
+Info    : 193 nodes 120 elements

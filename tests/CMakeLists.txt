@@ -113,6 +113,43 @@ add_test(NAME job_progress_is_read_as_ccx_writes_it COMMAND test_job_progress)
 #   force and displacement columns swapped: the residuals case red;
 #   one .cvg header line too few: two cases red.
 
+# Gmsh meshes: the .msh reader against files written by Gmsh 4.14.0, each
+# a box with an answer known by hand (fixtures/gmsh/README.md).
+add_executable(test_msh_reader test_msh_reader.cpp)
+target_link_libraries(test_msh_reader PRIVATE gf_gmsh)
+target_compile_definitions(test_msh_reader PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME msh_reader_reads_what_gmsh_wrote COMMAND test_msh_reader)
+
+# The hand-off of a mesh to ParaView: one grid, physical groups as sets.
+add_executable(test_mesh_handoff test_mesh_handoff.cpp)
+target_link_libraries(test_mesh_handoff PRIVATE gf_gmsh)
+target_compile_definitions(test_mesh_handoff PRIVATE
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME meshes_reach_paraview_with_their_groups COMMAND test_mesh_handoff)
+# NEGATIVE CHECKS, 2026-11-17, .msh reader and mesh hand-off: the 18 cases
+# written first, all red against stubs. Two test expectations were wrong
+# and corrected against the files: the complete second-order file names
+# its 9-node quadrangles (type 10) before its hexahedra; Gmsh writes ASCII
+# coordinates to 16 digits, binary ones exactly. Then each rule broken,
+# the tests run, restored:
+#   tet10, hex20, prism15 middles in Gmsh's order; prism6 not mirrored;
+#   tet4 mirrored; hex8 top and bottom swapped: the cell case red, each
+#   (prism15 mirrored as prism6 is: volume -6000, VTK's quadratic wedge
+#   faces the other way from its linear one);
+#   groups of lower dimension as element sets too; groups looked up by
+#   tag without their dimension; sets by descending tag; element sets
+#   before node sets; unnamed groups as "Physical Surface 77": the set
+#   cases red;
+#   binary y and z swapped; binary sizes read as 4 bytes; node
+#   coordinates read before the tags: the binary and reader cases red;
+#   $Comments refused, not passed over: that case red;
+#   the element's entity dimension unchecked: survived at first (no
+#   fixture had it wrong); a block said to lie on a surface added, now red.
+# Opened in ParaView 6.2.0 (Flatpak pvpython), 2026-11-17: all seven boxes,
+# bounds 10 x 20 x 30, the assembly with Model, NodeSets (Solid, Fixed,
+# Pulled, PhysicalSurface77, Edge, Origin), ElementSets (Solid).
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)
@@ -137,6 +174,11 @@ add_test(NAME cli_converts_a_frd_to_a_pvd_series
             -o ${CMAKE_CURRENT_BINARY_DIR}/convert-out-pvd --pvd)
 set_tests_properties(cli_converts_a_frd_to_a_pvd_series PROPERTIES
     PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out-pvd/bar\\.pvd \\(4 time points, 20 nodes, 4 elements, no sets: a \\.vtu series has no blocks\\)")
+add_test(NAME cli_converts_a_gmsh_mesh_with_its_physical_groups
+    COMMAND gf-study convert ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/gmsh/box-hex20/box.msh
+            -o ${CMAKE_CURRENT_BINARY_DIR}/convert-out-msh)
+set_tests_properties(cli_converts_a_gmsh_mesh_with_its_physical_groups PROPERTIES
+    PASS_REGULAR_EXPRESSION "wrote [^\n]*convert-out-msh/box\\.vtkhdf \\(a mesh: 193 nodes, 24 elements, 7 sets from its physical groups\\)")
 # NEGATIVE CHECKS, 2026-11-16, stress and hand-off: all cases written
 # first, red against stubs (stress 13 checks; hand-off 33; the CLI with no
 # convert command). Then each rule undone, the suite run, restored:

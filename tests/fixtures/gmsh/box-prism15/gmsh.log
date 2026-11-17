@@ -1,0 +1,2 @@
+gmsh 4.14.0-git prism.geo -3 -format msh41 -order 2 -string Mesh.SecondOrderIncomplete=1;
+Info    : 223 nodes 156 elements

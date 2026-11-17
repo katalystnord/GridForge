@@ -47,6 +47,17 @@ add_library(gf_calculix STATIC
 target_include_directories(gf_calculix PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_calculix PUBLIC gf_core)
 
+# --- gf_gmsh: Gmsh's meshes, headless ------------------------------------------
+# Reads what Gmsh writes (.msh 4.1) and hands it to the core as a grid with
+# its physical groups as sets. Gmsh is GPL-2.0-or-later and is run, never
+# linked: nothing here comes from its source.
+add_library(gf_gmsh STATIC
+    gmsh/MshReader.cpp
+    gmsh/MshToVtk.cpp
+)
+target_include_directories(gf_gmsh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(gf_gmsh PUBLIC gf_core)
+
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
@@ -60,4 +71,4 @@ target_link_libraries(GridForge PRIVATE gf_gui)
 
 # --- gf-study: the same work without a window ----------------------------------
 add_executable(gf-study cli/main.cpp)
-target_link_libraries(gf-study PRIVATE gf_core gf_calculix)
+target_link_libraries(gf-study PRIVATE gf_core gf_calculix gf_gmsh)

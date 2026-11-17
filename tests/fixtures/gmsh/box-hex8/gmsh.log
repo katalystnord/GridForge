@@ -1,0 +1,2 @@
+gmsh 4.14.0-git hex.geo -3 -format msh41 
+Info    : 60 nodes 120 elements

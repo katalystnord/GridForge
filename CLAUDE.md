@@ -109,5 +109,5 @@ docs/specs/   file contracts (study file, results hand-off): to be written
 tools/      run-tests.sh, sanitize.sh, check-no-em-dashes.sh, git-hooks/
 ```
 
-Back ends (`src/calculix/`, later `src/openfoam/`) arrive with their first
+Back ends (`src/calculix/`, `src/gmsh/`, later `src/openfoam/`) arrive with their first
 function, not before: no empty targets.

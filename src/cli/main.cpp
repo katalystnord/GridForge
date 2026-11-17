@@ -6,9 +6,12 @@
 //       results to one .vtkhdf for ParaView, with the deck's named sets as
 //       blocks (the deck: job.inp beside the results, unless named); with
 //       --pvd, a .vtu series and its .pvd instead (no sets)
+//   gf-study convert mesh.msh [-o DIR] [--pvd]
+//       a Gmsh mesh likewise, its physical groups as the sets
 
 #include "calculix/FrdToVtk.h"
 #include "core/ApplicationInfo.h"
+#include "gmsh/MshToVtk.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -18,6 +21,49 @@
 #include <cstdio>
 
 namespace {
+
+// Writes the series beside the input (or into outDir); the path written,
+// or empty with *error set.
+QString write(const gf::core::ResultsSeries &series, const QFileInfo &in, const QString &outDir,
+              bool pvd, QString *error)
+{
+    const QString dir = outDir.isEmpty() ? in.absolutePath() : outDir;
+    if (!QDir().mkpath(dir)) {
+        *error = QString("cannot make the folder %1").arg(dir);
+        return {};
+    }
+    if (pvd)
+        return gf::core::writeVtuSeries(series, dir, in.completeBaseName(), error).value(0);
+    const QString path = QDir(dir).filePath(in.completeBaseName() + ".vtkhdf");
+    return gf::core::writeVtkHdf(series, path, error) ? path : QString();
+}
+
+int convertMesh(const QString &input, const QString &outDir, bool pvd)
+{
+    const QFileInfo in(input);
+    const gf::gmsh::MshFile msh = gf::gmsh::readMsh(input);
+    QString error;
+    const gf::core::ResultsSeries series = gf::gmsh::toSeries(msh, in.fileName(), &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s: %s\n", qPrintable(input), qPrintable(error));
+        return 1;
+    }
+    const QString written = write(series, in, outDir, pvd, &error);
+    if (written.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    const vtkIdType cells = series.points.front().grid->GetNumberOfCells();
+    const QString sets = pvd ? QString("no sets: a .vtu series has no blocks")
+                             : QString("%1 set%2 from its physical groups")
+                                   .arg(series.sets.size())
+                                   .arg(series.sets.size() == 1 ? "" : "s");
+    std::printf("wrote %s (a mesh: %zu nodes, %lld elements, %s)\n", qPrintable(written),
+                msh.nodes.size(), static_cast<long long>(cells), qPrintable(sets));
+    for (const QString &line : series.provenance)
+        std::printf("  %s\n", qPrintable(line));
+    return 0;
+}
 
 int convert(const QString &input, const QString &outDir, QString deck, bool pvd)
 {
@@ -56,21 +102,7 @@ int convert(const QString &input, const QString &outDir, QString deck, bool pvd)
                    .arg(read.sets.size() == 1 ? "" : "s", deckName);
     }
 
-    const QString dir = outDir.isEmpty() ? in.absolutePath() : outDir;
-    if (!QDir().mkpath(dir)) {
-        std::fprintf(stderr, "gf-study: cannot make the folder %s\n", qPrintable(dir));
-        return 1;
-    }
-    QString written;
-    if (pvd) {
-        const QStringList files =
-            gf::core::writeVtuSeries(series, dir, in.completeBaseName(), &error);
-        written = files.value(0);
-    } else {
-        const QString path = QDir(dir).filePath(in.completeBaseName() + ".vtkhdf");
-        if (gf::core::writeVtkHdf(series, path, &error))
-            written = path;
-    }
+    const QString written = write(series, in, outDir, pvd, &error);
     if (written.isEmpty()) {
         std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
         return 1;
@@ -96,7 +128,9 @@ int main(int argc, char *argv[])
                                      + gf::core::applicationSubtitle() + ".\n\n"
                                      "Commands:\n"
                                      "  convert job.frd   CalculiX results to one .vtkhdf for "
-                                     "ParaView, the deck's named sets as blocks");
+                                     "ParaView, the deck's named sets as blocks\n"
+                                     "  convert mesh.msh  a Gmsh mesh likewise, its physical "
+                                     "groups as the sets");
     parser.addHelpOption();
     const QCommandLineOption versionOpt("version", "Print the version and build.");
     const QCommandLineOption outOpt({"o", "out"},
@@ -121,6 +155,14 @@ int main(int argc, char *argv[])
         return 0;
     }
     const QStringList args = parser.positionalArguments();
+    if (args.size() == 2 && args[0] == "convert" && args[1].endsWith(".msh", Qt::CaseInsensitive)) {
+        if (parser.isSet(deckOpt)) {
+            std::fprintf(stderr, "gf-study: --deck is for CalculiX results; a .msh holds "
+                                 "its own sets\n");
+            return 1;
+        }
+        return convertMesh(args[1], parser.value(outOpt), parser.isSet(pvdOpt));
+    }
     if (args.size() == 2 && args[0] == "convert")
         return convert(args[1], parser.value(outOpt), parser.value(deckOpt),
                        parser.isSet(pvdOpt));
