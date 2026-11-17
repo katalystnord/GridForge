@@ -12,6 +12,7 @@
 #include <vtkCommand.h>
 #include <vtkDataAssembly.h>
 #include <vtkFieldData.h>
+#include <vtkFloatArray.h>
 #include <vtkHDFWriter.h>
 #include <vtkInformation.h>
 #include <vtkInformationVector.h>
@@ -195,6 +196,28 @@ vtkSmartPointer<vtkUnstructuredGrid> setGrid(const SetMesh &m, vtkUnstructuredGr
     return b;
 }
 
+// The grid with its double fields as single-precision copies (the ids and
+// the points stay as they are). Solver results are not more precise than
+// that: ccx's .frd keeps six digits, its binary form is single precision.
+vtkSmartPointer<vtkUnstructuredGrid> singlePrecision(vtkUnstructuredGrid *g)
+{
+    auto out = vtkSmartPointer<vtkUnstructuredGrid>::New();
+    out->ShallowCopy(g);
+    for (vtkDataSetAttributes *data : {static_cast<vtkDataSetAttributes *>(out->GetPointData()),
+                                       static_cast<vtkDataSetAttributes *>(out->GetCellData())}) {
+        for (int a = data->GetNumberOfArrays() - 1; a >= 0; --a) {
+            vtkDataArray *d = data->GetArray(a);
+            if (!d || d->GetDataType() != VTK_DOUBLE)
+                continue;
+            vtkNew<vtkFloatArray> f;
+            f->DeepCopy(d);  // converts each value, keeps the name and component names
+            data->RemoveArray(a);
+            data->AddArray(f);
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 bool writeVtkHdf(const ResultsSeries &series, const QString &path, QString *error)
@@ -235,19 +258,21 @@ bool writeVtkHdf(const ResultsSeries &series, const QString &path, QString *erro
         provenance->SetName("provenance");
         for (const QString &line : series.provenance)
             provenance->InsertNextValue(line.toStdString());
+        provenance->InsertNextValue("stored: fields in single precision");
         vtkNew<vtkFieldData> fields;
         fields->DeepCopy(t.grid->GetFieldData());
         fields->AddArray(provenance);
 
+        const vtkSmartPointer<vtkUnstructuredGrid> grid = singlePrecision(t.grid);
         auto model = vtkSmartPointer<vtkUnstructuredGrid>::New();
-        model->ShallowCopy(t.grid);
+        model->ShallowCopy(grid);
         model->SetFieldData(fields);
 
         auto c = vtkSmartPointer<vtkPartitionedDataSetCollection>::New();
         c->SetNumberOfPartitionedDataSets(unsigned(meshes.size() + 1));
         c->SetPartition(0, 0, model);
         for (size_t k = 0; k < meshes.size(); ++k)
-            c->SetPartition(unsigned(k + 1), 0, setGrid(meshes[k], t.grid, fields));
+            c->SetPartition(unsigned(k + 1), 0, setGrid(meshes[k], grid, fields));
         c->SetDataAssembly(assembly);
         source->times.push_back(t.time);
         source->collections.push_back(c);

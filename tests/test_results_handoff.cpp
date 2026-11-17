@@ -15,6 +15,7 @@
 #include <vtkCell.h>
 #include <vtkCellData.h>
 #include <vtkDoubleArray.h>
+#include <vtkFloatArray.h>
 #include <vtkPoints.h>
 #include <vtkCellType.h>
 #include <vtkDataArray.h>
@@ -484,15 +485,21 @@ CASE(a_series_is_written_as_one_vtkhdf_file_with_its_sets_as_blocks)
     vtkUnstructuredGrid *pulled = block("NodeSets/PULLED");
     vtkUnstructuredGrid *eall = block("ElementSets/EALL");
     CHECK(model && model->GetNumberOfPoints() == 20 && model->GetNumberOfCells() == 4);
-    CHECK(value(model, "DISP", 20, 2) == 0.075);
+    // Fields in single precision (David, 2026-11-17): ccx's .frd keeps six
+    // digits, its binary form is single precision itself.
+    CHECK(model && vtkFloatArray::SafeDownCast(model->GetPointData()->GetArray("DISP")));
+    CHECK(model && vtkFloatArray::SafeDownCast(model->GetPointData()->GetArray("von Mises stress (derived)")));
+    CHECK(model && !vtkFloatArray::SafeDownCast(model->GetPointData()->GetArray("node id")));
+    CHECK(value(model, "DISP", 20, 2) == double(0.075f));
     CHECK(pulled && pulled->GetNumberOfPoints() == 4 && pulled->GetNumberOfCells() == 4);
     for (vtkIdType k = 0; pulled && k < pulled->GetNumberOfCells(); ++k)
         CHECK(pulled->GetCellType(k) == VTK_VERTEX);
-    CHECK(value(pulled, "DISP", 17, 2) == 0.075);
+    CHECK(value(pulled, "DISP", 17, 2) == double(0.075f));
+    CHECK(pulled && vtkFloatArray::SafeDownCast(pulled->GetPointData()->GetArray("DISP")));
     CHECK(value(pulled, "von Mises stress (derived)", 17, 0) > 0);
     CHECK(eall && eall->GetNumberOfCells() == 4 && misplacedCells(eall) == 0);
     for (vtkUnstructuredGrid *g : {model, pulled, eall})
-        CHECK(fieldStrings(g, "provenance") == s.provenance);
+        CHECK(fieldStrings(g, "provenance") == s.provenance + QStringList{"stored: fields in single precision"});
 }
 
 CASE(a_vtkhdf_file_that_cannot_be_written_is_refused_by_name)

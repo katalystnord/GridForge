@@ -43,6 +43,8 @@ QStringList writeVtuSeries(const ResultsSeries &series, const QString &dir, cons
 // Writes one VTKHDF file holding every time point: the whole model as the
 // block Model, each set as a block under NodeSets (vertices at its points)
 // or ElementSets (its cells), each with the point data and provenance.
+// Fields are stored in single precision (David, 2026-11-17), and the
+// provenance says so; ids and coordinates as they are.
 // False with *error set if it cannot.
 bool writeVtkHdf(const ResultsSeries &series, const QString &path, QString *error);
 

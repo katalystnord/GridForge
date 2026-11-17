@@ -39,6 +39,7 @@ Not checked against a hand answer: a dogbone in plasticity has none.
 The box fixtures in tests/fixtures/calculix hold the deck to hand
 answers; this example shows the whole chain running on a real case.
 
-Known: the results file is 199 MB against ccx's 34 MB .frd. Every one of
-the 22 sets carries every field at each of the 29 time points. To be made
-smaller (the roadmap says how).
+The results file is 133 MB against ccx's 34 MB .frd (199 MB before the
+fields were stored in single precision): every one of the 22 sets keeps
+every field at each of the 29 time points, so a set can be coloured in
+ParaView on its own (David, 2026-11-17: keep them).

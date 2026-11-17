@@ -97,6 +97,9 @@ add_test(NAME the_calculix_adapter_runs_a_job COMMAND test_calculix_adapter)
 #   failure first wrote no results either); it now writes them, now red;
 #   the plastic block's path not seen from work/: no build at first (an
 #   empty if); kept, a plastic job added, now red.
+# NEGATIVE CHECKS, 2026-11-17, single precision: the writer case changed
+# first (float arrays, values to single precision, the provenance line),
+# red against the double writer; then the conversion skipped: red.
 # NEGATIVE CHECKS, 2026-11-17, extrapolation notes: the case written first,
 # red against a stub. Then each rule broken, the test run, restored: PE
 # counted below -1 instead of 0: red; the least taken as the last seen:
