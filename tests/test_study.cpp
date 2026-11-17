@@ -237,6 +237,56 @@ CASE(every_kind_of_load_and_support_reads_in_the_studys_units)
     CHECK(got.contains("    Gravity: every solid | z -9.81 m/s2"));
 }
 
+CASE(the_steps_table_shows_each_load_in_each_step_and_what_is_kept)
+{
+    // Pull 1.5 mm, then Hold (nothing new: the pull is kept), then Push
+    // back to 0.5 with a force added. Supports at the start hold in every
+    // step.
+    QString error;
+    Study s = readStudy(dogbone, &error);
+    QJsonObject o = s.setupJson;
+    QJsonArray steps = o["steps"].toArray();
+    QJsonObject hold = steps[0].toObject(), push = steps[0].toObject();
+    hold["name"] = "Hold";
+    hold["loads"] = QJsonArray();
+    push["name"] = "Push";
+    push["loads"] = QJsonDocument::fromJson(R"([{"group": "Pulled grip", "force": {"y": 50}},
+        {"group": "Pulled grip", "displacement": {"x": 0.5}}])").array();
+    steps.append(hold);
+    steps.append(push);
+    o["steps"] = steps;
+    s.setup = readSetup(o, &error);
+    CHECK(error.isEmpty());
+    const StepTable t = stepTable(s);
+    CHECK(t.steps == QStringList({"Pull", "Hold", "Push"}));
+    auto row = [&](const QString &title) -> const StepTable::Row * {
+        for (const StepTable::Row &r : t.rows)
+            if (r.title == title)
+                return &r;
+        return nullptr;
+    };
+    // Supports first, then loads in the order first met.
+    CHECK(t.rows.size() == 3 && t.rows[0].title == "Fixed: Fixed grip");
+    const StepTable::Row *fixed = row("Fixed: Fixed grip");
+    CHECK(fixed && fixed->cells.size() == 3);
+    for (int i = 0; fixed && i < 3; ++i)
+        CHECK(fixed->cells[i].text == "fixed" && fixed->cells[i].key == "support:0" && !fixed->cells[i].kept);
+    const StepTable::Row *pull = row("Displacement: Pulled grip");
+    CHECK(pull && pull->cells.size() == 3);
+    if (pull && pull->cells.size() == 3) {
+        CHECK(pull->cells[0].text == "x 1.5, y 0, z 0 mm" && pull->cells[0].key == "load:0:0" && !pull->cells[0].kept);
+        CHECK(pull->cells[1].text == "x 1.5, y 0, z 0 mm" && pull->cells[1].key == "load:0:0" && pull->cells[1].kept);
+        CHECK(pull->cells[2].text == "x 0.5 mm" && pull->cells[2].key == "load:2:1" && !pull->cells[2].kept);
+    }
+    const StepTable::Row *force = row("Force: Pulled grip");
+    CHECK(force && force->cells.size() == 3);
+    if (force && force->cells.size() == 3) {
+        CHECK(force->cells[0].text.isEmpty() && force->cells[0].key.isEmpty());
+        CHECK(force->cells[1].text.isEmpty());
+        CHECK(force->cells[2].text == "y 50 N" && force->cells[2].key == "load:2:0");
+    }
+}
+
 CASE(each_run_of_a_step_gets_its_own_folder)
 {
     // Every run's outputs are kept (David, 2026-11-17): runs/1, runs/2, ...

@@ -29,6 +29,7 @@
 #include <QPlainTextEdit>
 #include <QStatusBar>
 #include <QTabBar>
+#include <QTableWidget>
 #include <QTextBlock>
 #include <QSurfaceFormat>
 #include <QTemporaryDir>
@@ -624,6 +625,34 @@ private slots:
         QVERIFY2(label->text().contains(QString("deformed \u00d7%1").arg(factor->value())), qPrintable(label->text()));
         factor->setValue(0);
         QVERIFY2(label->text().contains("undeformed"), qPrintable(label->text()));
+    }
+
+    void the_steps_dock_shows_each_load_by_step_and_a_click_opens_it()
+    {
+        MainWindow w;
+        w.show();
+        w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone");
+        auto *table = w.findChild<QTableWidget *>("stepsTable");
+        QVERIFY(table);
+        QCOMPARE(table->columnCount(), 1);
+        QCOMPARE(table->horizontalHeaderItem(0)->text(), QString("Pull"));
+        QCOMPARE(table->rowCount(), 2);
+        QCOMPARE(table->verticalHeaderItem(0)->text(), QString("Fixed: Fixed grip"));
+        QCOMPARE(table->item(0, 0)->text(), QString("fixed"));
+        QCOMPARE(table->verticalHeaderItem(1)->text(), QString("Displacement: Pulled grip"));
+        QCOMPARE(table->item(1, 0)->text(), QString("x 1.5, y 0, z 0 mm"));
+        // A click on a value selects what set it, to edit in Properties.
+        table->setCurrentCell(1, 0);
+        emit table->cellClicked(1, 0);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QVERIFY(tree->currentItem());
+        QCOMPARE(tree->currentItem()->data(0, Qt::UserRole).toString(), QString("load:0:0"));
+        QCOMPARE(propertyValue(w.findChild<QWidget *>("properties"), "Name"), QString("Displacement: Pulled grip"));
+        if (!screenshot.isEmpty()) {
+            w.findChild<QDockWidget *>("stepsDock")->raise();
+            QTest::qWait(100);
+            w.grab().save(screenshot.chopped(4) + "-steps.png");
+        }
     }
 
     void a_long_legend_title_moves_the_legend_into_the_view()

@@ -34,6 +34,7 @@
 #include <QProgressBar>
 #include <QDoubleSpinBox>
 #include <QFontDatabase>
+#include <QTableWidget>
 #include <QMouseEvent>
 #include <QSignalBlocker>
 
@@ -263,8 +264,23 @@ void MainWindow::buildDocks()
     m_deck->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     m_deck->setLineWrapMode(QPlainTextEdit::NoWrap);
     m_deck->setPlaceholderText(tr("The solver's input deck, as the toolkit writes it when a run starts."));
-    auto *steps = new QLabel(tr("Loads and supports by step: not yet"), this);
-    steps->setObjectName(QStringLiteral("stepsTable"));
+    // Loads and supports by step: a row each, a column per step; a click
+    // selects what set the value, to edit in Properties.
+    m_steps = new QTableWidget(this);
+    m_steps->setObjectName(QStringLiteral("stepsTable"));
+    m_steps->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_steps->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_steps->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    connect(m_steps, &QTableWidget::cellClicked, this, [this](int row, int column) {
+        const QTableWidgetItem *cell = m_steps->item(row, column);
+        const QString key = cell ? cell->data(Qt::UserRole).toString() : QString();
+        for (QTreeWidgetItemIterator it(m_tree); *it && !key.isEmpty(); ++it)
+            if ((*it)->data(0, Qt::UserRole).toString() == key) {
+                m_tree->setCurrentItem(*it);
+                break;
+            }
+    });
+    auto *steps = m_steps;
 
     QDockWidget *study = dock(this, tr("Study"), "studyDock", m_tree);
     QDockWidget *properties = dock(this, tr("Properties"), "propertiesDock", m_properties);
@@ -500,6 +516,7 @@ bool MainWindow::openStudy(const QString &path)
         d->setToolTip({});
     }
     addItems(nullptr, m_tree, core::studyOutline(m_study));
+    fillSteps();
     m_tree->expandAll();
     m_step->clear();
     for (const core::AnalysisStep &s : m_study.setup.steps)
@@ -1058,6 +1075,34 @@ void MainWindow::showPicked()
     m_propertyForm->addRow(hint);
     connect(make, &QPushButton::clicked, this, &MainWindow::makeGroup);
     connect(name, &QLineEdit::returnPressed, this, &MainWindow::makeGroup);
+}
+
+void MainWindow::fillSteps()
+{
+    const core::StepTable t = core::stepTable(m_study);
+    m_steps->clear();
+    m_steps->setColumnCount(int(t.steps.size()));
+    m_steps->setRowCount(int(t.rows.size()));
+    m_steps->setHorizontalHeaderLabels(t.steps);
+    for (int r = 0; r < int(t.rows.size()); ++r) {
+        m_steps->setVerticalHeaderItem(r, new QTableWidgetItem(t.rows[r].title));
+        for (int c = 0; c < int(t.rows[r].cells.size()); ++c) {
+            const core::StepCell &cell = t.rows[r].cells[c];
+            if (cell.text.isEmpty())
+                continue;
+            auto *item = new QTableWidgetItem(cell.kept ? tr("%1 (kept)").arg(cell.text) : cell.text);
+            item->setData(Qt::UserRole, cell.key);
+            if (cell.kept) {
+                // Kept from an earlier step: said, and quieter than a value set here.
+                item->setForeground(toneColour(Tone::Detail));
+                QFont italic = item->font();
+                italic.setItalic(true);
+                item->setFont(italic);
+                item->setToolTip(tr("Set in an earlier step and kept in this one"));
+            }
+            m_steps->setItem(r, c, item);
+        }
+    }
 }
 
 void MainWindow::showDeck(const QString &path, int run)

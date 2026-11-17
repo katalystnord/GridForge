@@ -2,6 +2,8 @@
 
 #include <QFileInfo>
 
+#include <map>
+
 namespace gf::core {
 
 namespace {
@@ -154,6 +156,85 @@ std::vector<OutlineItem> studyOutline(const Study &study)
     out.push_back(jobs);
     out.push_back({"Results", "none yet", "results", "results", {}});
     return out;
+}
+
+StepTable stepTable(const Study &study)
+{
+    const Setup &setup = study.setup;
+    const UnitNames u = unitsOf(setup.units);
+    const int n = int(setup.steps.size());
+    StepTable t;
+    for (const AnalysisStep &st : setup.steps)
+        t.steps << st.name;
+
+    auto supportText = [&](const Support &s) {
+        return s.fixed ? QString("fixed") : s.symmetry ? QString("symmetry") : components(s.displacement) + " " + u.length;
+    };
+    // Supports at the start hold in every step.
+    for (size_t i = 0; i < setup.supports.size(); ++i) {
+        const OutlineItem item = support(setup.supports[i], u, {});
+        StepTable::Row row{item.title, {}};
+        for (int k = 0; k < n; ++k)
+            row.cells.push_back({supportText(setup.supports[i]), QString("support:%1").arg(i), false});
+        t.rows.push_back(row);
+    }
+
+    // Loads and a step's supports, a row per title (kind and group), in
+    // the order first met; a value set stays for the steps after.
+    auto rowFor = [&](const QString &title) -> StepTable::Row & {
+        for (StepTable::Row &r : t.rows)
+            if (r.title == title)
+                return r;
+        t.rows.push_back({title, std::vector<StepCell>(n)});
+        return t.rows.back();
+    };
+    std::map<QString, StepCell> standing;  // title -> what holds now
+    for (int i = 0; i < n; ++i) {
+        const AnalysisStep &st = setup.steps[i];
+        if (st.replace)
+            standing.clear();  // ccx's OP=NEW: what came before ends here
+        for (size_t k = 0; k < st.supports.size(); ++k) {
+            const OutlineItem item = support(st.supports[k], u, {});
+            rowFor(item.title);
+            standing[item.title] = {supportText(st.supports[k]), QString("support:%1:%2").arg(i).arg(k), false};
+        }
+        for (size_t k = 0; k < st.loads.size(); ++k) {
+            const Load &l = st.loads[k];
+            QString title, text;
+            switch (l.kind) {
+            case Load::Kind::Displacement:
+                title = "Displacement: " + l.group;
+                text = components(l.displacement) + " " + u.length;
+                break;
+            case Load::Kind::Force:
+                title = "Force: " + l.group;
+                text = components(l.vector) + " " + u.force;
+                break;
+            case Load::Kind::Pressure:
+                title = "Pressure: " + l.group;
+                text = number(l.pressure) + " " + u.stress;
+                break;
+            case Load::Kind::Gravity:
+                title = "Gravity: " + (l.group.isEmpty() ? QString("every solid") : l.group);
+                text = components(l.vector) + " " + u.acceleration;
+                break;
+            }
+            rowFor(title);
+            standing[title] = {text, QString("load:%1:%2").arg(i).arg(k), false};
+        }
+        for (StepTable::Row &r : t.rows) {
+            // Rows of the start's supports are filled already; the rest
+            // take what holds now.
+            const auto at = standing.find(r.title);
+            if (at != standing.end() && i < int(r.cells.size()) && r.cells[i].key.isEmpty()) {
+                StepCell c = at->second;
+                // Set in an earlier step: kept.
+                c.kept = !c.key.startsWith(QString("load:%1:").arg(i)) && !c.key.startsWith(QString("support:%1:").arg(i));
+                r.cells[i] = c;
+            }
+        }
+    }
+    return t;
 }
 
 } // namespace gf::core

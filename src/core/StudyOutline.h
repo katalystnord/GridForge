@@ -41,4 +41,30 @@ struct OutlineItem {
 // The tree's top-level items, in order.
 std::vector<OutlineItem> studyOutline(const Study &study);
 
+// The Steps dock: a row per support or load (by kind and group), a
+// column per analysis step. A cell holds what holds in that step: set
+// there, or kept from an earlier step (what a step changes stays, study
+// spec 4.5), or nothing. Its key is the item that set it, for Properties.
+//
+//                              Pull                Hold                 Push
+//   Fixed: Fixed grip          fixed               fixed                fixed
+//   Displacement: Pulled grip  x 1.5, y 0, z 0 mm  (kept)               x 0.5 mm
+//   Force: Pulled grip                                                  y 50 N
+struct StepCell {
+    QString text;
+    QString key;
+    bool kept = false;
+};
+
+struct StepTable {
+    struct Row {
+        QString title;
+        std::vector<StepCell> cells;  // one per step
+    };
+    QStringList steps;
+    std::vector<Row> rows;
+};
+
+StepTable stepTable(const Study &study);
+
 } // namespace gf::core

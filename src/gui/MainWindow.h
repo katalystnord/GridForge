@@ -37,6 +37,7 @@ class QPlainTextEdit;
 class QProgressBar;
 class QAction;
 class QTabBar;
+class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QVTKOpenGLNativeWidget;
@@ -127,6 +128,7 @@ private:
     void showPicked();
     void makeGroup();
     void showDeck(const QString &path, int run);
+    void fillSteps();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -161,6 +163,7 @@ private:
     QPlainTextEdit *m_messages = nullptr;
     QPlainTextEdit *m_job = nullptr;
     QPlainTextEdit *m_deck = nullptr;
+    QTableWidget *m_steps = nullptr;
     QComboBox *m_step = nullptr;
     QLabel *m_units = nullptr;
     QLabel *m_banner = nullptr;

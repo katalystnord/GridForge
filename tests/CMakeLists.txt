@@ -456,6 +456,9 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the Steps dock: the cases red against a stub
+# table and before the dock was a table; then a value never said kept:
+# red; nothing kept from step to step: red; a click selecting nothing: red.
 # NEGATIVE CHECKS, 2026-11-17, the deformed shape: the cases red against
 # stubs (no deformation, a factor of 1 always); then the factor ignored:
 # red; the shape not said beside the increment: red; the rounding margin

@@ -157,8 +157,10 @@ role "deck" (toolkits spec, section 5), shown read-only, also for a failed
 run and on reopening. The deformed shape (2026-11-17): the results drawn
 with the displacements times a factor, true scale first, Auto rounding it
 so the largest displacement is a tenth of the model; the factor said
-beside the increment ("true scale", "deformed ×200"). Next: the Steps
-dock.
+beside the increment ("true scale", "deformed ×200"). The Steps dock
+(2026-11-17): a row per support or load, a column per step, each value
+set there or kept from an earlier step (said, in grey); a click selects
+what set it, to edit in Properties.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.
