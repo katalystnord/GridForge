@@ -17,8 +17,8 @@
 
 using namespace gf::core;
 
-#ifndef GF_EXAMPLES
-#error "GF_EXAMPLES must point at examples/"
+#ifndef GF_FIXTURES
+#error "GF_FIXTURES must point at tests/fixtures"
 #endif
 
 namespace {
@@ -44,7 +44,7 @@ struct Register {
         }                                                                              \
     } while (0)
 
-const QString dogbone = QString(GF_EXAMPLES) + "/dogbone-plastic";
+const QString dogbone = QString(GF_FIXTURES) + "/studies/dogbone";
 
 QJsonObject example()
 {

@@ -188,7 +188,7 @@ private slots:
     {
         MainWindow w;
         w.show();
-        QVERIFY(w.openStudy(QString(GF_EXAMPLES) + "/dogbone-plastic"));
+        QVERIFY(w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone"));
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         QCOMPARE(topLevel(tree), QStringList({"Geometry", "Mesh", "Materials", "Groups", "Supports", "Steps", "Jobs",
                                               "Results"}));
@@ -198,18 +198,18 @@ private slots:
         QVERIFY(!load->icon(0).isNull());  // FreeCAD's FEM icon
         QCOMPARE(w.findChild<QLabel *>("units")->text(), QString("mm, N, s, MPa"));
         QCOMPARE(w.findChild<QComboBox *>("stepChooser")->currentText(), QString("Pull"));
-        QVERIFY(w.windowTitle().contains("dogbone-plastic"));
+        QVERIFY(w.windowTitle().contains("dogbone"));
     }
 
     void selecting_an_item_shows_it_in_properties()
     {
         MainWindow w;
         w.show();
-        w.openStudy(QString(GF_EXAMPLES) + "/dogbone-plastic");
+        w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone");
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         // Nothing selected: the study itself.
         auto *props = w.findChild<QWidget *>("properties");
-        QCOMPARE(propertyValue(props, "Study"), QString("dogbone-plastic"));
+        QCOMPARE(propertyValue(props, "Study"), QString("dogbone"));
         QCOMPARE(propertyValue(props, "Units"), QString("mm, N, s, MPa"));
         tree->setCurrentItem(findItem(tree, "Measured steel"));
         auto *properties = w.findChild<QWidget *>("properties");
@@ -230,7 +230,7 @@ private slots:
         tick.start(20);
         QElapsedTimer clock;
         clock.start();
-        QVERIFY(w.openStudy(QString(GF_EXAMPLES) + "/dogbone-plastic"));
+        QVERIFY(w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone"));
         QVERIFY(w.meshing());
         QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 120000);
         QVERIFY2(ticks > 5, qPrintable(QString("only %1 ticks in %2 ms").arg(ticks).arg(clock.elapsed())));

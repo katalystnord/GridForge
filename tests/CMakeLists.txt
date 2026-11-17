@@ -72,7 +72,7 @@ add_test(NAME material_cards_are_read_in_the_studys_units COMMAND test_material_
 # A study read from study.json and checked (study spec, sections 1, 2).
 add_executable(test_study test_study.cpp)
 target_link_libraries(test_study PRIVATE gf_core)
-target_compile_definitions(test_study PRIVATE GF_EXAMPLES="${CMAKE_SOURCE_DIR}/examples")
+target_compile_definitions(test_study PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 add_test(NAME a_study_is_read_and_checked COMMAND test_study)
 # NEGATIVE CHECKS, 2026-11-17, study and outline: the cases written first,
 # red against stubs. Then: a link's output not checked; a plastic step not

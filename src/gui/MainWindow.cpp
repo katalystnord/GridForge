@@ -492,7 +492,8 @@ bool MainWindow::openStudy(const QString &path)
 
 void MainWindow::showProperties(QTreeWidgetItem *item)
 {
-    while (QLayoutItem *row = m_propertyForm->takeAt(0)) {
+    while (m_propertyForm->count() > 0) {
+        QLayoutItem *row = m_propertyForm->takeAt(0);
         delete row->widget();
         delete row;
     }
