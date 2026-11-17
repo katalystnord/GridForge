@@ -138,6 +138,55 @@ CASE(the_face_two_solids_share_is_not_on_the_outer_surface)
         CHECK(face->GetComponent(c, 0) >= 1);
 }
 
+// The volume a closed, outward-facing surface holds (the divergence
+// theorem: the sum of x . n dA / 3 over its triangles).
+double enclosed(vtkPolyData *p)
+{
+    double v = 0;
+    for (vtkIdType c = 0; c < p->GetNumberOfCells(); ++c) {
+        vtkIdList *ids = p->GetCell(c)->GetPointIds();
+        double a[3], b[3], d[3];
+        p->GetPoint(ids->GetId(0), a);
+        p->GetPoint(ids->GetId(1), b);
+        p->GetPoint(ids->GetId(2), d);
+        // a . (b x d) / 6 is the signed volume of the tetrahedron to the origin.
+        v += (a[0] * (b[1] * d[2] - b[2] * d[1]) - a[1] * (b[0] * d[2] - b[2] * d[0]) + a[2] * (b[0] * d[1] - b[1] * d[0]))
+             / 6;
+    }
+    return v;
+}
+
+const double dogboneVolume = 8699.688877463912;  // fixtures/step/README.md
+
+CASE(curved_faces_of_a_quadratic_mesh_are_drawn_through_their_middle_nodes)
+{
+    // Corner triangles cut the dogbone's concave R30 arcs short; drawn
+    // through the middle nodes (which lie on the geometry), the surface
+    // holds the solid's own volume more closely. Half the spacing quarters
+    // a chord's sag, so the error should fall to about a quarter (seen:
+    // 6.69 to 1.67 mm3 at size 3); asked here: below half.
+    QString e;
+    const ResultsSeries linear = meshStep(QString(GF_FIXTURES) + "/step/dogbone.step", Recipe{3, 1}, &e);
+    const ResultsSeries quadratic = meshStep(QString(GF_FIXTURES) + "/step/dogbone.step", Recipe{3, 2}, &e);
+    const double vLinear = enclosed(outerSurface(linear)), vQuadratic = enclosed(outerSurface(quadratic));
+    std::printf("  (dogbone held: linear %.6f, quadratic %.6f, known %.6f)\n", vLinear, vQuadratic, dogboneVolume);
+    CHECK(std::abs(vQuadratic - dogboneVolume) < 0.5 * std::abs(vLinear - dogboneVolume));
+}
+
+CASE(the_element_edges_on_the_surface_are_drawn_once_each)
+{
+    // A closed surface of T triangles has 3T/2 edges. Drawn through its
+    // middle node, a quadratic edge is two segments; its four triangles
+    // per face stay one element face's worth of edges.
+    for (int order : {1, 2}) {
+        const ResultsSeries m = mesh("box.step", order);
+        vtkSmartPointer<vtkPolyData> s = outerSurface(m), lines = outerEdges(m);
+        const vtkIdType faces = order == 1 ? s->GetNumberOfCells() : s->GetNumberOfCells() / 4;
+        CHECK(lines->GetNumberOfLines() == 3 * faces / 2 * order);
+        CHECK(lines->GetNumberOfPolys() == 0);
+    }
+}
+
 int main()
 {
     for (auto &[name, run] : cases()) {

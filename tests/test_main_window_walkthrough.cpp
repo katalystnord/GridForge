@@ -296,7 +296,7 @@ private slots:
         QCOMPARE(mesh->text(1), QString("1624 tetrahedra, 3575 nodes; ready for a solver"));
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
         vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
-        QCOMPARE(r->GetActors()->GetNumberOfItems(), 1);
+        QCOMPARE(r->GetActors()->GetNumberOfItems(), 2);  // the mesh, and its element edges over it
         QVERIFY(w.findChild<QLabel *>("information")->text().startsWith("ready for a solver"));
         if (!screenshot.isEmpty()) {
             w.resize(1500, 950);

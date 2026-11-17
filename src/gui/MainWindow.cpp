@@ -64,6 +64,8 @@
 #include <vtkRenderer.h>
 #include <vtkScalarBarActor.h>
 #include <vtkCellPicker.h>
+#include <vtkCellArray.h>
+#include <vtkPoints.h>
 #include <vtkStaticCellLocator.h>
 #include <vtkCellData.h>
 #include <vtkUnsignedCharArray.h>
@@ -230,7 +232,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     m_meshWatch.waitForFinished();
-    for (vtkObject *o : std::initializer_list<vtkObject *>{m_meshActor, m_resultsActor, m_scalarBar})
+    for (vtkObject *o : std::initializer_list<vtkObject *>{m_meshActor, m_edgesActor, m_resultsActor, m_scalarBar})
         if (o)
             o->UnRegister(nullptr);
 }
@@ -531,7 +533,10 @@ bool MainWindow::openStudy(const QString &path)
     if (m_meshActor && !keepMesh) {
         m_meshActor->UnRegister(nullptr);
         m_meshActor = nullptr;
+        m_edgesActor->UnRegister(nullptr);
+        m_edgesActor = nullptr;
         m_surface = nullptr;
+        m_drawn = nullptr;
         m_surfaceLocator = nullptr;
         m_hovered = 0;
     }
@@ -719,23 +724,58 @@ void MainWindow::onMeshed()
     // face can be picked and a group's faces lit (in ember).
     m_surface = mesh::outerSurface(m_mesh);
     m_surfaceLocator = nullptr;
+    // Drawn with three points of its own per triangle, coloured by point:
+    // colours given per triangle (cell scalars) were not drawn at all on a
+    // software GL (Mesa's llvmpipe, 2026-11-17) once the faces' own edges
+    // were off. Triangle k drawn is triangle k of the surface, so a pick
+    // still names its face.
+    m_drawn = vtkSmartPointer<vtkPolyData>::New();
+    {
+        vtkNew<vtkPoints> points;
+        points->SetDataTypeToDouble();
+        vtkNew<vtkCellArray> triangles;
+        vtkIdType n = 0;
+        const vtkIdType *ids;
+        vtkCellArray *polys = m_surface->GetPolys();
+        polys->InitTraversal();
+        while (polys->GetNextCell(n, ids)) {
+            const vtkIdType first = points->GetNumberOfPoints();
+            for (vtkIdType k = 0; k < n; ++k)
+                points->InsertNextPoint(m_surface->GetPoint(ids[k]));
+            triangles->InsertNextCell({first, first + 1, first + 2});
+        }
+        m_drawn->SetPoints(points);
+        m_drawn->SetPolys(triangles);
+    }
     m_hovered = 0;
     vtkNew<vtkPolyDataMapper> mapper;
-    mapper->SetInputData(m_surface);
-    mapper->SetScalarModeToUseCellData();
+    mapper->SetInputData(m_drawn);
+    mapper->SetScalarModeToUsePointData();
     mapper->SetColorModeToDirectScalars();
     mapper->ScalarVisibilityOn();
+    // The faces a little behind the edges drawn on them, so the edges show.
+    mapper->SetRelativeCoincidentTopologyPolygonOffsetParameters(1, 1);
     lightFaces(m_picked);
     vtkNew<vtkActor> actor;
     actor->SetMapper(mapper);
     // Light faces and soft edges, so the part reads on graphite.
     actor->GetProperty()->SetColor(0.86, 0.87, 0.89);
-    actor->GetProperty()->EdgeVisibilityOn();
-    actor->GetProperty()->SetEdgeColor(0.52, 0.55, 0.60);
     actor->GetProperty()->SetAmbient(0.15);
     actor->GetProperty()->SetDiffuse(0.85);
     m_meshActor = actor;
     actor->Register(nullptr);  // kept while the Results layer is shown instead
+    // The elements' own edges (through their middle nodes, for a quadratic
+    // mesh), not the four triangles a curved face is drawn with.
+    vtkNew<vtkPolyDataMapper> edgesMapper;
+    edgesMapper->SetInputData(mesh::outerEdges(m_mesh));
+    edgesMapper->ScalarVisibilityOff();
+    vtkNew<vtkActor> edges;
+    edges->SetMapper(edgesMapper);
+    edges->GetProperty()->SetColor(0.52, 0.55, 0.60);
+    edges->GetProperty()->LightingOff();
+    edges->PickableOff();
+    m_edgesActor = edges;
+    edges->Register(nullptr);
     showLayer(m_layouts->currentIndex());
     setCamera(-1, -1, -1, 0, 0, 1);
 
@@ -1018,7 +1058,7 @@ int MainWindow::faceAt(const QPoint &at)
     if (!m_surfaceLocator) {
         // Built once per mesh: a ray finds its triangle without trying all.
         m_surfaceLocator = vtkSmartPointer<vtkStaticCellLocator>::New();
-        m_surfaceLocator->SetDataSet(m_surface);
+        m_surfaceLocator->SetDataSet(m_drawn);  // what the picker sees
         m_surfaceLocator->BuildLocator();
     }
     vtkNew<vtkCellPicker> picker;
@@ -1072,22 +1112,25 @@ void MainWindow::pickAt(const QPoint &at, bool add)
 void MainWindow::lightFaces(const std::vector<int> &faces)
 {
     m_lit = faces;
-    if (!m_surface)
+    if (!m_surface || !m_drawn)
         return;
     vtkDataArray *face = m_surface->GetCellData()->GetArray("face");
     vtkNew<vtkUnsignedCharArray> colours;
     colours->SetName("colours");
     colours->SetNumberOfComponents(3);
-    colours->SetNumberOfTuples(m_surface->GetNumberOfCells());
+    colours->SetNumberOfTuples(m_drawn->GetNumberOfPoints());
     for (vtkIdType c = 0; c < m_surface->GetNumberOfCells(); ++c) {
         const int f = face ? int(face->GetComponent(c, 0)) : 0;
         const bool lit = std::find(faces.begin(), faces.end(), f) != faces.end();
         // Light grey so the part reads on graphite; ember where lit; pale
         // ember under the mouse (FreeCAD's preselection, in our colour).
         const QColor c3 = lit ? ember : f > 0 && f == m_hovered ? QColor(250, 160, 110) : QColor(219, 222, 227);
-        colours->SetTypedTuple(c, std::array<unsigned char, 3>{uchar(c3.red()), uchar(c3.green()), uchar(c3.blue())}.data());
+        const std::array<unsigned char, 3> rgb{uchar(c3.red()), uchar(c3.green()), uchar(c3.blue())};
+        for (int k = 0; k < 3; ++k)  // the triangle's own three points
+            colours->SetTypedTuple(3 * c + k, rgb.data());
     }
-    m_surface->GetCellData()->SetScalars(colours);
+    m_drawn->GetPointData()->SetScalars(colours);
+    m_drawn->Modified();
     m_view->renderWindow()->Render();
 }
 
@@ -1411,6 +1454,7 @@ void MainWindow::showLayer(int layout)
         m_renderer->AddActor2D(m_scalarBar);
     } else if (m_meshActor) {
         m_renderer->AddActor(m_meshActor);
+        m_renderer->AddActor(m_edgesActor);
     }
     m_view->renderWindow()->Render();
 }

@@ -456,6 +456,14 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, curved faces drawn curved: the volume case
+# red with corner triangles only (8706.38 against 8699.69 both ways), the
+# edges case red against a stub. The bound was first a quarter of the
+# corner triangles' error; the split met it at 0.2501 (half the spacing
+# quarters a chord's sag), so it asks below half. Drawing it found that
+# per-triangle colours (cell scalars) are not drawn at all on Mesa's
+# llvmpipe once a mesh's own edges are off: the four ember cases red; drawn
+# with three points per triangle and point colours: green.
 # NEGATIVE CHECKS, 2026-11-17, renaming and deleting groups: the cases red
 # against stubs (13 checks) and before Properties offered it; then the
 # supports and loads not renamed: red; the material assignment not renamed

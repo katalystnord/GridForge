@@ -149,9 +149,11 @@ private:
     ResultsFile m_results;
     int m_increment = 0;
     vtkActor *m_meshActor = nullptr;     // owned by the renderer while shown
+    vtkActor *m_edgesActor = nullptr;    // the mesh's element edges, drawn over it
     vtkActor *m_resultsActor = nullptr;
     vtkScalarBarActor *m_scalarBar = nullptr;
-    vtkSmartPointer<vtkPolyData> m_surface;  // the mesh as shown, each triangle with its geometry face
+    vtkSmartPointer<vtkPolyData> m_surface;  // the mesh's outside, each triangle with its geometry face
+    vtkSmartPointer<vtkPolyData> m_drawn;    // the same triangles as drawn, three points each
     size_t m_meshOwnSets = 0;
     std::vector<int> m_picked;  // faces picked in the view, in order
     std::vector<int> m_lit;     // faces lit in ember now
