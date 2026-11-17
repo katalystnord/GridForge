@@ -212,7 +212,13 @@ same arrangement as above, which the `.ui` files confirm.
 Built from ParaView's own components where they fit (as tomviz is): Qt
 `QDockWidget` docks, ParaView's tabbing of docks, plain Fusion, no QSS.
 
-### Proposal A (recommended): ParaView's layout, one study tree
+### Proposal A (chosen by David, 2026-11-17): ParaView's layout, one study tree
+
+David, 2026-11-17: "Definitely alternative A", with icons, borrowing
+heavily from ParaView. Since this survey: Python became an optional
+toolkit (a console dock once it exists), and the mesh is GridForge's own
+(gf_mesh, Netgen); the drawing at https://claude.ai/artifact/Xk83LLMjzSw4XAQfen22pt
+shows A with the dogbone study in it.
 
 ```
 +--------------------------------------------------------------------------------+

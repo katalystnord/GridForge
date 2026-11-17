@@ -67,6 +67,9 @@ plan: [ROADMAP.md](ROADMAP.md) (DRAFT). Earlier notes:
   paths by hand). It works the other way too: from inside GridForge,
   Python reaches out to other tools and libraries. How it is wired (an importable module, a console in
   the window, the local API) is decided when it is built.
+- **The window (David, 2026-11-17):** ParaView's layout with one study
+  tree (docs/survey/gui-layouts.md, proposal A), ParaView's icons and
+  conventions borrowed heavily (docs/survey/kitware-icons.md).
 - **Independent kit**: TenSense and SurView hand files across; no code is
   shared or linked with them.
 - **Stack:** C++20, Qt 6 (LGPL modules only: never Qt Charts, Graphs,

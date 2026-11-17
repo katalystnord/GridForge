@@ -122,6 +122,10 @@ logic are in Phase 0; each phase below adds to the door what it needs.
 
 ## Phase 3: The window, release 0.1 (L)
 
+Layout: proposal A of docs/survey/gui-layouts.md, ParaView's layout with
+one study tree (David, 2026-11-17), with ParaView's icons
+(docs/survey/kitware-icons.md, section 6).
+
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.
 - Geometry in: `.brep` + the group file from a FreeCAD macro we ship;
