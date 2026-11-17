@@ -408,7 +408,10 @@ set_tests_properties(cli_solves_a_setup_through_its_toolkit PROPERTIES
 # --- Walkthrough: the real window (layout A) --------------------------------
 add_executable(test_main_window_walkthrough test_main_window_walkthrough.cpp)
 target_link_libraries(test_main_window_walkthrough PRIVATE gf_gui Qt6::Test)
-target_compile_definitions(test_main_window_walkthrough PRIVATE GF_EXAMPLES="${CMAKE_SOURCE_DIR}/examples")
+target_compile_definitions(test_main_window_walkthrough PRIVATE GF_EXAMPLES="${CMAKE_SOURCE_DIR}/examples"
+    GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    GF_ADAPTER_DIR="$<TARGET_FILE_DIR:gf-calculix>")
+add_dependencies(test_main_window_walkthrough gf-calculix)
 vtk_module_autoinit(TARGETS test_main_window_walkthrough MODULES ${VTK_LIBRARIES})
 # HEADLESS BY CONSTRUCTION (TenSense's and SurView's lesson): the test shows
 # real windows, so it runs on its own private X server (xvfb-run, 24-bit
@@ -429,6 +432,12 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, running from the window: the run, stop and
+# no-ccx cases written first, red (Run disabled for ever). Then: Stop not
+# wired: the stop case red; every run in runs/1: the window case and the
+# study case red. The mesh case went red once the run cases were added
+# (meshing() said done before the window had taken the mesh in); meshing()
+# now stays true until it has.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

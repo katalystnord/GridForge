@@ -14,6 +14,7 @@ add_library(gf_core STATIC
     core/Job.cpp
     core/Study.cpp
     core/StudyOutline.cpp
+    core/JobRunner.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel
@@ -89,6 +90,8 @@ set_target_properties(gf_gui PROPERTIES AUTORCC ON)
 target_link_libraries(gf_gui PUBLIC gf_core gf_mesh Qt6::Widgets Qt6::OpenGLWidgets Qt6::Concurrent
     VTK::FiltersGeometry VTK::RenderingCore VTK::RenderingOpenGL2 VTK::InteractionStyle VTK::GUISupportQt)
 vtk_module_autoinit(TARGETS gf_gui MODULES ${VTK_LIBRARIES})
+target_compile_definitions(gf_gui PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits")
+add_dependencies(gf_gui gf-calculix)
 
 add_executable(GridForge gui/main.cpp)
 target_link_libraries(GridForge PRIVATE gf_gui)

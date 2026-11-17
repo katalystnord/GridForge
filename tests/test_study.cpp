@@ -236,6 +236,20 @@ CASE(every_kind_of_load_and_support_reads_in_the_studys_units)
     CHECK(got.contains("    Gravity: every solid | z -9.81 m/s2"));
 }
 
+CASE(each_run_of_a_step_gets_its_own_folder)
+{
+    // Every run's outputs are kept (David, 2026-11-17): runs/1, runs/2, ...
+    QTemporaryDir dir;
+    QFile::copy(dogbone + "/study.json", QDir(dir.path()).filePath("study.json"));
+    Study s;
+    s.folder = dir.path();
+    const QString one = nextRunFolder(s, "solve"), two = nextRunFolder(s, "solve");
+    CHECK(one == QDir(dir.path()).filePath("steps/solve/runs/1") && QDir(one).exists());
+    CHECK(two == QDir(dir.path()).filePath("steps/solve/runs/2") && QDir(two).exists());
+    QDir(dir.path()).mkpath("steps/solve/runs/9");
+    CHECK(nextRunFolder(s, "solve").endsWith("runs/10"));
+}
+
 CASE(a_folder_without_a_study_is_said)
 {
     QTemporaryDir dir;

@@ -10,7 +10,10 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
 #include <QDockWidget>
+#include <QFile>
+#include <QFileInfo>
 #include <QElapsedTimer>
 #include <QFormLayout>
 #include <QLabel>
@@ -33,14 +36,36 @@
 #include <unistd.h>
 #include <vector>
 
-#ifndef GF_EXAMPLES
-#error "GF_EXAMPLES must point at examples/"
+#if !defined(GF_EXAMPLES) || !defined(GF_FIXTURES) || !defined(GF_ADAPTER_DIR)
+#error "GF_EXAMPLES and GF_FIXTURES must be defined"
 #endif
 
 using gf::gui::MainWindow;
 
 namespace {
 QString screenshot;  // --screenshot FILE
+
+// The box study copied into `dir` (runs land in the copy), its path.
+QString boxStudy(QTemporaryDir &dir)
+{
+    const QString from = QString(GF_FIXTURES) + "/studies/box-tension", to = QDir(dir.path()).filePath("box-tension");
+    QDir().mkpath(to);
+    for (const char *f : {"study.json", "box.step"})
+        QFile::copy(from + "/" + f, to + "/" + f);
+    return to;
+}
+
+// ccx stood in for by fixtures/fake-ccx, replaying ccx 2.23's own files for
+// box-setup (which has this study's mesh); slow, to be cancelled.
+void stand_in_ccx(bool slow)
+{
+    qputenv("GF_CCX", QByteArray(GF_FIXTURES) + "/fake-ccx/ccx");
+    qputenv("FAKE_CCX_FROM", QByteArray(GF_FIXTURES) + "/calculix/box-setup");
+    if (slow)
+        qputenv("FAKE_CCX_SLOW", "1");
+    else
+        qunsetenv("FAKE_CCX_SLOW");
+}
 
 QStringList topLevel(QTreeWidget *t)
 {
@@ -159,6 +184,76 @@ private slots:
         }
     }
 
+    void run_waits_for_the_mesh()
+    {
+        MainWindow w;
+        w.show();
+        auto *run = w.findChild<QAction *>("run");
+        QVERIFY(run && !run->isEnabled());
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QVERIFY(!run->isEnabled());  // meshing
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        QTRY_VERIFY(run->isEnabled());
+    }
+
+    void a_solve_runs_from_the_window_and_says_its_progress()
+    {
+        stand_in_ccx(false);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        w.findChild<QAction *>("run")->trigger();
+        auto *job = w.findChild<QPlainTextEdit *>("job");
+        QTRY_VERIFY_WITH_TIMEOUT(job->toPlainText().contains("100%  step 1, increment 1"), 60000);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"), 60000);
+        QCOMPARE(findItem(tree, "Results")->text(1), QString("run 1, solved by CalculiX Version 2.23"));
+        QVERIFY(QFileInfo(QDir(dir.path()).filePath("box-tension/steps/solve/runs/1/results/results.vtkhdf")).isFile());
+        QVERIFY(w.findChild<QAction *>("run")->isEnabled() && !w.findChild<QAction *>("stop")->isEnabled());
+        // A second run keeps the first (every run's outputs kept).
+        w.findChild<QAction *>("run")->trigger();
+        QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 2)"), 60000);
+        QVERIFY(QDir(QDir(dir.path()).filePath("box-tension/steps/solve/runs/1")).exists());
+    }
+
+    void stop_cancels_a_running_solve()
+    {
+        stand_in_ccx(true);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        w.findChild<QAction *>("run")->trigger();
+        auto *job = w.findChild<QPlainTextEdit *>("job");
+        QTRY_VERIFY_WITH_TIMEOUT(job->toPlainText().contains("step 1, increment 1"), 30000);
+        auto *stop = w.findChild<QAction *>("stop");
+        QVERIFY(stop->isEnabled());
+        stop->trigger();
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, cancelled (run 1)"), 15000);
+        QVERIFY(job->toPlainText().contains("cancelled: ccx stopped after step 1, increment 1"));
+        stand_in_ccx(false);
+    }
+
+    void no_ccx_is_said_and_nothing_runs()
+    {
+        qputenv("GF_CCX", "/no/such/ccx");
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        w.findChild<QAction *>("run")->trigger();
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "no solve toolkit for structural.static is ready; CalculiX: missing ccx"));
+        QVERIFY(!QDir(QDir(dir.path()).filePath("box-tension/steps")).exists());
+        stand_in_ccx(false);
+    }
+
     void a_study_that_cannot_be_read_is_said_in_messages()
     {
         MainWindow w;
@@ -206,6 +301,9 @@ int main(int argc, char *argv[])
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat());
     QApplication app(n, rest.data());
     Q_INIT_RESOURCE(icons);
+    // The CalculiX adapter, as the window finds it beside itself when
+    // installed; here it is in the build's src/.
+    qputenv("PATH", QByteArray(GF_ADAPTER_DIR) + ":" + qgetenv("PATH"));
     MainWindowWalkthrough test;
     return QTest::qExec(&test, n, rest.data());
 }

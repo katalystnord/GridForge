@@ -28,6 +28,7 @@
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
 #include "core/Job.h"
+#include "core/JobRunner.h"
 #include "core/MaterialCard.h"
 #include "core/Toolkit.h"
 #include "core/Setup.h"
@@ -44,6 +45,8 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QElapsedTimer>
+#include <QEventLoop>
+#include <QTimer>
 #include <QProcess>
 #include <QSaveFile>
 
@@ -248,88 +251,70 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     // searched for its command first (the shipped adapters sit beside it).
     qputenv("PATH", (QCoreApplication::applicationDirPath() + ":" + qEnvironmentVariable("PATH")).toLocal8Bit());
     const gf::core::ToolkitSet toolkits = gf::core::findToolkits({GF_SHIPPED_TOOLKITS});
-    std::vector<gf::core::Offer> offers = toolkits.offers("solve", "structural.static", {});
-    const gf::core::Toolkit *toolkit = nullptr;
-    for (const gf::core::Offer &o : offers)
-        if (o.can && !toolkit && gf::core::availability(*o.toolkit).ready)
-            toolkit = o.toolkit;
+    QString why;
+    const gf::core::Toolkit *toolkit = gf::core::readyToolkit(toolkits, "solve", "structural.static", &why);
     if (!toolkit) {
-        std::fprintf(stderr, "gf-study: no solve toolkit for structural.static is ready\n");
-        for (const gf::core::Offer &o : offers)
-            std::fprintf(stderr, "  %s: %s\n", qPrintable(o.toolkit->name),
-                         qPrintable(o.can ? "missing " + gf::core::availability(*o.toolkit).missing.join(", ") : o.why));
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(why));
         return 1;
     }
-    const QStringList command = gf::core::commandFor(*toolkit, QDir(jobDir).absolutePath());
-    std::printf("solving with %s (%s)\n", qPrintable(toolkit->name), qPrintable(command.join(' ')));
+    std::printf("solving with %s (%s)\n", qPrintable(toolkit->name),
+                qPrintable(gf::core::commandFor(*toolkit, QDir(jobDir).absolutePath()).join(' ')));
     std::fflush(stdout);
 
-    // Ctrl+C cancels: the toolkit is sent SIGTERM (toolkits spec, 5), and
-    // SIGKILL if it has not stopped 10 s later.
+    // The same runner as the window's. Ctrl+C cancels: the toolkit is asked
+    // to stop (SIGTERM, toolkits spec 5), and killed 10 s later if not.
     struct sigaction interrupt = {};
     interrupt.sa_handler = onInterrupt;
     sigaction(SIGINT, &interrupt, nullptr);
-    QProcess process;
-    process.setProcessChannelMode(QProcess::ForwardedErrorChannel);
-    process.start(command.first(), command.mid(1));
-    if (!process.waitForStarted(10000)) {
-        std::fprintf(stderr, "gf-study: %s did not start\n", qPrintable(command.first()));
-        return 1;
-    }
-    QByteArray pending;
+    gf::core::JobRunner runner;
+    QEventLoop loop;
+    int code = 1;
     QString result;
-    auto show = [&](const QByteArray &line) {
-        const QJsonObject o = QJsonDocument::fromJson(line).object();
-        const QString type = o["type"].toString();
-        if (type == "progress")
-            std::printf("  %3.0f%%  %s\n", 100 * o["fraction"].toDouble(), qPrintable(o["text"].toString()));
-        else if (type == "metric")
-            std::printf("        %s: %g (%s)\n", qPrintable(o["name"].toString()), o["value"].toDouble(),
-                        qPrintable(o["text"].toString()));
-        else if (type == "log")
-            std::printf("  %s: %s\n", qPrintable(o["level"].toString()), qPrintable(o["text"].toString()));
-        else if (type == "file")
-            result = o["path"].toString();
-        else if (!line.trimmed().isEmpty())
-            std::printf("  %s\n", line.constData());  // kept, as the spec says: anything else is the log
+    QObject::connect(&runner, &gf::core::JobRunner::line, [](const gf::core::ProtocolLine &l) {
+        using Type = gf::core::ProtocolLine::Type;
+        if (l.type == Type::Progress)
+            std::printf("  %3.0f%%  %s\n", 100 * l.fraction, qPrintable(l.text));
+        else if (l.type == Type::Metric)
+            std::printf("        %s: %g (%s)\n", qPrintable(l.name), l.value, qPrintable(l.text));
+        else if (l.type == Type::Log)
+            std::printf("  %s: %s\n", qPrintable(l.level), qPrintable(l.text));
+        else if (l.type == Type::Other)
+            std::printf("  %s\n", qPrintable(l.text));  // kept, as the spec says: anything else is the log
         std::fflush(stdout);
-    };
-    bool stopping = false;
-    QElapsedTimer sinceStop;
-    while (process.state() != QProcess::NotRunning) {
-        if (interrupted && !stopping) {
+    });
+    QObject::connect(&runner, &gf::core::JobRunner::finished, [&](int exit, const QString &results, bool) {
+        code = exit;
+        result = results;
+        loop.quit();
+    });
+    QTimer watchInterrupt;
+    QObject::connect(&watchInterrupt, &QTimer::timeout, [&] {
+        if (interrupted && runner.running()) {
+            interrupted = 0;
             std::printf("  cancelling: %s asked to stop\n", qPrintable(toolkit->name));
             std::fflush(stdout);
-            process.terminate();
-            stopping = true;
-            sinceStop.start();
+            runner.stop();
         }
-        if (stopping && sinceStop.elapsed() > 10000)
-            process.kill();
-        process.waitForReadyRead(200);
-        pending += process.readAllStandardOutput();
-        qsizetype nl;
-        while ((nl = pending.indexOf('\n')) >= 0) {
-            show(pending.left(nl));
-            pending.remove(0, nl + 1);
-        }
+    });
+    watchInterrupt.start(100);
+    if (!runner.start(*toolkit, jobDir, &why)) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(why));
+        return 1;
     }
-    pending += process.readAllStandardOutput();
-    for (const QByteArray &line : pending.split('\n'))
-        show(line);
-    if (stopping || process.exitCode() == 3) {
+    loop.exec();
+    if (code == 3) {
         std::printf("cancelled; the job's files are kept in %s\n", qPrintable(QDir(jobDir).absolutePath()));
         return 3;
     }
-    if (process.exitCode() != 0 || result.isEmpty()) {
-        std::fprintf(stderr, "gf-study: %s stopped with exit code %d\n", qPrintable(toolkit->name), process.exitCode());
+    if (code != 0 || result.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s stopped with exit code %d\n", qPrintable(toolkit->name), code);
         return 1;
     }
     QFile reportFile(QDir(jobDir).filePath("results/results.json"));
     reportFile.open(QIODevice::ReadOnly);
     const QJsonObject report = QJsonDocument::fromJson(reportFile.readAll()).object();
-    std::printf("results: %s (%s by %s)\n", qPrintable(QDir(jobDir).absoluteFilePath(result)),
-                qPrintable(report["trust"].toString()), qPrintable(report["solver"].toString()));
+    std::printf("results: %s (%s by %s)\n", qPrintable(result), qPrintable(report["trust"].toString()),
+                qPrintable(report["solver"].toString()));
     return 0;
 }
 

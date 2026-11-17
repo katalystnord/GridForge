@@ -14,6 +14,7 @@
 //
 // The window never waits (tenet 7): meshing runs on another thread.
 
+#include "core/JobRunner.h"
 #include "core/ResultsSeries.h"
 #include "core/Study.h"
 
@@ -24,6 +25,8 @@ class QComboBox;
 class QDockWidget;
 class QLabel;
 class QPlainTextEdit;
+class QProgressBar;
+class QAction;
 class QTabBar;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -55,7 +58,9 @@ public:
     bool openStudy(const QString &path);
 
     const gf::core::Study &study() const { return m_study; }
-    bool meshing() const { return m_meshWatch.isRunning(); }
+    // True from the start of meshing until the window has taken the mesh
+    // in (or said why not), not only while the meshing thread runs.
+    bool meshing() const { return m_meshPending; }
 
 signals:
     void meshReady();
@@ -68,11 +73,20 @@ private:
     void startMeshing();
     void onMeshed();
     void setCamera(double dx, double dy, double dz, double ux, double uy, double uz);
+    void run();
+    void onJobLine(const gf::core::ProtocolLine &line);
+    void onJobFinished(int exitCode, const QString &results, bool stopped);
+    void setJobState(const QString &state);
+    void updateActions();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
     int m_opening = 0;  // counts openStudy calls; a mesh for an older one is dropped
+    bool m_meshPending = false;
     QFutureWatcher<MeshDone> m_meshWatch;
+    gf::core::JobRunner m_runner;
+    QString m_solveStep, m_toolkitName;
+    int m_runNumber = 0;
 
     QVTKOpenGLNativeWidget *m_view = nullptr;
     vtkRenderer *m_renderer = nullptr;
@@ -86,6 +100,9 @@ private:
     QPlainTextEdit *m_deck = nullptr;
     QComboBox *m_step = nullptr;
     QLabel *m_units = nullptr;
+    QProgressBar *m_progress = nullptr;
+    QAction *m_runAction = nullptr;
+    QAction *m_stopAction = nullptr;
 };
 
 } // namespace gf::gui

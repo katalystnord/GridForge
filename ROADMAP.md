@@ -132,8 +132,11 @@ with FreeCAD's FEM icons and ParaView's; Properties (read-only for now)
 and Information; Messages, Job, Steps and Deck docks; ParaView's camera
 toolbar; units in the status bar; the mesh made on another thread and
 shown as ParaView's "Surface With Edges", its quality in the tree. A
-walkthrough test on a private X server. Next: running a solve from the
-window (the Job dock, progress, cancel), results in the view with the
+walkthrough test on a private X server. Running a solve from the window:
+Run (F5) and Stop, the Job dock filled as the toolkit reports, progress
+in the status bar, each run in its own folder (steps/<id>/runs/<n>), the
+tree saying solved, cancelled or failed; gf-study solve and the window
+share one runner (core::JobRunner). Next: results in the view with the
 increments, editing in Properties, picking faces.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led

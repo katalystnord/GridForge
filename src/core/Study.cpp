@@ -6,6 +6,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
+#include <algorithm>
+
 namespace gf::core {
 
 const StudyStep *Study::step(const QString &id) const
@@ -116,6 +118,17 @@ Study read(const QString &path)
 }
 
 } // namespace
+
+QString nextRunFolder(const Study &study, const QString &stepId)
+{
+    const QDir runs(QDir(study.folder).filePath("steps/" + stepId + "/runs"));
+    int highest = 0;
+    for (const QString &name : runs.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+        highest = std::max(highest, name.toInt());
+    const QString next = runs.filePath(QString::number(highest + 1));
+    QDir().mkpath(next);
+    return next;
+}
 
 Study readStudy(const QString &path, QString *error)
 {

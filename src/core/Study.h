@@ -46,6 +46,10 @@ struct Study {
     std::vector<const StudyStep *> stepsOf(const QString &kind) const;
 };
 
+// The folder for a step's next run, made: <study>/steps/<id>/runs/<n>, n
+// one past the highest there (study spec 2.2 and 5: every run kept).
+QString nextRunFolder(const Study &study, const QString &stepId);
+
 // Reads <folder>/study.json (or the file itself if a path to it is given).
 // On a fault, an empty study and *error saying what and where.
 Study readStudy(const QString &path, QString *error);

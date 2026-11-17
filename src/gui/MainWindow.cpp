@@ -1,7 +1,10 @@
 #include "gui/MainWindow.h"
 
 #include "core/ApplicationInfo.h"
+#include "core/Job.h"
+#include "core/MaterialCard.h"
 #include "core/StudyOutline.h"
+#include "core/Toolkit.h"
 #include "mesh/Groups.h"
 #include "mesh/Mesher.h"
 #include "mesh/Quality.h"
@@ -15,7 +18,11 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenuBar>
+#include <QCoreApplication>
+#include <QFile>
+#include <QJsonDocument>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QToolBar>
@@ -133,9 +140,17 @@ MainWindow::MainWindow(QWidget *parent)
     buildDocks();
     buildActions();
 
+    m_progress = new QProgressBar(this);
+    m_progress->setObjectName(QStringLiteral("jobProgress"));
+    m_progress->setRange(0, 100);
+    m_progress->setMaximumWidth(160);
+    m_progress->setVisible(false);
+    statusBar()->addPermanentWidget(m_progress);
     m_units = new QLabel(this);
     m_units->setObjectName(QStringLiteral("units"));
     statusBar()->addPermanentWidget(m_units);
+    connect(&m_runner, &core::JobRunner::line, this, &MainWindow::onJobLine);
+    connect(&m_runner, &core::JobRunner::finished, this, &MainWindow::onJobFinished);
     statusBar()->showMessage(tr("Open a study (File, Open Study)"));
 
     connect(&m_meshWatch, &QFutureWatcher<MeshDone>::finished, this, &MainWindow::onMeshed);
@@ -236,14 +251,18 @@ void MainWindow::buildActions()
 
     QToolBar *runBar = addToolBar(tr("Run"));
     runBar->setObjectName(QStringLiteral("runToolbar"));
-    QAction *runAction = run->addAction(icon("pqVcrPlay"), tr("&Run"));
-    runAction->setObjectName(QStringLiteral("run"));
-    runAction->setEnabled(false);  // the next slice
-    QAction *stop = run->addAction(icon("pqCancel"), tr("&Stop"));
-    stop->setObjectName(QStringLiteral("stop"));
-    stop->setEnabled(false);
-    runBar->addAction(runAction);
-    runBar->addAction(stop);
+    m_runAction = run->addAction(icon("pqVcrPlay"), tr("&Run"));
+    m_runAction->setObjectName(QStringLiteral("run"));
+    m_runAction->setShortcut(Qt::Key_F5);
+    m_runAction->setToolTip(tr("Solve the study (F5)"));
+    connect(m_runAction, &QAction::triggered, this, &MainWindow::run);
+    m_stopAction = run->addAction(icon("pqCancel"), tr("&Stop"));
+    m_stopAction->setObjectName(QStringLiteral("stop"));
+    m_stopAction->setToolTip(tr("Stop the solve; its files are kept"));
+    connect(m_stopAction, &QAction::triggered, &m_runner, &core::JobRunner::stop);
+    runBar->addAction(m_runAction);
+    runBar->addAction(m_stopAction);
+    updateActions();
 
     QToolBar *camera = addToolBar(tr("Camera"));
     camera->setObjectName(QStringLiteral("cameraToolbar"));
@@ -368,6 +387,7 @@ void MainWindow::startMeshing()
     const core::Setup setup = m_study.setup;
     const int opening = m_opening;
     say(tr("Meshing %1...").arg(input->file));
+    m_meshPending = true;
     // On another thread: the window keeps answering (tenet 7). It touches
     // nothing of the window's; the result comes back through the future.
     // A meshing for a study opened before may still run: it touches nothing
@@ -388,6 +408,7 @@ void MainWindow::onMeshed()
     const MeshDone done = m_meshWatch.result();
     if (done.opening != m_opening)
         return;  // for a study since replaced
+    m_meshPending = false;
     if (!done.error.isEmpty() || done.mesh.points.empty()) {
         say(tr("The mesh could not be made: %1").arg(done.error), true);
         return;
@@ -420,7 +441,126 @@ void MainWindow::onMeshed()
     }
     m_information->setText(mesh::summary(quality).join('\n'));
     say(tr("Meshed: %1").arg(detail));
+    updateActions();
     emit meshReady();
+}
+
+void MainWindow::updateActions()
+{
+    const bool meshed = !m_mesh.points.empty();
+    m_runAction->setEnabled(meshed && !m_runner.running() && !m_study.stepsOf("solve").empty());
+    m_stopAction->setEnabled(m_runner.running());
+}
+
+void MainWindow::setJobState(const QString &state)
+{
+    QTreeWidgetItem *item = nullptr;
+    for (QTreeWidgetItem *i : m_tree->findItems(m_solveStep, Qt::MatchExactly | Qt::MatchRecursive))
+        if (i->data(0, Qt::UserRole + 1).toString() == "job")
+            item = i;
+    if (item) {
+        item->setText(1, QString("%1, %2").arg(m_toolkitName, state));
+        item->setToolTip(1, item->text(1));
+    }
+}
+
+void MainWindow::run()
+{
+    const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
+    if (solves.empty() || m_mesh.points.empty() || m_runner.running())
+        return;
+    const core::StudyStep &step = *solves.front();
+
+    // The toolkit, found by its manifest; the shipped adapters sit beside
+    // the window's own program.
+    const QString here = QCoreApplication::applicationDirPath();
+    if (!qEnvironmentVariable("PATH").startsWith(here + ":"))
+        qputenv("PATH", (here + ":" + qEnvironmentVariable("PATH")).toLocal8Bit());
+    const core::ToolkitSet toolkits = core::findToolkits({GF_SHIPPED_TOOLKITS});
+    QString why;
+    const core::Toolkit *toolkit = core::readyToolkit(toolkits, "solve", step.parameters["kind"].toString("structural.static"), &why);
+    if (!toolkit) {
+        say(tr("Cannot run: %1").arg(why), true);
+        return;
+    }
+
+    // The set-up filled from its cards; the job folder for this run.
+    core::Setup setup = m_study.setup;
+    if (!core::fillFromCards(setup, m_study.folder, &why)) {
+        say(tr("Cannot run: %1").arg(why), true);
+        return;
+    }
+    const QString folder = core::nextRunFolder(m_study, step.id);
+    if (!core::writeSolveJob(folder, step.parameters["kind"].toString("structural.static"), setup,
+                             m_study.setupJson, m_study.folder, m_mesh, &why)) {
+        say(tr("Cannot run: %1").arg(why), true);
+        return;
+    }
+    m_solveStep = step.id;
+    m_toolkitName = toolkit->name;
+    m_runNumber = QDir(folder).dirName().toInt();
+    m_job->clear();
+    m_job->appendPlainText(tr("Run %1 with %2, in %3").arg(m_runNumber).arg(toolkit->name, folder));
+    if (auto *d = findChild<QDockWidget *>("jobDock"))
+        d->raise();
+    if (!m_runner.start(*toolkit, folder, &why)) {
+        say(tr("Cannot run: %1").arg(why), true);
+        return;
+    }
+    setJobState(tr("running (run %1)").arg(m_runNumber));
+    m_progress->setValue(0);
+    m_progress->setVisible(true);
+    say(tr("Solving with %1 (run %2)...").arg(toolkit->name).arg(m_runNumber));
+    updateActions();
+}
+
+void MainWindow::onJobLine(const core::ProtocolLine &l)
+{
+    using Type = core::ProtocolLine::Type;
+    switch (l.type) {
+    case Type::Progress:
+        m_job->appendPlainText(QString("%1%  %2").arg(100 * l.fraction, 3, 'f', 0).arg(l.text));
+        m_progress->setValue(qRound(100 * l.fraction));
+        statusBar()->showMessage(tr("%1: %2").arg(m_toolkitName, l.text));
+        break;
+    case Type::Metric:
+        m_job->appendPlainText(QString("        %1: %2 (%3)").arg(l.name).arg(l.value).arg(l.text));
+        break;
+    case Type::Log:
+        m_job->appendPlainText(QString("  %1: %2").arg(l.level, l.text));
+        if (l.level == "warning" || l.level == "error")
+            m_messages->appendPlainText(QString("%1 (%2): %3").arg(m_toolkitName, l.level, l.text));
+        break;
+    case Type::File:
+        break;
+    case Type::Other:
+        m_job->appendPlainText("  " + l.text);
+        break;
+    }
+}
+
+void MainWindow::onJobFinished(int exitCode, const QString &results, bool)
+{
+    m_progress->setVisible(false);
+    if (exitCode == 3) {
+        setJobState(tr("cancelled (run %1)").arg(m_runNumber));
+        say(tr("Run %1 cancelled; its files are kept").arg(m_runNumber));
+    } else if (exitCode != 0 || results.isEmpty()) {
+        setJobState(tr("failed (run %1)").arg(m_runNumber));
+        say(tr("Run %1 failed (exit code %2): see the Job dock").arg(m_runNumber).arg(exitCode), true);
+    } else {
+        QFile report(QFileInfo(results).absoluteDir().filePath("results.json"));
+        report.open(QIODevice::ReadOnly);
+        const QJsonObject r = QJsonDocument::fromJson(report.readAll()).object();
+        setJobState(tr("solved (run %1)").arg(m_runNumber));
+        const QString detail = tr("run %1, %2 by %3").arg(m_runNumber).arg(r["trust"].toString(), r["solver"].toString());
+        for (QTreeWidgetItem *i : m_tree->findItems(tr("Results"), Qt::MatchExactly)) {
+            i->setText(1, detail);
+            i->setToolTip(1, results);
+        }
+        say(tr("Run %1 solved: %2").arg(m_runNumber).arg(results));
+    }
+    updateActions();
 }
 
 } // namespace gf::gui

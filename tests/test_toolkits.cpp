@@ -4,6 +4,7 @@
 // can do what a study needs and why another cannot, and refuse a broken
 // manifest with its reason.
 
+#include "core/JobRunner.h"
 #include "core/Toolkit.h"
 
 #include <QCoreApplication>
@@ -149,6 +150,25 @@ CASE(a_required_program_may_be_named_by_the_environment)
     CHECK(!availability(*t).ready);  // named, but not there: still missing
     qunsetenv("GF_NO_SUCH_PROGRAM_GF_TEST");
     CHECK(!availability(*t).ready);
+}
+
+CASE(the_protocol_lines_are_read_by_type)
+{
+    // toolkits spec, section 5: one JSON object per line; anything else is
+    // the log, kept as text.
+    ProtocolLine p = readProtocolLine(R"({"type": "progress", "fraction": 0.42, "text": "step 1, increment 7"})");
+    CHECK(p.type == ProtocolLine::Type::Progress && p.fraction == 0.42 && p.text == "step 1, increment 7");
+    p = readProtocolLine(R"({"type": "metric", "name": "force residual", "value": 3.1e-5, "text": "iteration 2"})");
+    CHECK(p.type == ProtocolLine::Type::Metric && p.name == "force residual" && p.value == 3.1e-5
+          && p.text == "iteration 2");
+    p = readProtocolLine(R"({"type": "log", "level": "warning", "text": "PE below 0"})");
+    CHECK(p.type == ProtocolLine::Type::Log && p.level == "warning" && p.text == "PE below 0");
+    p = readProtocolLine(R"({"type": "file", "path": "results/results.vtkhdf"})");
+    CHECK(p.type == ProtocolLine::Type::File && p.path == "results/results.vtkhdf");
+    p = readProtocolLine("ccx printed this");
+    CHECK(p.type == ProtocolLine::Type::Other && p.text == "ccx printed this");
+    p = readProtocolLine(R"({"type": "something new"})");
+    CHECK(p.type == ProtocolLine::Type::Other && p.text == R"({"type": "something new"})");
 }
 
 CASE(the_command_names_the_job_folder)

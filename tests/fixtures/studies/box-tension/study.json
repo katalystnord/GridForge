@@ -1,0 +1,111 @@
+{
+  "format": "gridforge-study",
+  "version": "1.0",
+  "steps": [
+    {
+      "id": "part",
+      "kind": "input",
+      "file": "box.step"
+    },
+    {
+      "id": "mesh",
+      "kind": "mesh",
+      "by": "gridforge",
+      "inputs": {
+        "geometry": "part.file"
+      },
+      "parameters": {
+        "maxSize": 5,
+        "order": 2
+      }
+    },
+    {
+      "id": "solve",
+      "kind": "solve",
+      "by": {
+        "toolkit": "calculix"
+      },
+      "inputs": {
+        "mesh": "mesh.mesh"
+      },
+      "parameters": {
+        "kind": "structural.static"
+      }
+    }
+  ],
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Steel part": {
+        "solids": [
+          1
+        ]
+      },
+      "Back": {
+        "faces": [
+          1
+        ]
+      },
+      "Side": {
+        "faces": [
+          3
+        ]
+      },
+      "Bottom": {
+        "faces": [
+          5
+        ]
+      },
+      "Pulled": {
+        "faces": [
+          2
+        ]
+      }
+    },
+    "materials": {
+      "Steel": {
+        "values": {
+          "YoungsModulus": 210000,
+          "PoissonRatio": 0.3
+        }
+      }
+    },
+    "assign": {
+      "Steel part": "Steel"
+    },
+    "supports": [
+      {
+        "group": "Back",
+        "symmetry": true
+      },
+      {
+        "group": "Side",
+        "symmetry": true
+      },
+      {
+        "group": "Bottom",
+        "symmetry": true
+      }
+    ],
+    "steps": [
+      {
+        "name": "Pull",
+        "kind": "static",
+        "loads": [
+          {
+            "group": "Pulled",
+            "displacement": {
+              "x": 0.01
+            }
+          }
+        ],
+        "output": [
+          "displacement",
+          "reaction",
+          "stress",
+          "strain"
+        ]
+      }
+    ]
+  }
+}

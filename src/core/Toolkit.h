@@ -71,6 +71,10 @@ struct Availability {
 // e.g. GF_CCX, else on PATH).
 Availability availability(const Toolkit &t);
 
+// The first toolkit that can do a stage of a kind and whose programs are
+// there; null, and *why naming each candidate's reason, if none.
+const Toolkit *readyToolkit(const ToolkitSet &set, const QString &stage, const QString &kind, QString *why);
+
 // The command to run for a job folder.
 QStringList commandFor(const Toolkit &t, const QString &jobFolder);
 

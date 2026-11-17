@@ -213,6 +213,25 @@ Availability availability(const Toolkit &t)
     return a;
 }
 
+const Toolkit *readyToolkit(const ToolkitSet &set, const QString &stage, const QString &kind, QString *why)
+{
+    QStringList reasons;
+    for (const Offer &o : set.offers(stage, kind, {})) {
+        if (!o.can) {
+            reasons << QString("%1: %2").arg(o.toolkit->name, o.why);
+            continue;
+        }
+        const Availability a = availability(*o.toolkit);
+        if (a.ready)
+            return o.toolkit;
+        reasons << QString("%1: missing %2").arg(o.toolkit->name, a.missing.join(", "));
+    }
+    if (why)
+        *why = QString("no %1 toolkit for %2 is ready%3%4")
+                   .arg(stage, kind, reasons.isEmpty() ? "" : "; ", reasons.join("; "));
+    return nullptr;
+}
+
 QStringList commandFor(const Toolkit &t, const QString &jobFolder)
 {
     QStringList argv;
