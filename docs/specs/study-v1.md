@@ -1,7 +1,9 @@
 # The study file, version 1
 
-**Status: DRAFT, for David's review (2026-11-17): the graph (section 2)
-and the set-up (section 4).**
+**Status: approved by David, 2026-11-17 ("that all looks sensible"):
+the graph (section 2) and the set-up (section 4). Section 5's questions
+are settled by the draft's own answers, listed there; David may still
+overrule any.**
 
 ## 1. What a study is
 
@@ -271,16 +273,14 @@ The set-up above, with the box and Steel-Generic's values replaced by
 stresses and the 126000 N reaction. (Not the same text: the hand deck
 names faces by number; the written one by group.)
 
-## 5. Open questions for David
+## 5. Settled with the approval (2026-11-17)
 
-1. Units: mm-N-s and m-N-s only, or any consistent system the user
-   names?
-2. Is a displacement given in a step better shown as a support or as a
-   load? (4.6: shown as a load, written as ccx's `*BOUNDARY`.)
-3. Should `"nonlinear geometry"` turn on by itself when a plastic
-   material is used, or only when asked?
-4. Hashes: SHA-256 of every input and output file is simple and exact;
-   for large results it costs time on every check. Hash on write and
-   trust file times after that?
-5. Should a study keep the outputs of earlier runs of a step (a history),
-   or only the latest, with the run records of earlier ones?
+1. Units: mm-N-s and m-N-s only in version 1.
+2. A displacement given in a step is shown as a load and written as
+   ccx's `*BOUNDARY` (4.6).
+3. `"nonlinear geometry"` turns on by itself when a plastic material is
+   used, and the deck's comments say it did; a step may turn it off.
+4. Files are hashed (SHA-256) when written; after that, a file whose
+   size and time are unchanged is taken as unchanged. A full check
+   hashes everything again, on request.
+5. A step keeps its latest outputs and the run record of every run.

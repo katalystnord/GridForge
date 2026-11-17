@@ -143,6 +143,6 @@ studies, Elmer for heat and coupled problems.
 
 | When | Need |
 |---|---|
-| Phase 0 | Tenets settled 2026-11-17. Approve the three specs (toolkits, drafted; study file drafted 2026-11-17: the study as a graph of steps, and its set-up; results hand-off, to write). Lives at github.com/katalystnord/GridForge, public (2026-11-17). |
+| Phase 0 | Tenets settled 2026-11-17. Approve the three specs (toolkits, drafted; study file approved 2026-11-17: the study as a graph of steps, and its set-up; results hand-off, to write). Lives at github.com/katalystnord/GridForge, public (2026-11-17). |
 | Phase 1 | Whether the test suite may use FreeCAD's Flatpak ccx (as TenSense's FreeCAD test does) or a system ccx (`calculix-ccx` 2.21 in Ubuntu; needs installing). |
 | Phase 3 | Whether the AppImage bundles ccx and gmsh (with their sources on the release page) or uses the user's own. |
