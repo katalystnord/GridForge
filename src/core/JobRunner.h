@@ -26,6 +26,7 @@ struct ProtocolLine {
     double value = 0;       // metric
     QString level;          // log: "info", "warning", "error"
     QString path;           // file, relative to the job folder
+    QString role;           // file: none for the results; "deck" for the toolkit's input deck
 };
 
 // A line of standard output read: a JSON object of a known type, or kept

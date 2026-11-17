@@ -105,6 +105,8 @@ int main(int argc, char *argv[])
         return refuse(error, 2);
     if (!writeText(work.filePath("job.inp"), deck))
         return refuse("cannot write " + work.filePath("job.inp"), 2);
+    // Said at once: the deck matters most when the solve then fails.
+    say({{"type", "file"}, {"path", "work/job.inp"}, {"role", "deck"}});
 
     // ccx.
     const QString named = qEnvironmentVariable("GF_CCX", "ccx");
@@ -209,6 +211,7 @@ int main(int argc, char *argv[])
                              {"solver", version.hasMatch() ? version.captured(0) : QString("CalculiX (version not said)")},
                              {"trust", "solved"},
                              {"files", QJsonArray{"results/results.vtkhdf"}},
+                             {"deck", "work/job.inp"},
                              {"time points", times},
                              {"notes", QJsonArray::fromStringList(notes)},
                              {"provenance", provenance}};

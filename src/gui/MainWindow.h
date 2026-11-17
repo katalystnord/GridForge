@@ -120,6 +120,7 @@ private:
     void lightFaces(const std::vector<int> &faces);
     void showPicked();
     void makeGroup();
+    void showDeck(const QString &path, int run);
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -129,6 +130,7 @@ private:
     gf::core::JobRunner m_runner;
     QString m_solveStep, m_toolkitName;
     int m_runNumber = 0;
+    QString m_runFolder;
     QString m_meshProblem, m_progressText;
     int m_percent = 0;
     WindowState::Outcome m_outcome = WindowState::Outcome::None;

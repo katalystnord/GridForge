@@ -30,6 +30,7 @@ ProtocolLine readProtocolLine(const QByteArray &bytes)
     } else if (type == "file") {
         p.type = ProtocolLine::Type::File;
         p.path = o["path"].toString();
+        p.role = o["role"].toString();
         p.text.clear();
     }
     return p;
@@ -110,7 +111,7 @@ void JobRunner::readOutput()
         if (bytes.trimmed().isEmpty())
             continue;
         const ProtocolLine p = readProtocolLine(bytes);
-        if (p.type == ProtocolLine::Type::File)
+        if (p.type == ProtocolLine::Type::File && p.role.isEmpty())  // a deck, a log: not the results
             m_results = QDir(m_job).absoluteFilePath(p.path);
         emit line(p);
     }

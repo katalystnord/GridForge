@@ -137,8 +137,27 @@ CASE(a_job_is_solved_and_its_results_left_in_results)
     CHECK(d.exists("work/job.inp") && d.exists("work/mesh.inp"));
     CHECK(d.exists("work/job.frd") && d.exists("work/ccx.log"));  // ccx's own files kept
     CHECK(d.exists("results/results.vtkhdf") && d.exists("results/results.json"));
-    const QJsonObject *file = first(r, "file");
+    const QJsonObject *file = nullptr, *deck = nullptr;
+    for (const QJsonObject &o : r.lines)
+        if (o["type"].toString() == "file")
+            (o["role"].toString() == "deck" ? deck : file) = &o;
     CHECK(file && (*file)["path"].toString() == "results/results.vtkhdf");
+    // The deck is said as soon as it is written, before ccx runs.
+    CHECK(deck && (*deck)["path"].toString() == "work/job.inp");
+    CHECK(deck && first(r, "progress") && deck < first(r, "progress"));
+}
+
+CASE(a_failing_ccx_still_says_its_deck)
+{
+    // The deck matters most when the solve fails: it is said all the same.
+    QTemporaryDir dir;
+    makeJob(dir.path());
+    const Run r = run(dir.path(), fake, "1");
+    bool deck = false;
+    for (const QJsonObject &o : r.lines)
+        deck = deck || (o["type"].toString() == "file" && o["role"].toString() == "deck"
+                        && o["path"].toString() == "work/job.inp");
+    CHECK(r.exitCode != 0 && deck);
 }
 
 CASE(progress_is_said_as_the_increments_finish)
@@ -168,6 +187,7 @@ CASE(the_results_say_who_solved_them_and_hold_the_sets)
     CHECK(j["trust"].toString() == "solved");
     CHECK(j["time points"].toArray() == QJsonArray({1.0}));  // box-setup: one increment, at 1
     CHECK(j["files"].toArray() == QJsonArray({"results/results.vtkhdf"}));
+    CHECK(j["deck"].toString() == "work/job.inp");  // for a study opened later
     CHECK(j["provenance"].toArray().size() > 2);
 
     vtkNew<vtkHDFReader> reader;

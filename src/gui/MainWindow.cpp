@@ -32,6 +32,7 @@
 #include <QFont>
 #include <QPalette>
 #include <QProgressBar>
+#include <QFontDatabase>
 #include <QMouseEvent>
 #include <QSignalBlocker>
 
@@ -257,6 +258,9 @@ void MainWindow::buildDocks()
     m_deck = new QPlainTextEdit(this);
     m_deck->setObjectName(QStringLiteral("deck"));
     m_deck->setReadOnly(true);
+    m_deck->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    m_deck->setLineWrapMode(QPlainTextEdit::NoWrap);
+    m_deck->setPlaceholderText(tr("The solver's input deck, as the toolkit writes it when a run starts."));
     auto *steps = new QLabel(tr("Loads and supports by step: not yet"), this);
     steps->setObjectName(QStringLiteral("stepsTable"));
 
@@ -469,6 +473,11 @@ bool MainWindow::openStudy(const QString &path)
     m_mesh = {};
     m_renderer->RemoveAllViewProps();
     m_tree->clear();
+    m_deck->clear();
+    if (auto *d = findChild<QDockWidget *>(QStringLiteral("deckDock"))) {
+        d->setWindowTitle(tr("Deck"));
+        d->setToolTip({});
+    }
     addItems(nullptr, m_tree, core::studyOutline(m_study));
     m_tree->expandAll();
     m_step->clear();
@@ -822,6 +831,7 @@ void MainWindow::run()
     m_solveStep = step.id;
     m_toolkitName = toolkit->name;
     m_runNumber = QDir(folder).dirName().toInt();
+    m_runFolder = folder;
     m_job->clear();
     appendLine(m_job, tr("Run %1 with %2, in %3").arg(m_runNumber).arg(toolkit->name, folder), Tone::Detail);
     if (auto *d = findChild<QDockWidget *>("jobDock")) {
@@ -863,6 +873,8 @@ void MainWindow::onJobLine(const core::ProtocolLine &l)
             say(QString("%1 (%2): %3").arg(m_toolkitName, l.level, l.text), toneOf(l));
         break;
     case Type::File:
+        if (l.role == "deck")
+            showDeck(QDir(m_runFolder).filePath(l.path), m_runNumber);
         break;
     case Type::Other:
         appendLine(m_job, "  " + l.text, toneOf(l));
@@ -1025,6 +1037,22 @@ void MainWindow::showPicked()
     connect(name, &QLineEdit::returnPressed, this, &MainWindow::makeGroup);
 }
 
+void MainWindow::showDeck(const QString &path, int run)
+{
+    // The toolkit's own input deck, as it wrote it: read-only, whole.
+    QFile f(path);
+    auto *dock = findChild<QDockWidget *>(QStringLiteral("deckDock"));
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_deck->setPlainText(tr("Cannot read %1").arg(path));
+        return;
+    }
+    m_deck->setPlainText(QString::fromUtf8(f.readAll()));
+    if (dock) {
+        dock->setWindowTitle(tr("Deck (run %1)").arg(run));
+        dock->setToolTip(QDir::cleanPath(path));
+    }
+}
+
 void MainWindow::makeGroup()
 {
     auto *name = m_properties->findChild<QLineEdit *>(QStringLiteral("groupName"));
@@ -1106,6 +1134,8 @@ bool MainWindow::showResults(const QString &resultsFile)
             m_outcome = WindowState::Outcome::Solved;
         }
     }
+    if (r.contains("deck"))
+        showDeck(QFileInfo(resultsFile).absoluteDir().filePath("../" + r["deck"].toString()), run.toInt());
     for (const QJsonValue &note : r["notes"].toArray())
         say(tr("Note on run %1: %2").arg(run, note.toString()), Tone::Warning);
     {

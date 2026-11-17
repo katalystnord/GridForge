@@ -151,8 +151,9 @@ group changed only makes its sets again). Picking faces (2026-11-17): a
 click on the mesh picks a geometry face (gf_mesh's outer surface knows
 each triangle's face), Ctrl+click adds or takes out, the picked faces lit
 in ember; named in Properties, Make group writes them to study.json. A
-group selected in the tree lights its faces. Next: the Steps and Deck
-docks, the deformed shape.
+group selected in the tree lights its faces. Next: the Steps dock, the deformed shape. The Deck dock (2026-11-17): the deck the toolkit
+wrote, announced on the protocol as a file with the role "deck" (toolkits
+spec, section 5), shown read-only, also for a failed run and on reopening.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

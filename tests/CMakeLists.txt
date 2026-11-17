@@ -456,6 +456,10 @@ endif()
 # crashed inside Netgen (global state; gf_mesh now meshes one at a time,
 # and test_mesher meshes on two threads at once: it crashed 1 run in 3
 # before the lock, none in 6 after).
+# NEGATIVE CHECKS, 2026-11-17, the Deck dock: the protocol, adapter and
+# walkthrough cases red before the role was read, said or shown (6 cases);
+# the runner taking a deck line for the results: red (the stand-in toolkit
+# says its deck after its results).
 # NEGATIVE CHECKS, 2026-11-17, picking faces: the cases red against no
 # picking at all (Picked empty, nothing lit); then each rule taken out, red:
 # a drag counted as a click; the groups back among the mesh's inputs (the

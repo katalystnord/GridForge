@@ -164,7 +164,10 @@ CASE(the_protocol_lines_are_read_by_type)
     p = readProtocolLine(R"({"type": "log", "level": "warning", "text": "PE below 0"})");
     CHECK(p.type == ProtocolLine::Type::Log && p.level == "warning" && p.text == "PE below 0");
     p = readProtocolLine(R"({"type": "file", "path": "results/results.vtkhdf"})");
-    CHECK(p.type == ProtocolLine::Type::File && p.path == "results/results.vtkhdf");
+    CHECK(p.type == ProtocolLine::Type::File && p.path == "results/results.vtkhdf" && p.role.isEmpty());
+    // A file with a role: the toolkit's deck, shown, not taken for results.
+    p = readProtocolLine(R"({"type": "file", "path": "work/job.inp", "role": "deck"})");
+    CHECK(p.type == ProtocolLine::Type::File && p.path == "work/job.inp" && p.role == "deck");
     p = readProtocolLine("ccx printed this");
     CHECK(p.type == ProtocolLine::Type::Other && p.text == "ccx printed this");
     p = readProtocolLine(R"({"type": "something new"})");
@@ -182,6 +185,29 @@ CASE(the_command_names_the_job_folder)
     CHECK(argv.size() == 2);
     CHECK(argv.value(0) == QDir(fixture("needs-missing")).absoluteFilePath("run.sh"));
     CHECK(argv.value(1) == "/tmp/job 1");
+}
+
+CASE(a_deck_said_after_the_results_is_not_taken_for_them)
+{
+    // A toolkit may say its files in any order; only a file without a role
+    // is the results (toolkits spec, section 5).
+    Toolkit t;
+    t.command = {"/bin/sh", "-c",
+                 R"(echo '{"type": "file", "path": "results/r.vtkhdf"}'; )"
+                 R"(echo '{"type": "file", "path": "work/job.inp", "role": "deck"}')",
+                 "{job}"};
+    JobRunner runner;
+    QString results;
+    bool done = false;
+    QObject::connect(&runner, &JobRunner::finished, [&](int, const QString &r, bool) {
+        results = r;
+        done = true;
+    });
+    QString error;
+    CHECK(runner.start(t, QDir::tempPath(), &error));
+    for (int i = 0; i < 500 && !done; ++i)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    CHECK(done && results == QDir(QDir::tempPath()).absoluteFilePath("results/r.vtkhdf"));
 }
 
 int main(int argc, char *argv[])

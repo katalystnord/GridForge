@@ -137,7 +137,14 @@ The toolkit writes **one JSON object per line** to standard output:
 {"type": "metric", "name": "residual force", "value": 3.1e-5, "at": 0.42}
 {"type": "log", "level": "warning", "text": "..."}
 {"type": "file", "path": "results/results.vtkhdf"}
+{"type": "file", "path": "work/job.inp", "role": "deck"}
 ```
+
+A `file` line without a `role` names the results. With `"role": "deck"`
+it names the solver's input deck, said as soon as it is written (before
+the solver runs, so a failed solve still shows it); the window shows it
+read-only in its Deck dock. `results.json` names it too (`"deck"`), for a
+study opened later. Added 2026-11-17, while this spec is a draft.
 
 Anything else on standard output or error is kept as the log. Exit code 0
 is success. The application can stop it at any time (SIGTERM, then

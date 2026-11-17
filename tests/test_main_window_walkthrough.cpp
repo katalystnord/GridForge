@@ -378,6 +378,10 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 2)"), 60000);
         QVERIFY(QDir(QDir(dir.path()).filePath("box-tension/steps/solve/runs/1")).exists());
+        // The Deck dock shows the deck the toolkit wrote for the run.
+        auto *deck = w.findChild<QPlainTextEdit *>("deck");
+        QVERIFY2(deck->toPlainText().contains("*STEP"), qPrintable(deck->toPlainText().left(200)));
+        QVERIFY(w.findChild<QDockWidget *>("deckDock")->windowTitle().contains("run 2"));
         // Properties, showing the study, says the run that just finished
         // (seen by David: "none yet" after run 1 had solved).
         QCOMPARE(propertyValue(w.findChild<QWidget *>("properties"), "Runs"), QString("latest: run 2"));
@@ -450,6 +454,9 @@ private slots:
         QCOMPARE(findItem(tree, "solve")->text(1), QString("CalculiX, solved (run 1)"));
         QCOMPARE(again.findChild<QTabBar *>("layouts")->currentIndex(), 0);  // the model first
         QVERIFY(again.findChild<QAction *>("lastIncrement")->isEnabled());
+        // The latest run's deck, as results.json names it.
+        QVERIFY(again.findChild<QPlainTextEdit *>("deck")->toPlainText().contains("*STEP"));
+        QVERIFY(again.findChild<QDockWidget *>("deckDock")->windowTitle().contains("run 1"));
     }
 
     void the_results_notes_are_said_when_they_load()
