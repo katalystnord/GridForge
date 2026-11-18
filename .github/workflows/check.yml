@@ -75,7 +75,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build-netgen/install
-          key: netgen-26.04-${{ steps.netgen.outputs.commit }}
+          key: netgen-26.04-${{ steps.netgen.outputs.commit }}-${{ hashFiles('tools/build-netgen.sh') }}
 
       - name: Build Netgen
         id: netgen-build
@@ -87,7 +87,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build-netgen/install
-          key: netgen-26.04-${{ steps.netgen.outputs.commit }}
+          key: netgen-26.04-${{ steps.netgen.outputs.commit }}-${{ hashFiles('tools/build-netgen.sh') }}
 
       - name: Configure
         run: |

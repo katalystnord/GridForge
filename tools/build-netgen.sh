@@ -34,6 +34,17 @@ if [ ! -f "$src/CMakeLists.txt" ]; then
 fi
 
 commit=$(git -C "$src" rev-parse HEAD)
+
+# Netgen names its version from the tag before the commit (git describe):
+# a shallow clone without tags, as CI's checkout makes, gave "6.2.0" for
+# the commit a full clone calls 6.2.2608-104-g7420b2f9 (CI, 2026-11-18).
+# The same commit must be named the same everywhere, so fetch what
+# describe needs when it is missing.
+if [ "$(git -C "$src" rev-parse --is-shallow-repository)" = true ]; then
+    git -C "$src" fetch --quiet --unshallow --tags origin
+elif ! git -C "$src" describe --tags --match 'v[0-9]*' >/dev/null 2>&1; then
+    git -C "$src" fetch --quiet --tags origin
+fi
 if [ "${1:-}" != "-f" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$commit" ]; then
     exit 0
 fi
