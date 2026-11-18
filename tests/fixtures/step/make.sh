@@ -5,3 +5,8 @@
 set -eu
 cd "$(dirname "$0")"
 for g in box twoboxes overlapping; do gmsh "$g.geo" -0 -o "$g.step" >/dev/null; done
+# tworoots.step: two bodies, each a root of the file (OpenCASCADE's writer).
+c++ -std=c++17 -I/usr/include/opencascade tworoots.cpp -o /tmp/gf-tworoots \
+    -lTKDESTEP -lTKXSBase -lTKPrim -lTKTopAlgo -lTKBRep -lTKG3d -lTKMath -lTKernel
+/tmp/gf-tworoots
+rm -f /tmp/gf-tworoots

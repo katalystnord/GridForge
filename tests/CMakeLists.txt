@@ -613,6 +613,9 @@ endif()
 # the setup, study, deck writer and outer surface cases red; in the window,
 # a group made from picked faces unsigned, red; the group check after
 # meshing left out, red; Run not held back by a changed group, red.
+# NEGATIVE CHECK, 2026-11-18, every root of a STEP file: read through
+# Netgen's LoadOCC_STEP (first root only), tworoots.step gave one solid,
+# red; the committed meshes stay line for line the same after the change.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

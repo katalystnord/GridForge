@@ -245,6 +245,27 @@ CASE(each_solid_is_an_element_set_and_a_node_set)
     CHECK(b[1] <= 10 + 1e-12);
 }
 
+CASE(every_root_of_a_step_file_is_meshed)
+{
+    // Two cubes apart, each its own root in the file (tworoots.step):
+    // Netgen's reader keeps only the first root, and the second cube was
+    // lost without a word (found 2026-11-18). Both are meshed, in the
+    // file's order.
+    QString error;
+    const ResultsSeries s = mesh("tworoots.step", 5, 1, &error);
+    CHECK(error.isEmpty());
+    vtkUnstructuredGrid *g = grid(s);
+    const NamedSet *one = setOf(s, "Solid1", false), *two = setOf(s, "Solid2", false);
+    CHECK(g && one && two);
+    if (!g || !one || !two)
+        return;
+    CHECK(relative(volumeOf(g, one->members), 1000) < 1e-12);
+    CHECK(relative(volumeOf(g, two->members), 1000) < 1e-12);
+    double b[6];
+    g->GetCell(two->members.front())->GetBounds(b);
+    CHECK(b[0] >= 20 - 1e-12);
+}
+
 CASE(touching_solids_share_their_nodes_where_they_touch)
 {
     // The two boxes touch at x = 10: one face, meshed once, its nodes

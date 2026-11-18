@@ -20,6 +20,8 @@
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepGProp.hxx>
+#include <IFSelect_ReturnStatus.hxx>
+#include <STEPControl_Reader.hxx>
 #include <GProp_GProps.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
@@ -172,11 +174,25 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     int fileSolids = 0;
     Joined joined;
     try {
-        std::unique_ptr<netgen::OCCGeometry> read(netgen::LoadOCC_STEP(stepPath.toStdString()));
-        fileSolids = read->somap.Extent();
+        // Read with OpenCASCADE's own STEP reader, every root of the file
+        // as one shape. Netgen's LoadOCC_STEP keeps only the first root,
+        // and a file with a root per body (as a writer given one body at a
+        // time writes it) lost the rest without a word (2026-11-18). It
+        // also read names, colours and Netgen's own stored mesh sizes,
+        // which GridForge does not use: a size in the file would have
+        // changed the mesh unseen.
+        STEPControl_Reader reader;
+        if (reader.ReadFile(stepPath.toUtf8().constData()) != IFSelect_RetDone)
+            return fail(QString("%1 could not be read as STEP").arg(file));
+        reader.TransferRoots();
+        const TopoDS_Shape shape = reader.OneShape();
+        TopTools_IndexedMapOfShape fileSolidMap;
+        if (!shape.IsNull())
+            TopExp::MapShapes(shape, TopAbs_SOLID, fileSolidMap);
+        fileSolids = fileSolidMap.Extent();
         if (fileSolids == 0)
             return fail(QString("%1 holds no solid to mesh").arg(file));
-        joined = join(read->shape, file);
+        joined = join(shape, file);
         if (!joined.error.isEmpty())
             return fail(joined.error);
         geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
