@@ -34,6 +34,13 @@ gf-study \- GridForge, the meshing and simulation workbench, without a window
 .RB [ \-\-deck " " \fIFILE\fR]
 .RB [ \-\-pvd ]
 .RB [ \-o " " \fIDIR\fR]
+.br
+.B gf-study mesh-worker
+.I part
+.B \-\-recipe
+.I JSON
+.B \-o
+.I mesh.vtu
 .SH DESCRIPTION
 The same work as the GridForge window, from the command line.
 .PP
@@ -58,6 +65,15 @@ The set-up solved by its toolkit, the results in JOB/results.
 CalculiX results (job.frd) to one .vtkhdf for ParaView, the deck's named
 sets as blocks; or a Gmsh mesh (mesh.msh) likewise, its physical groups
 as the sets.
+.TP
+.B mesh-worker
+What the window runs to mesh, in a process of its own, so that a crash in
+the mesher cannot close the window and Stop ends the meshing at once. The
+part is meshed by the mesh step's parameters as study.json keeps them
+(\-\-recipe '{"maxSize": 3, "order": 2}'), and the mesh written to one
+.vtu holding every value exactly, with its sets and provenance. If it
+cannot, the reason is the last line on standard error, and the exit code
+is 1.
 .SH OPTIONS
 .TP
 .BI \-\-size " H"

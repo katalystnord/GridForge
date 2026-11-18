@@ -15,6 +15,7 @@
 // The window never waits (tenet 7): meshing runs on another thread.
 
 #include "core/JobRunner.h"
+#include "core/MeshRun.h"
 #include "gui/NextStep.h"
 #include "gui/ResultsFile.h"
 #include "gui/Tone.h"
@@ -26,6 +27,7 @@
 #include <QMainWindow>
 #include <QPoint>
 #include <QPointer>
+#include <QTemporaryDir>
 
 #include <vtkSmartPointer.h>
 
@@ -131,6 +133,8 @@ private:
     void showProperties(QTreeWidgetItem *item);
     void startMeshing();
     void onMeshed();
+    void onMeshRunEnded(const gf::core::MeshEnd &end);
+    void meshArrived(const MeshDone &done);
     void setCamera(double dx, double dy, double dz, double ux, double uy, double uz);
     void run();
     void onJobLine(const gf::core::ProtocolLine &line);
@@ -188,7 +192,14 @@ private:
     gf::core::ResultsSeries m_mesh;
     int m_opening = 0;  // counts openStudy calls; a mesh for an older one is dropped
     bool m_meshPending = false;
-    QFutureWatcher<MeshDone> m_meshWatch;
+    QFutureWatcher<MeshDone> m_meshWatch;  // the worker's mesh read, and the groups added to it
+    // The mesher runs as a process of its own (core/MeshRun), its mesh
+    // written to a folder of the window's own, then read on another thread.
+    gf::core::MeshRun m_meshRun;
+    QTemporaryDir m_meshFolder;
+    gf::core::Setup m_meshSetup;  // the set-up the mesh's groups come from
+    int m_meshOpening = 0;        // the opening the running meshing is for
+    bool m_meshStopped = false;
     gf::core::JobRunner m_runner;
     QString m_solveStep, m_toolkitName;
     int m_runNumber = 0;

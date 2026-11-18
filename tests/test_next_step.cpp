@@ -22,8 +22,11 @@ int main()
     s.studyOpen = true;
     s.geometry = "dogbone.step";
     s.meshing = true;
-    check(s, "Meshing dogbone.step ... the window stays yours meanwhile.");
+    check(s, "Meshing dogbone.step ... the window stays yours meanwhile; Stop ends it.");
     s.meshing = false;
+    s.meshStopped = true;
+    check(s, "Meshing stopped. Change the mesh's size in Properties, or File, Reload to mesh again.");
+    s.meshStopped = false;
     s.meshProblem = "dogbone.step holds no solid to mesh";
     check(s, "The mesh could not be made: dogbone.step holds no solid to mesh. Fix the geometry or the recipe, then "
              "File, Reload.");

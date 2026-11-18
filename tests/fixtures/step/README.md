@@ -10,9 +10,13 @@ any mesher.
 | `overlapping.step` | two 10 mm cubes, x 0 to 10 and 5 to 15, two solids that overlap by half | a fault: 500 mm3 would belong to both |
 | `tworoots.step` | two 10 mm cubes apart, x 0 to 10 and 20 to 30, each its own root in the file | 1000 mm3 each, two solids |
 | `plate.step` | a plate 20 x 10 x 1.5 mm at the origin | 300 mm3; top and bottom 1.5 mm apart, the sides 10 and 20 mm from the side opposite |
+| `ball.step` | a ball of radius 10 mm at the origin: one face, a seam and two poles | 4188.790 mm3; its surface closes |
+| `openbox.brep` | a 10 mm cube without its top face (z = 10), its open shell made a solid | a fault: four edges at z = 10 border one face each |
 | `dogbone.step` | the benchmark's dogbone: 150 x 20 x 4 mm, narrow part 60 x 10, R30 transitions | 8699.688877463912 mm3, OpenCASCADE's volume of the solid (`tools/mesh-bench/models/models.json`) |
 
-`box.step`, `twoboxes.step`, `overlapping.step` and `plate.step` come from the `.geo` files through Gmsh
+`box.step`, `twoboxes.step`, `overlapping.step`, `plate.step` and `ball.step` come from the `.geo` files through Gmsh
 4.14's OpenCASCADE 7.9 (`make.sh`); `dogbone.step` from
 `tools/mesh-bench/models.py`; `tworoots.step` from `tworoots.cpp`, OpenCASCADE 7.9's
-STEP writer given one body at a time (`make.sh`).
+STEP writer given one body at a time (`make.sh`); `openbox.brep` from
+`openbox.cpp`, OpenCASCADE 7.9's own .brep writer (its STEP reader drops a
+solid whose shell is open).

@@ -100,6 +100,38 @@ add_test(NAME a_study_is_read_and_checked COMMAND test_study)
 # shown with large displacements: each red.
 
 # A solve stage's job folder: written from a set-up and mesh, read back.
+add_executable(test_convergence test_convergence.cpp)
+target_link_libraries(test_convergence PRIVATE gf_core)
+add_test(NAME a_mesh_convergence_check_says_how_far_a_result_can_be_trusted COMMAND test_convergence)
+# NEGATIVE CHECKS, 2026-11-18, the convergence check: the cases written
+# first, red against a stub (14, then the peaks' 3). Then each rule broken,
+# the test run, restored: the band's 1.25 as Roache's two-mesh 3.0: red
+# (2); oscillation not told apart: red (2); the extrapolation's sign
+# turned: red (4). The finer recipe (test_mesher) red before it was read
+# or applied. The formulas checked against the aorta GCI paper (arXiv
+# 2309.05509, its equations 2 to 10) and NASA NPARC's spatial convergence
+# tutorial; the order for unequal ratios is solved from f = f0 + C h^p
+# itself (Celik's iteration not checked against its paper). NOT held by
+# the CLI test: that the three meshes differ (the stand-in ccx replays one
+# result); the mesher's test holds finer, the README's run real ccx.
+
+add_executable(test_mesh_run test_mesh_run.cpp)
+target_link_libraries(test_mesh_run PRIVATE gf_core)
+target_compile_definitions(test_mesh_run PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    GF_STUDY="$<TARGET_FILE:gf-study>")
+add_dependencies(test_mesh_run gf-study)
+add_test(NAME meshing_runs_in_its_own_process_and_cannot_take_the_window_down COMMAND test_mesh_run)
+# NEGATIVE CHECKS, 2026-11-18, meshing in its own process: the 9 cases
+# written first, red against a stub (the file cases failed at once, the
+# process cases waited out their time). The window's two cases (Stop, a
+# crashing stand-in) red against the window meshing on a thread: Stop
+# not enabled, the crash not said. The open box (test_mesher) ended the
+# test program (Netgen: double free) before the check; the ball ended
+# gf-study (our edge code asking a pole for points) before its fix. Then
+# each rule broken, the tests run, restored: seams counted as openings:
+# the benchmark red (bracket, twoparts, duct refused); poles counted: the
+# ball red.
+
 add_executable(test_job test_job.cpp)
 target_link_libraries(test_job PRIVATE gf_mesh)
 target_compile_definitions(test_job PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
@@ -494,6 +526,22 @@ set_tests_properties(cli_through_wall_not_a_whole_number_is_refused PROPERTIES W
 
 # gf-study solve: the job written, the CalculiX toolkit found by its
 # manifest and run (with the stand-in ccx), its progress shown.
+# gf-study converge: three meshes, each finer by the ratio, three solves
+# and the verdict. The stand-in ccx replays the same results whatever the
+# mesh, so the values cannot move: "the same on all three meshes". What
+# real ccx gives is in examples/dogbone-bend/README.md.
+add_test(NAME cli_checks_the_results_against_the_mesh
+    COMMAND gf-study converge ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 10 --ratio 1.5
+            -o ${CMAKE_CURRENT_BINARY_DIR}/converge-out)
+set_tests_properties(cli_checks_the_results_against_the_mesh PROPERTIES
+    ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup"
+    PASS_REGULAR_EXPRESSION "mesh 1 of 3: every size over 1\n.*mesh 2 of 3: every size over 1\\.5\n.*mesh 3 of 3: every size over 2\\.25\n.*mesh convergence \\(ratio 1\\.5; Celik et al\\. 2008, grid convergence index\\):\n.*  largest displacement: [0-9.e-]+ mm on the finest mesh; the same on all three meshes\n.*wrote [^\n]*converge-out/convergence\\.json")
+add_test(NAME cli_refuses_a_convergence_ratio_below_1_3
+    COMMAND gf-study converge ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 10 --ratio 1.1 -o ${CMAKE_CURRENT_BINARY_DIR}/converge-no)
+set_tests_properties(cli_refuses_a_convergence_ratio_below_1_3 PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME cli_solves_a_setup_through_its_toolkit
     COMMAND gf-study solve ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
             ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --order 2

@@ -244,7 +244,7 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(w.openStudy(boxStudy(dir)));
         auto *banner = w.findChild<QLabel *>("nextStep");
-        QCOMPARE(banner->text(), QString("Meshing box.step ... the window stays yours meanwhile."));
+        QCOMPARE(banner->text(), QString("Meshing box.step ... the window stays yours meanwhile; Stop ends it."));
         QTRY_COMPARE_WITH_TIMEOUT(banner->text(), QString("Mesh ready. Press Run (F5) to solve with CalculiX."), 60000);
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(
@@ -355,6 +355,59 @@ private slots:
             view->renderWindow()->Render();
             QVERIFY(w.grab().save(screenshot));
         }
+    }
+
+    // Meshing runs in a process of its own (core/MeshRun): Stop ends it at
+    // once, and the banner says how to mesh again.
+    void stop_ends_a_meshing_at_once_and_the_banner_says_so()
+    {
+        MainWindow w;
+        w.show();
+        QVERIFY(w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone"));
+        QVERIFY(w.meshing());
+        auto *stop = w.findChild<QAction *>("stop");
+        QVERIFY(stop->isEnabled());
+        QElapsedTimer clock;
+        clock.start();
+        stop->trigger();
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 3000);
+        QVERIFY(clock.elapsed() < 3000);
+        QVERIFY(!stop->isEnabled());
+        QCOMPARE(w.findChild<QLabel *>("nextStep")->text(),
+                 QString("Meshing stopped. Change the mesh's size in Properties, or File, Reload to mesh again."));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("Meshing stopped"));
+        QVERIFY(!w.findChild<QAction *>("run")->isEnabled());
+    }
+
+    // A mesher that crashes ends its own process; the window says so and
+    // goes on (a stand-in mesher, through GF_MESH_WORKER, as GF_CCX).
+    void a_mesher_that_crashes_is_said_and_the_window_goes_on()
+    {
+        QTemporaryDir dir;
+        const QString crash = dir.filePath("crashing");
+        {
+            QFile f(crash);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write("#!/bin/sh\necho 'double free or corruption (out)' >&2\nkill -ABRT $$\n");
+        }
+        QFile::setPermissions(crash, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        qputenv("GF_MESH_WORKER", crash.toUtf8());
+        MainWindow w;
+        w.show();
+        const QString study = boxStudy(dir);
+        QVERIFY(w.openStudy(study));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 10000);
+        qunsetenv("GF_MESH_WORKER");
+        const QString banner = w.findChild<QLabel *>("nextStep")->text();
+        QVERIFY2(banner.startsWith("The mesh could not be made: the mesher stopped working while meshing box.step "
+                                   "(it crashed; nothing of the study is lost)"),
+                 qPrintable(banner));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("double free or corruption"));
+        // And goes on: the study reloaded meshes with the real mesher.
+        w.findChild<QAction *>("reloadStudy")->trigger();
+        QVERIFY(w.meshing());
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        QVERIFY(findItem(w.findChild<QTreeWidget *>("studyTree"), "Mesh")->text(1).contains("tetrahedra"));
     }
 
     void a_load_is_edited_in_its_form_and_applied_to_the_study()

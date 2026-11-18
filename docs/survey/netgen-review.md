@@ -25,7 +25,13 @@ with its source, not yet checked by us).
    catches only `std::exception`; a raw OpenCASCADE throw from the STEP
    reader, BOPAlgo (our join) or BRepMesh would end the window.
    **Reported**: follows from the types; no file that triggers it yet, so
-   no failing test yet.
+   no failing test yet. Contained 2026-11-18: the window meshes in a
+   process of its own (`gf-study mesh-worker`, core/MeshRun), so any
+   throw or crash there ends that process, and the window says so.
+   Two real crashes were found on the way, both ending the program
+   before: a solid whose surface does not close (Netgen freed memory
+   twice; now refused first, naming the open faces) and a ball (our own
+   edge code asked a pole, an edge with no curve, for points; fixed).
 3. **Thin walls get one element through the thickness.** Done
    2026-11-18: `throughWall` in the mesh recipe (study spec 2.1), default
    2. Learned on the way: Netgen takes a face's size along its edges only,
@@ -63,10 +69,15 @@ with its source, not yet checked by us).
    left without surface elements. A cancel through
    `multithread.terminate` returns 0 with a partial mesh
    (`basegeom.cpp:1611`): any Cancel must check that flag itself.
+   Partly done 2026-11-18: an open surface is found before Netgen and
+   its faces named; Stop ends the worker process, never using the flag.
+   Still open: naming the face when Netgen's own surface meshing fails.
 8. **Global state.** A static XCAF application and a growing static
    property map (`occgeom.cpp:84-97`, `1617`) are the likely cause of the
    crash two concurrent meshes gave (not checked); keep the mutex, or
-   mesh in a child process (crashes isolated, cancel real).
+   mesh in a child process (crashes isolated, cancel real). Done
+   2026-11-18: the window meshes in a child process, one per meshing,
+   so no state is carried from one meshing to the next.
 
 ## Open, from upstream
 
@@ -77,6 +88,8 @@ with its source, not yet checked by us).
    [PR #230](https://github.com/NGSolve/netgen/pull/230)). Fork first.
 10. **Cancel and progress per meshing call** in place of the global
     `multithread` ([#73](https://github.com/NGSolve/netgen/issues/73)).
+    Cancel no longer needs it (2026-11-18: the worker process is ended);
+    progress still would.
 11. **15-node prisms for CalculiX** if layered meshes reach it: Netgen
     makes 12-node ones ([PR #243](https://github.com/NGSolve/netgen/pull/243)).
 12. **On every pin bump, run the benchmark again**: upstream changed

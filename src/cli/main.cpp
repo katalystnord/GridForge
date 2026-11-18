@@ -20,6 +20,16 @@
 //       the same set-up solved: the job folder written (toolkits spec,
 //       section 4), the solve toolkit found by its manifest and run, its
 //       progress shown; the results left in JOB/results
+//   gf-study converge setup.json part.step --size H [--ratio 1.5] -o DIR
+//       the set-up solved on three meshes, each finer than the last by the
+//       ratio in every size, in DIR/mesh-1..3; how far the largest
+//       displacement and von Mises stress can be trusted against the mesh
+//       (core/Convergence), on the terminal and in DIR/convergence.json
+//   gf-study mesh-worker part.step --recipe JSON -o mesh.vtu
+//       what the window runs to mesh (core/MeshRun): the part meshed by
+//       the mesh step's parameters as study.json keeps them, to one .vtu
+//       holding the mesh exactly, with its sets and provenance; a reason
+//       on standard error, and exit code 1, if it cannot
 //   Both mesh commands measure the mesh: the verdict and measures on the
 //   terminal, the report for agents in <name>.quality.json beside it, and
 //   each cell's "mean ratio" on the grid for ParaView.
@@ -27,7 +37,9 @@
 #include "calculix/FrdToVtk.h"
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
+#include "core/Convergence.h"
 #include "core/Job.h"
+#include "core/MeshRun.h"
 #include "core/JobRunner.h"
 #include "core/MaterialCard.h"
 #include "core/Toolkit.h"
@@ -43,6 +55,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -199,11 +212,33 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
     return reportQuality(quality, grid, written) ? 0 : 1;
 }
 
+// The window's meshing, in a process of its own (core/MeshRun): a crash in
+// the engine ends this process, not the window.
+int meshWorker(const QString &input, const QString &recipeJson, const QString &out)
+{
+    QJsonParseError parse;
+    const QJsonDocument doc = QJsonDocument::fromJson(recipeJson.toUtf8(), &parse);
+    if (out.isEmpty() || parse.error != QJsonParseError::NoError || !doc.isObject()) {
+        std::fprintf(stderr, "gf-study: mesh-worker needs --recipe, the mesh step's parameters as JSON, "
+                             "and -o, the file to write\n");
+        return 1;
+    }
+    QString error;
+    const gf::core::ResultsSeries series = gf::mesh::meshStep(input, gf::mesh::recipeFrom(doc.object()), &error);
+    if (error.isEmpty())
+        gf::core::writeMeshFile(series, out, &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    return 0;
+}
+
 // The set-up read and filled from its cards, and the part meshed with its
 // groups as sets: what both deck and solve start from.
 bool prepare(const QString &setupFile, const QString &part, const QString &size, const QString &order,
              const QString &throughWall,
-             gf::core::Setup *setup, QJsonObject *setupJson, gf::core::ResultsSeries *mesh)
+             gf::core::Setup *setup, QJsonObject *setupJson, gf::core::ResultsSeries *mesh, double finer = 1)
 {
     QFile f(setupFile);
     if (!f.open(QIODevice::ReadOnly)) {
@@ -234,6 +269,7 @@ bool prepare(const QString &setupFile, const QString &part, const QString &size,
         std::fprintf(stderr, "gf-study: --size is needed, and --order is 1 or 2\n");
         return false;
     }
+    recipe.finer = finer;
     *mesh = gf::mesh::meshStep(part, recipe, &error);
     if (error.isEmpty())
         gf::mesh::addGroupSets(*mesh, *setup, &error);
@@ -243,6 +279,9 @@ bool prepare(const QString &setupFile, const QString &part, const QString &size,
     }
     return true;
 }
+
+int solvePrepared(const QString &setupFile, const gf::core::Setup &setup, const QJsonObject &setupJson,
+                  const gf::core::ResultsSeries &mesh, const QString &jobDir, QString *resultsOut);
 
 volatile std::sig_atomic_t interrupted = 0;
 extern "C" void onInterrupt(int) { interrupted = 1; }
@@ -259,6 +298,15 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     gf::core::ResultsSeries mesh;
     if (!prepare(setupFile, part, size, order, throughWall, &setup, &setupJson, &mesh))
         return 1;
+    return solvePrepared(setupFile, setup, setupJson, mesh, jobDir, nullptr);
+}
+
+// A prepared set-up and mesh solved in jobDir by its toolkit, as the
+// window does; 0 when solved (the results file in *results), 3 when
+// cancelled, 1 otherwise.
+int solvePrepared(const QString &setupFile, const gf::core::Setup &setup, const QJsonObject &setupJson,
+                  const gf::core::ResultsSeries &mesh, const QString &jobDir, QString *resultsOut)
+{
     QString error;
     if (!gf::core::writeSolveJob(jobDir, "structural.static", setup, setupJson,
                                  QFileInfo(setupFile).absolutePath(), mesh, &error)) {
@@ -337,6 +385,102 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     const QJsonObject report = QJsonDocument::fromJson(reportFile.readAll()).object();
     std::printf("results: %s (%s by %s)\n", qPrintable(result), qPrintable(report["trust"].toString()),
                 qPrintable(report["solver"].toString()));
+    if (resultsOut)
+        *resultsOut = result;
+    return 0;
+}
+
+// How far the results can be trusted against the mesh (core/Convergence):
+// the set-up solved on three meshes, each finer than the last by `ratio`
+// in every size the recipe makes, and the largest displacement and the
+// largest von Mises stress compared.
+int converge(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+             const QString &throughWall, const QString &outDir, const QString &ratioText)
+{
+    if (outDir.isEmpty()) {
+        std::fprintf(stderr, "gf-study: converge needs -o DIR, the folder for its three jobs\n");
+        return 1;
+    }
+    bool ratioOk = true;
+    const double ratio = ratioText.isEmpty() ? 1.5 : ratioText.toDouble(&ratioOk);
+    if (!ratioOk || !(ratio >= 1.3)) {
+        // Celik et al. (2008): a ratio of at least 1.3, for the meshes'
+        // differences to stand clear of other errors.
+        std::fprintf(stderr, "gf-study: --ratio is 1.3 or more, not %s\n", qPrintable(ratioText));
+        return 1;
+    }
+    struct Solved {
+        double finer;
+        vtkIdType elements, nodes;
+        gf::core::ResultPeaks peaks;
+    };
+    std::vector<Solved> solved;
+    gf::core::Setup setup;
+    for (int k = 0; k < 3; ++k) {
+        const double finer = std::pow(ratio, k);
+        QJsonObject setupJson;
+        gf::core::ResultsSeries mesh;
+        std::printf("mesh %d of 3: every size over %s\n", k + 1, qPrintable(QString::number(finer, 'g', 4)));
+        std::fflush(stdout);
+        if (!prepare(setupFile, part, size, order, throughWall, &setup, &setupJson, &mesh, finer))
+            return 1;
+        const QString job = QDir(outDir).filePath(QString("mesh-%1").arg(k + 1));
+        QString results;
+        if (const int code = solvePrepared(setupFile, setup, setupJson, mesh, job, &results); code != 0)
+            return code;
+        const gf::core::ResultPeaks peaks = gf::core::resultPeaks(results);
+        if (!peaks.error.isEmpty()) {
+            std::fprintf(stderr, "gf-study: %s\n", qPrintable(peaks.error));
+            return 1;
+        }
+        vtkUnstructuredGrid *g = mesh.points.front().grid;
+        solved.push_back({finer, g->GetNumberOfCells(), g->GetNumberOfPoints(), peaks});
+    }
+    const bool mm = setup.units == gf::core::Units::MillimetreNewtonSecond;
+    const QString length = mm ? "mm" : "m", stress = mm ? "MPa" : "Pa";
+    QJsonArray meshes;
+    std::printf("\nmesh convergence (ratio %s; Celik et al. 2008, grid convergence index):\n",
+                qPrintable(QString::number(ratio)));
+    for (const Solved &s : solved) {
+        std::printf("  every size over %-6s %8lld elements: largest displacement %s %s, largest von Mises %s\n",
+                    qPrintable(QString::number(s.finer, 'g', 4)), static_cast<long long>(s.elements),
+                    qPrintable(QString::number(s.peaks.displacement, 'g', 6)), qPrintable(length),
+                    s.peaks.vonMises < 0 ? "none"
+                                         : qPrintable(QString::number(s.peaks.vonMises, 'g', 6) + " " + stress));
+        meshes.append(QJsonObject{{"finer", s.finer}, {"elements", double(s.elements)}, {"nodes", double(s.nodes)},
+                                  {"largest displacement", s.peaks.displacement},
+                                  {"largest von Mises stress", s.peaks.vonMises}});
+    }
+    // The ratios the meshes really have, from their element counts: Netgen
+    // grades and rounds, so they are not the ratio asked for exactly.
+    const double rCoarse = gf::core::refinementRatio(solved[0].elements, solved[1].elements);
+    const double rFine = gf::core::refinementRatio(solved[1].elements, solved[2].elements);
+    std::printf("  element sizes' ratios, from the counts: %s, then %s\n",
+                qPrintable(QString::number(rCoarse, 'f', 3)), qPrintable(QString::number(rFine, 'f', 3)));
+    QJsonObject verdicts;
+    auto judge = [&](const char *quantity, const QString &unit, double a, double b, double c) {
+        const QString words = gf::core::convergenceWords(quantity, unit, a, b, c, rCoarse, rFine);
+        std::printf("  %s\n", qPrintable(words));
+        verdicts[quantity] = words;
+    };
+    judge("largest displacement", length, solved[0].peaks.displacement, solved[1].peaks.displacement,
+          solved[2].peaks.displacement);
+    if (solved[0].peaks.vonMises >= 0)
+        judge("largest von Mises stress", stress, solved[0].peaks.vonMises, solved[1].peaks.vonMises,
+              solved[2].peaks.vonMises);
+    QSaveFile report(QDir(outDir).filePath("convergence.json"));
+    const QJsonObject json{{"ratio asked", ratio},
+                           {"ratios from the element counts", QJsonArray{rCoarse, rFine}},
+                           {"method", "Richardson extrapolation and the grid convergence index (safety factor "
+                                      "1.25), as Celik et al. 2008, ASME J. Fluids Eng. 130(7) 078001; the order "
+                                      "from f = f0 + C h^p with h from the element counts"},
+                           {"meshes", meshes},
+                           {"verdicts", verdicts}};
+    if (!report.open(QIODevice::WriteOnly) || report.write(QJsonDocument(json).toJson()) < 0 || !report.commit()) {
+        std::fprintf(stderr, "gf-study: cannot write %s\n", qPrintable(report.fileName()));
+        return 1;
+    }
+    std::printf("wrote %s\n", qPrintable(QDir(outDir).absoluteFilePath("convergence.json")));
     return 0;
 }
 
@@ -444,7 +588,12 @@ int main(int argc, char *argv[])
                                      "  deck setup.json part.step   a CalculiX job from a set-up: "
                                      "mesh.inp and the deck around it\n"
                                      "  solve setup.json part.step -o JOB   the set-up solved by "
-                                     "its toolkit, results in JOB/results\n\n"
+                                     "its toolkit, results in JOB/results\n"
+                                     "  converge setup.json part.step -o DIR   the set-up solved "
+                                     "on three meshes, each finer by --ratio, and how far its "
+                                     "results can be trusted against the mesh\n"
+                                     "  mesh-worker part.step --recipe JSON -o mesh.vtu   what the "
+                                     "window runs to mesh, in a process of its own\n\n"
                                      "A part is a STEP file or a .brep (as FreeCAD's exportBrep "
                                      "writes it, in mm). A set-up is a study.json, or a file "
                                      "holding its \"setup\".");
@@ -477,6 +626,12 @@ int main(int argc, char *argv[])
                                                      "over N + 1, where that is finer than --size.",
                                      "N");
     parser.addOption(wallOpt);
+    const QCommandLineOption recipeOpt("recipe", "mesh-worker: the mesh step's parameters, as study.json "
+                                                 "keeps them (JSON).", "JSON");
+    parser.addOption(recipeOpt);
+    const QCommandLineOption ratioOpt("ratio", "converge: how much finer each mesh is than the last (default "
+                                               "1.5; at least 1.3).", "R");
+    parser.addOption(ratioOpt);
     parser.addPositionalArgument("command", "convert, mesh, deck or solve");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
@@ -502,6 +657,11 @@ int main(int argc, char *argv[])
     if (args.size() == 3 && args[0] == "deck")
         return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
                     parser.value(outOpt));
+    if (args.size() == 3 && args[0] == "converge")
+        return converge(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
+                        parser.value(outOpt), parser.value(ratioOpt));
+    if (args.size() == 2 && args[0] == "mesh-worker")
+        return meshWorker(args[1], parser.value(recipeOpt), parser.value(outOpt));
     if (args.size() == 2 && args[0] == "mesh")
         return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt), parser.value(outOpt),
                     parser.isSet(pvdOpt), parser.isSet(inpOpt));

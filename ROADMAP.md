@@ -201,6 +201,22 @@ directions, coloured by kind, the selected one in ember.
 - A SurView strain field and TenSense's force curve, imported as files,
   beside the CalculiX prediction; difference fields out to ParaView.
 
+## Theme: foams and cellular materials (David, 2026-11-18)
+
+Foams and how to model them, across material classes (polymers, metals,
+ceramics, bone, foamed cellulose networks), as a line of work of its own,
+resting on Phase 5: a foam model is only as good as the tests it is
+fitted to. Steps seen so far:
+
+- Compression of a foam block with ccx's `*HYPERFOAM` (in ccx 2.23,
+  checked in its source), held to the block's own hand answer. Foams that
+  crush for good (no "crushable foam" model in ccx) need another model
+  or solver.
+- Buckling, for compression of slender parts and struts.
+- A foam's own structure from a 3D scan (micro-CT) to a mesh of a small
+  cube of it, for what the walls and fibres do: meshing that geometry is
+  GridForge's core. To plan with David first.
+
 ## Phase 6: OpenFOAM® back end (L)
 
 - Case writers for both lines (Foundation v13/v14, OpenCFD v25xx/v26xx),

@@ -189,7 +189,7 @@ struct Walls {
 // a plate 1.5 mm thick, 5 mm from an edge, the size grew back past the
 // thickness, and one tetrahedron spanned it (seen 2026-11-18).
 static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &faces, double maxSize,
-                          int throughWall)
+                          int throughWall, double finer)
 {
     Walls out;
     out.thickness.assign(faces.Extent(), 0);
@@ -237,7 +237,7 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
         // trace to part), and so did the meshes they sized.
         nearest = nearest > 0 ? QString::number(nearest, 'g', 9).toDouble() : 0;
         out.thickness[f - 1] = nearest;
-        const double h = nearest / (throughWall + 1);
+        const double h = nearest / (throughWall + 1) / finer;
         // A wall: at least four times as wide (the root of the face's
         // area) as it is thick. Not a part merely small for the element
         // size (a 10 mm box at 5: its sides are 24 mm wide), nor the
@@ -246,7 +246,7 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
         // starts to hold, a span of a few thicknesses.
         GProp_GProps area;
         BRepGProp::SurfaceProperties(face, area);
-        if (throughWall <= 0 || nearest <= 0 || h >= maxSize || 4 * nearest > std::sqrt(area.Mass()))
+        if (throughWall <= 0 || nearest <= 0 || h >= maxSize / finer || 4 * nearest > std::sqrt(area.Mass()))
             continue;
         out.thin.push_back(nearest);
         out.thinFaces.push_back(f);
@@ -272,6 +272,35 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
     }
     BRepTools::Clean(shape);
     return out;
+}
+
+// Where a shape's surface is open: its edges that border one face only,
+// and the faces (numbered in `faces`, from 1) they belong to. A seam (a
+// cylinder's, where the face meets itself) and a degenerate edge (a
+// cone's tip) border one face and are no gap.
+struct Openings {
+    int edges = 0;
+    std::set<int> faces;
+};
+
+static Openings openings(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &faces)
+{
+    Openings open;
+    TopTools_IndexedDataMapOfShapeListOfShape owners;
+    TopExp::MapShapesAndAncestors(shape, TopAbs_EDGE, TopAbs_FACE, owners);
+    for (int e = 1; e <= owners.Extent(); ++e) {
+        const TopoDS_Edge edge = TopoDS::Edge(owners.FindKey(e));
+        if (BRep_Tool::Degenerated(edge))
+            continue;
+        TopTools_IndexedMapOfShape distinct;
+        for (const TopoDS_Shape &f : owners(e))
+            distinct.Add(f);
+        if (distinct.Extent() != 1 || BRep_Tool::IsClosed(edge, TopoDS::Face(distinct(1))))
+            continue;
+        ++open.edges;
+        open.faces.insert(faces.FindIndex(distinct(1)));
+    }
+    return open;
 }
 
 // The geometry at `path`, a STEP (every root of it as one shape) or
@@ -329,6 +358,7 @@ Recipe recipeFrom(const QJsonObject &parameters)
     r.maxSize = parameters["maxSize"].toDouble();
     r.order = parameters["order"].toInt(r.order);
     r.throughWall = parameters["throughWall"].toInt(r.throughWall);
+    r.finer = parameters["finer"].toDouble(r.finer);
     return r;
 }
 
@@ -341,6 +371,8 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     };
     if (!(recipe.maxSize > 0))
         return fail("the recipe has no largest element size");
+    if (!(recipe.finer >= 1))
+        return fail(QString("the recipe's finer is %1; it divides every size, and is 1 or more").arg(recipe.finer));
     if (recipe.order != 1 && recipe.order != 2)
         return fail(QString("the recipe's order is %1; only 1 and 2 are made").arg(recipe.order));
     if (!QFileInfo(stepPath).isFile())
@@ -392,14 +424,29 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         // Python face.maxh), read when the geometry is built and passed on
         // to the face's edges. Under the mutex: the properties are global.
         TopExp::MapShapes(joined.shape, TopAbs_FACE, joinedFaces);
-        walls = measureWalls(joined.shape, joinedFaces, recipe.maxSize, recipe.throughWall);
+        // A surface that does not close is no solid; Netgen given one ended
+        // the program (2026-11-18). Said here, with where it is open.
+        if (const Openings open = openings(joined.shape, joinedFaces); open.edges > 0) {
+            QStringList named;
+            for (int f : open.faces)
+                named << QString::number(f);
+            const QString last = named.takeLast();
+            const QString list = named.isEmpty() ? last : named.join(", ") + " and " + last;
+            return fail(QString("the surface of %1 does not close: %2 border%3 one face only, on %4 %5; a solid "
+                                "needs a closed surface (a face missing, or two faces that do not meet, in the "
+                                "geometry)")
+                            .arg(file, plural(open.edges, "edge", "edges"), open.edges == 1 ? "s" : "",
+                                 open.faces.size() == 1 ? "face" : "faces", list));
+        }
+        walls = measureWalls(joined.shape, joinedFaces, recipe.maxSize, recipe.throughWall, recipe.finer);
         thickness = walls.thickness;
         thinFaces = walls.thin;
         for (int f : walls.thinFaces)
-            netgen::OCCGeometry::GetProperties(joinedFaces(f)).maxh = thickness[f - 1] / (recipe.throughWall + 1);
+            netgen::OCCGeometry::GetProperties(joinedFaces(f)).maxh =
+                thickness[f - 1] / (recipe.throughWall + 1) / recipe.finer;
         geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
         netgen::MeshingParameters parameters;
-        parameters.maxh = recipe.maxSize;
+        parameters.maxh = recipe.maxSize / recipe.finer;
         // Every other setting the mesh depends on, given here rather than
         // left to Netgen's defaults, which may move between versions; the
         // values are those defaults at the pinned commit (meshtype.hpp).
@@ -588,11 +635,21 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         // its edges in that order, and its GetEdge(shape) counts on it).
         // Not through netgen::OCCEdge: Netgen does not export that class's
         // type, and the sanitized build's checks need it (CI, 2026-11-18).
+        const TopoDS_Edge shape = TopoDS::Edge(geometry->emap(e + 1));
+        // A degenerate edge (a ball's pole, a cone's tip) has no curve to
+        // ask: it is its vertex, at both ends. Asked for points, it ended
+        // the program (2026-11-18, a ball).
+        if (BRep_Tool::Degenerated(shape)) {
+            const gp_Pnt p = BRep_Tool::Pnt(TopExp::FirstVertex(shape));
+            const double ends[6] = {p.X(), p.Y(), p.Z(), p.X(), p.Y(), p.Z()};
+            edgeEnds->InsertNextTypedTuple(ends);
+            edgeStraight->InsertNextValue(0);
+            continue;
+        }
         const netgen::GeometryEdge &edge = geometry->GetEdge(e);
         const netgen::Point<3> first = edge.GetPoint(0), last = edge.GetPoint(1);
         const double ends[6] = {first(0), first(1), first(2), last(0), last(1), last(2)};
         edgeEnds->InsertNextTypedTuple(ends);
-        const TopoDS_Edge shape = TopoDS::Edge(geometry->emap(e + 1));
         edgeStraight->InsertNextValue(BRepAdaptor_Curve(shape).GetType() == GeomAbs_Line ? 1 : 0);
     }
     grid->GetFieldData()->AddArray(edgeSegments);
@@ -668,8 +725,11 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
                       << QString("recipe: largest element %1, order %2, %3")
                              .arg(recipe.maxSize)
                              .arg(recipe.order)
-                             .arg(recipe.throughWall > 0 ? QString("%1 elements through a wall").arg(recipe.throughWall)
-                                                         : QString("no elements added through thin walls"))
+                             .arg((recipe.throughWall > 0 ? QString("%1 elements through a wall").arg(recipe.throughWall)
+                                                          : QString("no elements added through thin walls"))
+                                  + (recipe.finer != 1 ? QString(", every size over %1 (finer, for a convergence "
+                                                                 "check)").arg(recipe.finer)
+                                                       : QString()))
                       << settings
                       << QString("geometry kernel: OpenCASCADE %1").arg(OCC_VERSION_COMPLETE);
     if (!thinFaces.empty()) {
@@ -680,8 +740,8 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         series.provenance << QString("thin walls: %1 %2 thick, sized %3 for %4 elements through")
                                  .arg(plural(static_cast<int>(thinFaces.size()), "face", "faces"),
                                       range(*thinnest, *thickest),
-                                      range(*thinnest / (recipe.throughWall + 1),
-                                            *thickest / (recipe.throughWall + 1)))
+                                      range(*thinnest / (recipe.throughWall + 1) / recipe.finer,
+                                            *thickest / (recipe.throughWall + 1) / recipe.finer))
                                  .arg(recipe.throughWall);
     }
     if (fileSolids > 1)

@@ -72,6 +72,7 @@ A GridForge mesh step's parameters (added 2026-11-18):
 | `maxSize` | the largest element edge, in the geometry's lengths; above 0 | none: required |
 | `order` | 1, straight edges; 2, a middle node on every edge, on the geometry | 1 |
 | `throughWall` | elements through a thin wall, a whole number; 0 leaves walls to Netgen alone | 2 |
+| `finer` | every size the recipe makes (the largest element, the thin walls') divided by it; 1 or more. A mesh convergence check meshes the same recipe at 1, r and r² (added 2026-11-18) | 1 |
 
 A thin wall is a face at least four times as wide (the root of its area)
 as the wall behind it is thick, measured from the face along its inward

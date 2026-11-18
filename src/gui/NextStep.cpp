@@ -8,7 +8,9 @@ QString nextStep(const WindowState &s)
     if (!s.studyOpen)
         return QStringLiteral("Open a study: File, Open Study, or make one from a part's geometry: File, New Study from Geometry.");
     if (s.meshing)
-        return QStringLiteral("Meshing %1 ... the window stays yours meanwhile.").arg(s.geometry);
+        return QStringLiteral("Meshing %1 ... the window stays yours meanwhile; Stop ends it.").arg(s.geometry);
+    if (s.meshStopped)
+        return QStringLiteral("Meshing stopped. Change the mesh's size in Properties, or File, Reload to mesh again.");
     if (!s.meshProblem.isEmpty())
         return QStringLiteral("The mesh could not be made: %1. Fix the geometry or the recipe, then File, Reload.")
             .arg(s.meshProblem);

@@ -238,6 +238,7 @@ MainWindow::MainWindow(QWidget *parent)
     statusBar()->showMessage(tr("Open a study (File, Open Study)"));
 
     connect(&m_meshWatch, &QFutureWatcher<MeshDone>::finished, this, &MainWindow::onMeshed);
+    connect(&m_meshRun, &core::MeshRun::finished, this, &MainWindow::onMeshRunEnded);
     resize(1400, 900);
 }
 
@@ -402,8 +403,13 @@ void MainWindow::buildActions()
     connect(m_runAction, &QAction::triggered, this, &MainWindow::run);
     m_stopAction = run->addAction(icon("pqCancel"), tr("&Stop"));
     m_stopAction->setObjectName(QStringLiteral("stop"));
-    m_stopAction->setToolTip(tr("Stop the solve; its files are kept"));
-    connect(m_stopAction, &QAction::triggered, &m_runner, &core::JobRunner::stop);
+    m_stopAction->setToolTip(tr("Stop the meshing, or the solve (its files are kept)"));
+    connect(m_stopAction, &QAction::triggered, this, [this] {
+        if (m_meshRun.running())
+            m_meshRun.stop();
+        else
+            m_runner.stop();
+    });
     runBar->addAction(m_runAction);
     runBar->addAction(m_stopAction);
 
@@ -588,6 +594,7 @@ bool MainWindow::openStudy(const QString &path)
     m_study = study;
     ++m_opening;
     m_meshProblem.clear();
+    m_meshStopped = false;
     m_outcome = WindowState::Outcome::None;
     m_runNumber = 0;
     m_toolkitName.clear();
@@ -774,19 +781,50 @@ void MainWindow::startMeshing()
     }
     const QString file = QDir(m_study.folder).filePath(input->file);
     const mesh::Recipe recipe = mesh::recipeFrom(step.parameters);
-    const core::Setup setup = m_study.setup;
-    const int opening = m_opening;
+    m_meshSetup = m_study.setup;
+    m_meshOpening = m_opening;
     say(tr("Meshing %1...").arg(input->file));
     m_meshPending = true;
-    // On another thread: the window keeps answering (tenet 7). It touches
-    // nothing of the window's; the result comes back through the future.
-    // A meshing for a study opened before may still run: it touches nothing
-    // of the window's, and its result is dropped (onMeshed), so it is not
-    // waited for here (the window never waits, tenet 7).
-    m_meshWatch.setFuture(QtConcurrent::run([file, recipe, setup, opening] {
+    // In a process of its own (core/MeshRun): the window keeps answering
+    // (tenet 7), a crash in Netgen or OpenCASCADE ends that process and
+    // not the window, and Stop ends it at once. A meshing for a study
+    // opened before is replaced, and its end not said. GF_MESH_WORKER
+    // names another worker, as GF_CCX another ccx.
+    const QString worker = qEnvironmentVariableIsSet("GF_MESH_WORKER")
+                               ? qEnvironmentVariable("GF_MESH_WORKER")
+                               : core::meshWorkerProgram(QCoreApplication::applicationDirPath(), GF_BUILT_STUDY);
+    m_meshRun.start(worker, file, step.parameters, m_meshFolder.filePath("mesh.vtu"));
+    updateActions();
+}
+
+void MainWindow::onMeshRunEnded(const core::MeshEnd &end)
+{
+    if (m_meshOpening != m_opening)
+        return;  // for a study since replaced
+    using Kind = core::MeshEnd::Kind;
+    if (end.kind == Kind::Stopped) {
+        m_meshPending = false;
+        m_meshStopped = true;
+        say(tr("Meshing stopped"), Tone::Warning);
+        updateActions();
+        return;
+    }
+    if (end.kind != Kind::Made) {
+        MeshDone done;
+        done.opening = m_meshOpening;
+        done.error = end.message;
+        meshArrived(done);
+        return;
+    }
+    // Read on another thread, and the groups' sets added there: a large
+    // mesh takes a moment, and the window never waits (tenet 7).
+    const QString file = m_meshFolder.filePath("mesh.vtu");
+    const core::Setup setup = m_meshSetup;
+    const int opening = m_meshOpening;
+    m_meshWatch.setFuture(QtConcurrent::run([file, setup, opening] {
         MeshDone done;
         done.opening = opening;
-        done.mesh = mesh::meshStep(file, recipe, &done.error);
+        done.mesh = core::readMeshFile(file, &done.error);
         done.ownSets = done.mesh.sets.size();
         if (done.error.isEmpty())
             mesh::addGroupSets(done.mesh, setup, &done.groupProblem);
@@ -796,7 +834,11 @@ void MainWindow::startMeshing()
 
 void MainWindow::onMeshed()
 {
-    const MeshDone done = m_meshWatch.result();
+    meshArrived(m_meshWatch.result());
+}
+
+void MainWindow::meshArrived(const MeshDone &done)
+{
     if (done.opening != m_opening)
         return;  // for a study since replaced
     m_meshPending = false;
@@ -940,6 +982,7 @@ void MainWindow::updateBanner()
         s.geometry = QFileInfo(i->file).fileName();
     s.meshing = m_meshPending;
     s.meshProblem = m_meshProblem;
+    s.meshStopped = m_meshStopped;
     s.changedGroup = m_changedGroup;
     if (!m_mesh.points.empty())
         s.freecadGroups = freecadGroupsMissing();
@@ -972,7 +1015,7 @@ void MainWindow::updateActions()
     m_addMaterial->setEnabled(!m_study.folder.isEmpty());
     m_runAction->setEnabled(meshed && m_changedGroup.isEmpty() && !m_runner.running()
                             && !m_study.stepsOf("solve").empty());
-    m_stopAction->setEnabled(m_runner.running());
+    m_stopAction->setEnabled(m_runner.running() || m_meshRun.running());
     const bool results = m_results.timeCount() > 0;
     for (QAction *a : m_vcr)
         a->setEnabled(results);

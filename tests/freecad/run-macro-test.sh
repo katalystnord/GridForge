@@ -13,7 +13,9 @@ if command -v FreeCADCmd >/dev/null 2>&1; then
     PYTHONDONTWRITEBYTECODE=1 MACRO=$src/tools/freecad/GridForge.FCMacro FIXTURES=$src/tests/fixtures OUT=$out \
         FreeCADCmd "$src/tests/freecad/macro_test.py" >"$out/freecad.log" 2>&1
 elif command -v flatpak >/dev/null 2>&1 && flatpak info org.freecad.FreeCAD >/dev/null 2>&1; then
-    flatpak run --filesystem="$src":ro --filesystem="$out" \
+    # No document portal: the folders are shared by --filesystem, and with
+    # the portal not running (seen 2026-11-18, late) bwrap would not start.
+    flatpak run --no-documents-portal --filesystem="$src":ro --filesystem="$out" \
         --env=PYTHONDONTWRITEBYTECODE=1 --env=MACRO="$src/tools/freecad/GridForge.FCMacro" --env=FIXTURES="$src/tests/fixtures" --env=OUT="$out" \
         --command=FreeCADCmd org.freecad.FreeCAD "$src/tests/freecad/macro_test.py" >"$out/freecad.log" 2>&1
 else

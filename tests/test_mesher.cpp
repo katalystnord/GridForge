@@ -450,6 +450,68 @@ CASE(overlapping_solids_are_refused_and_named)
                    "overlapping ones are a fault in the geometry");
 }
 
+// A solid's surface must close: Netgen given an open one freed memory
+// twice and ended the program (2026-11-18), the window with it. The open
+// edges are found first, and the faces they border named.
+CASE(a_solid_whose_surface_does_not_close_is_refused_naming_the_open_faces)
+{
+    QString error;
+    const ResultsSeries s = mesh("openbox.brep", 3, 1, &error);
+    CHECK(s.points.empty());
+    CHECK(error == "the surface of openbox.brep does not close: 4 edges border one face only, "
+                   "on faces 1, 2, 3 and 4; a solid needs a closed surface (a face missing, or "
+                   "two faces that do not meet, in the geometry)");
+}
+
+// A seam (a face meeting itself) and a pole (a degenerate edge) border one
+// face, and are no opening: a ball's surface closes.
+CASE(a_ball_s_seam_and_poles_are_no_opening)
+{
+    QString error;
+    const ResultsSeries s = mesh("ball.step", 3, 1, &error);
+    CHECK(error.isEmpty());
+    vtkUnstructuredGrid *g = grid(s);
+    CHECK(g);
+    if (!g)
+        return;
+    CHECK(misplacedCells(g) == 0);
+    // Measured by the corners: flat faces inside a convex ball, so a
+    // little short of it, never more.
+    const double v = enclosedVolume(g), ball = 4.0 / 3.0 * M_PI * 1000;
+    std::printf("  (ball: %.6g of %.6g)\n", v, ball);
+    CHECK(v < ball && relative(v, ball) < 0.05);
+}
+
+// A convergence check meshes the same recipe finer by one ratio: every
+// size the recipe makes divided by it, the largest element and the
+// thin walls' sizes alike (core/Convergence).
+CASE(a_recipe_made_finer_divides_every_size_it_makes)
+{
+    QString e1, e2;
+    Recipe halved{6, 1};
+    halved.finer = 2;
+    const ResultsSeries a = meshStep(QString(GF_FIXTURES) + "/step/box.step", halved, &e1);
+    const ResultsSeries b = meshStep(QString(GF_FIXTURES) + "/step/box.step", Recipe{3, 1}, &e2);
+    CHECK(e1.isEmpty() && e2.isEmpty());
+    CHECK(grid(a) && grid(b));
+    if (!grid(a) || !grid(b))
+        return;
+    CHECK(grid(a)->GetNumberOfPoints() == grid(b)->GetNumberOfPoints());
+    CHECK(grid(a)->GetNumberOfCells() == grid(b)->GetNumberOfCells());
+    CHECK(a.provenance.contains("recipe: largest element 6, order 1, 2 elements through a wall, every size "
+                                "over 2 (finer, for a convergence check)"));
+    // The plate's 1.5 mm walls: 0.5 for 2 elements through, over 1.5.
+    Recipe plate{5, 1};
+    plate.finer = 1.5;
+    QString e3;
+    const ResultsSeries p = meshStep(QString(GF_FIXTURES) + "/step/plate.step", plate, &e3);
+    CHECK(e3.isEmpty());
+    CHECK(p.provenance.contains("thin walls: 2 faces 1.5 thick, sized 0.333333 for 2 elements through"));
+    // From study.json's parameters too.
+    CHECK(recipeFrom(QJsonObject{{"maxSize", 3}, {"finer", 1.5}}).finer == 1.5);
+    CHECK(recipeFrom(QJsonObject{{"maxSize", 3}}).finer == 1);
+}
+
 CASE(each_face_of_the_geometry_is_a_node_set_on_that_face)
 {
     const ResultsSeries s = mesh("box.step", 3, 1);

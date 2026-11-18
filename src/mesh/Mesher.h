@@ -34,10 +34,14 @@ struct Recipe {
     // over this + 1 (at t / 2 a tetrahedron still spans a wall t thick).
     // 0: as Netgen alone.
     int throughWall = 2;
+    // Every size the recipe makes (the largest element, the thin walls')
+    // divided by this: the same recipe, finer by one ratio throughout, for
+    // a mesh convergence check (core/Convergence). 1: as given.
+    double finer = 1;
 };
 
 // A mesh step's parameters as study.json keeps them ("maxSize", "order",
-// "throughWall"), what is not given left at its default.
+// "throughWall", "finer"), what is not given left at its default.
 Recipe recipeFrom(const QJsonObject &parameters);
 
 // A largest element to start from for the geometry at `path` (STEP or

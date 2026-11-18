@@ -55,3 +55,32 @@ With the mesh recipe's `throughWall` (study spec 2.1, default 2), the
 One element through the thickness was too stiff, as such a mesh is in
 bending. Two land on the side beam theory should be on: it leaves out
 the shear, which bends a real cantilever a little more.
+
+## How far the mesh can be trusted (2026-11-18)
+
+`gf-study converge` solves the push on three meshes, each finer than the
+last in every size the recipe makes (`finer`, study spec 2.1), and says
+how far the largest displacement and the largest von Mises stress can be
+trusted against the mesh (core/Convergence: Richardson extrapolation and
+the grid convergence index of Celik et al. 2008):
+
+    GF_CCX=../../build-ccx/install/bin/ccx \
+        ../../build-ninja/src/gf-study converge push.json dogbone.step \
+        --size 5 --order 2 --through-wall 1 -o job-converge
+
+With ccx 2.23, in 40 s on this machine:
+
+| every size over | elements | tip deflection | largest von Mises |
+|---|---|---|---|
+| 1 | 6210 | 0.757639 mm | 41.7196 MPa |
+| 1.5 | 24108 | 0.758042 mm | 41.9616 MPa |
+| 2.25 | 49198 | 0.758185 mm | 41.879 MPa |
+
+- The tip deflection converges (order 1.1, from the element sizes'
+  ratios the counts give, 1.572 then 1.268: Netgen does not shrink every
+  element by the ratio asked), to 0.75866 mm at zero element size; the
+  finest mesh is within 0.078 % of that. Beam theory's 0.75708 mm is
+  0.21 % below it, on the side it should be: it leaves out the shear.
+- The largest von Mises stress oscillates (up 0.6 %, then down 0.2 %):
+  no order to extrapolate with. It sits where the grip is clamped, a
+  sharp change from held to free, where the peak depends on the mesh.

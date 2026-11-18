@@ -19,6 +19,8 @@ add_library(gf_core STATIC
     core/FaceSignature.cpp
     core/LoadChoice.cpp
     core/JobRunner.cpp
+    core/MeshRun.cpp
+    core/Convergence.cpp
 )
 target_include_directories(gf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(gf_core PUBLIC Qt6::Core VTK::CommonCore VTK::CommonDataModel
@@ -103,7 +105,10 @@ target_link_libraries(gf_gui PUBLIC gf_core gf_mesh Qt6::Widgets Qt6::OpenGLWidg
     VTK::FiltersGeometry VTK::FiltersSources VTK::FiltersGeneral VTK::FiltersCore VTK::CommonTransforms
     VTK::RenderingAnnotation VTK::RenderingCore VTK::RenderingOpenGL2 VTK::InteractionStyle VTK::GUISupportQt)
 vtk_module_autoinit(TARGETS gf_gui MODULES ${VTK_LIBRARIES})
-target_compile_definitions(gf_gui PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits")
+target_compile_definitions(gf_gui PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits"
+    GF_BUILT_STUDY="$<TARGET_FILE:gf-study>")
+# The window meshes by running gf-study (core/MeshRun).
+add_dependencies(gf_gui gf-study)
 add_dependencies(gf_gui gf-calculix)
 
 add_executable(GridForge gui/main.cpp)
