@@ -12,7 +12,7 @@ QString applicationName()
 
 QString applicationSubtitle()
 {
-    return QStringLiteral("open simulation set-up between FreeCAD and ParaView");
+    return QStringLiteral("meshing and simulation workbench");
 }
 
 QString applicationVersion()

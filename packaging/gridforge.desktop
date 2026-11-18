@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=GridForge
-Comment=Open simulation set-up between FreeCAD and ParaView
+Comment=Meshing and simulation workbench
 Exec=GridForge %f
 Icon=gridforge
 Terminal=false

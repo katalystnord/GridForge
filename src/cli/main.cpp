@@ -432,8 +432,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(gf::core::applicationVersion());
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(gf::core::applicationName() + ", without a window: "
-                                     + gf::core::applicationSubtitle() + ".\n\n"
+    parser.setApplicationDescription(gf::core::applicationName() + ", the " + gf::core::applicationSubtitle()
+                                     + ", without a window.\n\n"
                                      "Commands:\n"
                                      "  convert job.frd   CalculiX results to one .vtkhdf for "
                                      "ParaView, the deck's named sets as blocks\n"

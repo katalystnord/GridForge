@@ -1,7 +1,7 @@
 # GridForge - Context File
 
-Open simulation set-up between FreeCAD and ParaView: CalculiX first,
-OpenFOAM® later. Katalyst Nord. Licence LGPL-2.1-or-later.
+Meshing and simulation workbench (named so by David, 2026-11-18), between
+FreeCAD and ParaView: CalculiX first, OpenFOAM® later. Katalyst Nord. Licence LGPL-2.1-or-later.
 
 **Named GridForge on 2026-11-15** (David; the working name was
 FluidStress). Code uses the `gf` prefix. The survey (`docs/survey/`) keeps

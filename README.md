@@ -1,7 +1,7 @@
 # GridForge
 
-Open simulation set-up between FreeCAD and ParaView: mesh, set up, run
-and hand over CalculiX analyses, and later OpenFOAM® cases, natively on
+Meshing and simulation workbench: mesh, set up, run and hand over
+CalculiX analyses, and later OpenFOAM® cases, natively on
 Linux. Geometry comes in from FreeCAD as files; results go out to
 ParaView as files. Nonlinear solids first: plasticity, with materials
 measured by TenSense.
