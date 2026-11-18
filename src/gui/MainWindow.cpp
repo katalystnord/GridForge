@@ -379,6 +379,10 @@ void MainWindow::buildActions()
     m_addFreecadGroups->setObjectName(QStringLiteral("addFreecadGroups"));
     m_addFreecadGroups->setToolTip(tr("The groups named in FreeCAD, from the group file beside the geometry"));
     connect(m_addFreecadGroups, &QAction::triggered, this, &MainWindow::addFreecadGroups);
+    m_addMaterial = studyMenu->addAction(tr("Add Material..."));
+    m_addMaterial->setObjectName(QStringLiteral("addMaterial"));
+    m_addMaterial->setToolTip(tr("A material from a FreeCAD card or its values, for a group of solids"));
+    connect(m_addMaterial, &QAction::triggered, this, &MainWindow::showMaterialForm);
     menuBar()->addMenu(tr("&Mesh"));
     QMenu *run = menuBar()->addMenu(tr("&Run"));
     menuBar()->addMenu(tr("R&esults"));
@@ -937,6 +941,15 @@ void MainWindow::updateBanner()
     s.meshing = m_meshPending;
     s.meshProblem = m_meshProblem;
     s.changedGroup = m_changedGroup;
+    if (!m_mesh.points.empty())
+        s.freecadGroups = freecadGroupsMissing();
+    s.hasMaterial = !m_study.setup.assign.empty();
+    s.hasSupport = !m_study.setup.supports.empty();
+    s.hasLoad = false;
+    for (const core::AnalysisStep &st : m_study.setup.steps) {
+        s.hasSupport = s.hasSupport || !st.supports.empty();
+        s.hasLoad = s.hasLoad || !st.loads.empty();
+    }
     s.meshed = !m_mesh.points.empty();
     const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
     s.canSolve = !solves.empty();
@@ -956,6 +969,7 @@ void MainWindow::updateActions()
 {
     const bool meshed = !m_mesh.points.empty();
     m_addFreecadGroups->setEnabled(meshed && !freecadGroupsFile().isEmpty());
+    m_addMaterial->setEnabled(!m_study.folder.isEmpty());
     m_runAction->setEnabled(meshed && m_changedGroup.isEmpty() && !m_runner.running()
                             && !m_study.stepsOf("solve").empty());
     m_stopAction->setEnabled(m_runner.running());
@@ -1577,18 +1591,24 @@ QString MainWindow::freecadGroupsFile() const
     return {};
 }
 
+int MainWindow::freecadGroupsMissing() const
+{
+    QFile f(freecadGroupsFile());
+    if (!f.open(QIODevice::ReadOnly))
+        return 0;
+    int missing = 0;
+    const QJsonObject groups = QJsonDocument::fromJson(f.readAll()).object()["groups"].toObject();
+    for (auto it = groups.begin(); it != groups.end(); ++it)
+        missing += m_study.setup.group(it.key()) ? 0 : 1;
+    return missing;
+}
+
 void MainWindow::offerFreecadGroups()
 {
     const QString path = freecadGroupsFile();
     if (path.isEmpty() || m_mesh.points.empty())
         return;
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    int missing = 0;
-    const QJsonObject groups = QJsonDocument::fromJson(f.readAll()).object()["groups"].toObject();
-    for (auto it = groups.begin(); it != groups.end(); ++it)
-        missing += m_study.setup.group(it.key()) ? 0 : 1;
+    const int missing = freecadGroupsMissing();
     if (missing > 0)
         say(tr("%1 beside the geometry holds %2 not in the study: Study, Add Groups From FreeCAD")
                 .arg(QFileInfo(path).fileName(), missing == 1 ? tr("1 group") : tr("%1 groups").arg(missing)));
@@ -1625,6 +1645,98 @@ void MainWindow::addFreecadGroups()
         say(tr("%1 from %2 added").arg(added == 1 ? tr("1 group") : tr("%1 groups").arg(added), file), Tone::Done);
         openStudy(m_study.folder);
     }
+}
+
+void MainWindow::showMaterialForm()
+{
+    endEdgePick();
+    while (m_propertyForm->count() > 0) {
+        QLayoutItem *row = m_propertyForm->takeAt(0);
+        delete row->widget();
+        delete row;
+    }
+    const bool metres = m_study.setup.units == core::Units::MetreNewtonSecond;
+    auto *name = new QLineEdit(m_properties);
+    name->setObjectName(QStringLiteral("materialName"));
+    name->setPlaceholderText(tr("e.g. Steel"));
+    m_propertyForm->addRow(tr("Name"), name);
+    // A FreeCAD card, or the values by hand; values typed override the card's.
+    auto *cardRow = new QWidget(m_properties);
+    auto *cardLayout = new QHBoxLayout(cardRow);
+    cardLayout->setContentsMargins(0, 0, 0, 0);
+    auto *card = new QLineEdit(cardRow);
+    card->setObjectName(QStringLiteral("materialCard"));
+    card->setPlaceholderText(tr("a FreeCAD .FCMat, or leave empty"));
+    auto *choose = new QPushButton(tr("Choose..."), cardRow);
+    cardLayout->addWidget(card);
+    cardLayout->addWidget(choose);
+    connect(choose, &QPushButton::clicked, this, [this, card] {
+        const QString f = QFileDialog::getOpenFileName(this, tr("A FreeCAD material card"), {},
+                                                       tr("FreeCAD materials (*.FCMat)"));
+        if (!f.isEmpty())
+            card->setText(f);
+    });
+    m_propertyForm->addRow(tr("FreeCAD card"), cardRow);
+    auto *e = new QLineEdit(m_properties);
+    e->setObjectName(QStringLiteral("materialE"));
+    e->setPlaceholderText(tr("from the card"));
+    m_propertyForm->addRow(tr("Young's modulus (%1)").arg(metres ? "Pa" : "MPa"), e);
+    auto *nu = new QLineEdit(m_properties);
+    nu->setObjectName(QStringLiteral("materialNu"));
+    nu->setPlaceholderText(tr("from the card"));
+    m_propertyForm->addRow(tr("Poisson's ratio"), nu);
+    // For a group of solids; with none, a group of every solid is made.
+    auto *assign = new QComboBox(m_properties);
+    assign->setObjectName(QStringLiteral("materialAssign"));
+    for (const core::Group &g : m_study.setup.groups)
+        if (!g.solids.empty())
+            assign->addItem(g.name);
+    const QString everySolid = tr("Every solid (a new group, Part)");
+    if (assign->count() == 0)
+        assign->addItem(everySolid);
+    m_propertyForm->addRow(tr("For"), assign);
+    auto *apply = new QPushButton(icon("pqApply"), tr("Add material"), m_properties);
+    apply->setObjectName(QStringLiteral("applyMaterial"));
+    m_propertyForm->addRow(apply);
+    connect(apply, &QPushButton::clicked, this, [this, name, card, e, nu, assign, everySolid] {
+        std::map<QString, double> values;
+        bool ok = true;
+        if (!e->text().trimmed().isEmpty())
+            values["YoungsModulus"] = e->text().trimmed().toDouble(&ok);
+        bool okNu = true;
+        if (!nu->text().trimmed().isEmpty())
+            values["PoissonRatio"] = nu->text().trimmed().toDouble(&okNu);
+        if (!ok || !okNu) {
+            say(tr("Cannot add the material: a value is not a number"), Tone::Problem);
+            return;
+        }
+        const QString material = name->text().trimmed();
+        QString error;
+        if (!core::addMaterial(m_study.folder, material, values, card->text().trimmed(), &error)) {
+            say(tr("Cannot add the material: %1").arg(error), Tone::Problem);
+            return;
+        }
+        QString group = assign->currentText();
+        if (group == everySolid) {
+            group = QStringLiteral("Part");
+            std::vector<int> solids;
+            while (mesh::solidSignature(m_mesh, static_cast<int>(solids.size()) + 1))
+                solids.push_back(static_cast<int>(solids.size()) + 1);
+            if (solids.empty())
+                solids.push_back(1);  // no mesh yet: a part of one solid
+            if (!core::addGroup(m_study.folder, core::Group{group, {}, solids, {}}, &error)) {
+                say(tr("Cannot make the group of every solid: %1").arg(error), Tone::Problem);
+                return;
+            }
+        }
+        if (!core::assignMaterial(m_study.folder, group, material, &error)) {
+            say(tr("Cannot assign the material: %1").arg(error), Tone::Problem);
+            return;
+        }
+        say(tr("Material %1 added, for %2").arg(material, group), Tone::Done);
+        openStudy(m_study.folder);
+    });
+    name->setFocus();
 }
 
 void MainWindow::makeGroup()

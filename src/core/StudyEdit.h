@@ -55,6 +55,18 @@ bool createStudy(const QString &folder, const QString &geometry, double maxSize,
 // and the file unchanged without faces or solids or with a name taken.
 bool addGroup(const QString &folder, const Group &group, QString *error);
 
+// Adds a material (study spec 4.3): its values, as the study's units,
+// and, if `card` names a FreeCAD .FCMat, that card copied into inputs/
+// (values given override the card's). False with *error, the file kept,
+// for a name taken or a material with neither a card nor Young's modulus.
+bool addMaterial(const QString &folder, const QString &name, const std::map<QString, double> &values,
+                 const QString &card, QString *error);
+
+// Gives a group of solids its material (study spec 4.4), in place of any
+// it had. False with *error for no such group or material, or a group of
+// no solids.
+bool assignMaterial(const QString &folder, const QString &group, const QString &material, QString *error);
+
 // Signs a group's faces again (study spec 4.2): `signatures` for its own
 // faces replace those it had, as the faces are now. False with *error if
 // there is no such group.

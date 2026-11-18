@@ -380,6 +380,88 @@ bool addGroup(const QString &folder, const Group &group, QString *error)
         error);
 }
 
+bool addMaterial(const QString &folder, const QString &name, const std::map<QString, double> &values,
+                 const QString &card, QString *error)
+{
+    const QString named = name.trimmed();
+    auto refuse = [&](const QString &why) {
+        if (error)
+            *error = why;
+        return false;
+    };
+    if (named.isEmpty())
+        return refuse("a material needs a name");
+    if (card.isEmpty() && !values.count("YoungsModulus"))
+        return refuse("a material needs a FreeCAD card or its Young's modulus");
+    const Study before = readStudy(folder, error);
+    if (before.setup.material(named))
+        return refuse(QString("there is a material named %1 already").arg(named));
+    // The card copied into inputs/, so the study stays whole (spec 4.3).
+    QString kept;
+    if (!card.isEmpty()) {
+        if (!QFileInfo(card).isFile())
+            return refuse("no card at " + card);
+        const QDir dir(folder);
+        kept = "inputs/" + QFileInfo(card).fileName();
+        const QString target = dir.filePath(kept);
+        if (QFile::exists(target)) {
+            QFile a(card), b(target);
+            if (!a.open(QIODevice::ReadOnly) || !b.open(QIODevice::ReadOnly) || a.readAll() != b.readAll())
+                return refuse(QString("%1 holds another card already").arg(kept));
+        } else if (!dir.mkpath("inputs") || !QFile::copy(card, target)) {
+            return refuse("cannot copy " + card + " into " + dir.filePath("inputs"));
+        }
+    }
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *) {
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject materials = setup["materials"].toObject();
+            QJsonObject m;
+            if (!kept.isEmpty())
+                m["card"] = kept;
+            QJsonObject v;
+            for (const auto &[k, x] : values)
+                v[k] = x;
+            if (!v.isEmpty())
+                m["values"] = v;
+            materials[named] = m;
+            setup["materials"] = materials;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
+}
+
+bool assignMaterial(const QString &folder, const QString &group, const QString &material, QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            const QJsonObject groups = setup["groups"].toObject();
+            if (!groups.contains(group))
+                return fail(QString("there is no group named %1").arg(group));
+            if (groups[group].toObject()["solids"].toArray().isEmpty())
+                return fail(QString("group %1 holds no solids").arg(group));
+            if (!setup["materials"].toObject().contains(material))
+                return fail(QString("there is no material named %1").arg(material));
+            QJsonObject assign = setup["assign"].toObject();
+            assign[group] = material;
+            setup["assign"] = assign;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
+}
+
 bool signGroup(const QString &folder, const QString &name, const std::map<int, FaceSignature> &signatures,
                QString *error)
 {

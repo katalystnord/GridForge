@@ -185,7 +185,9 @@ directions, coloured by kind, the selected one in ember.
 - Run monitor that never blocks; quick look (deformed shape, contours);
   "Open in ParaView" by handing over the file.
 - Exit: walkthrough test from a FreeCAD export to a ParaView file using
-  only on-screen guidance; AppImage (built 2026-11-18, ccx 2.23 inside:
+  only on-screen guidance (written 2026-11-18: the banner leads through
+  groups, material, support and load to Run; the study the window made
+  then solved by the real ccx 2.23, its reaction balancing the load); AppImage (built 2026-11-18, ccx 2.23 inside:
   `tools/appimage/`); .deb packages for Ubuntu 26.04 (gridforge and
   gridforge-calculix, built 2026-11-18: `tools/deb/`); release 0.1.
 

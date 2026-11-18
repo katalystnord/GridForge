@@ -223,7 +223,7 @@ private slots:
         w.show();
         auto *banner = w.findChild<QLabel *>("nextStep");
         QVERIFY(banner && banner->isVisible());
-        QCOMPARE(banner->text(), QString("Open a study: File, Open Study (a folder with a study.json)."));
+        QCOMPARE(banner->text(), QString("Open a study: File, Open Study, or make one from a part's geometry: File, New Study from Geometry."));
         QCOMPARE(banner->palette().color(QPalette::Window), QColor(226, 92, 29));  // ember
         QCOMPARE(w.palette().color(QPalette::Highlight), QColor(226, 92, 29));
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
@@ -984,6 +984,69 @@ private slots:
         // Again: each already there, said, and left as it is.
         add->trigger();
         QVERIFY(messages->toPlainText().contains("a group named Back is in the study already; left as it is"));
+    }
+
+    void the_release_walkthrough_from_a_freecad_export_to_a_paraview_file()
+    {
+        // ROADMAP Phase 3's exit: from what FreeCAD's macro exports (the
+        // box and its groups, fixtures/freecad) to a results file for
+        // ParaView, each step the one the banner says. The solve is the
+        // stand-in ccx (the suite runs where ccx is not installed); the
+        // AppImage's smoke test solves with the real one.
+        stand_in_ccx(false);
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        auto *banner = w.findChild<QLabel *>("nextStep");
+        auto said = [&](const char *start) {
+            return QTest::qWaitFor([&] { return banner->text().startsWith(start); }, 120000);
+        };
+        QVERIFY2(said("Open a study: File, Open Study, or make one from a part's geometry: File, New Study from Geometry."),
+                 qPrintable(banner->text()));
+        QTemporaryDir dir;
+        const QString folder = dir.filePath("box");
+        QVERIFY(w.newStudy(QString(GF_FIXTURES) + "/freecad/box.brep", folder));
+        QVERIFY2(said("Mesh ready. Add the 3 groups named in FreeCAD"), qPrintable(banner->text()));
+        w.findChild<QAction *>("addFreecadGroups")->trigger();
+        QVERIFY2(said("Give the part a material: Study, Add Material."), qPrintable(banner->text()));
+        w.findChild<QAction *>("addMaterial")->trigger();
+        auto *props = w.findChild<QWidget *>("properties");
+        QTest::keyClicks(props->findChild<QLineEdit *>("materialName"), "Steel");
+        QTest::keyClicks(props->findChild<QLineEdit *>("materialE"), "210000");
+        QTest::keyClicks(props->findChild<QLineEdit *>("materialNu"), "0.3");
+        auto *assignTo = props->findChild<QComboBox *>("materialAssign");
+        QVERIFY(assignTo && assignTo->findText("Steel part") >= 0);
+        assignTo->setCurrentText("Steel part");
+        QTest::mouseClick(props->findChild<QPushButton *>("applyMaterial"), Qt::LeftButton);
+        QVERIFY2(said("Hold the part:"), qPrintable(banner->text()));
+        // Held on its side x = 10 (face 2), in view from the start.
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 10, 5, 22));
+        props = w.findChild<QWidget *>("properties");
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:fixed"), Qt::LeftButton);
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        QVERIFY2(said("Load it:"), qPrintable(banner->text()));
+        // Pushed down on its top (z = 30): 100 N in -z.
+        w.findChild<QTreeWidget *>("studyTree")->setCurrentItem(nullptr);
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 5, 10, 30));
+        props = w.findChild<QWidget *>("properties");
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:force"), Qt::LeftButton);
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:z"), Qt::LeftButton);
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:z"), Qt::LeftButton);  // again: -z
+        QTest::keyClicks(props->findChild<QLineEdit *>("magnitude"), "100");
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        QVERIFY2(said("Mesh ready. Press Run (F5) to solve with CalculiX."), qPrintable(banner->text()));
+        QString error;
+        const gf::core::Study s = gf::core::readStudy(folder, &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(s.setup.assign.at("Steel part"), QString("Steel"));
+        QVERIFY(w.findChild<QAction *>("run")->isEnabled());
+        w.findChild<QAction *>("run")->trigger();
+        QVERIFY2(said("Run 1 solved. Step through the increments in Results, or Open in ParaView."),
+                 qPrintable(banner->text()));
+        // The file for ParaView, and the way to it.
+        QVERIFY(QFile::exists(folder + "/steps/solve/runs/1/results/results.vtkhdf"));
+        QVERIFY(w.findChild<QAction *>("openInParaView")->isEnabled());
     }
 
     void a_drag_turns_the_view_and_picks_nothing()

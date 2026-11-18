@@ -351,6 +351,44 @@ CASE(a_group_of_faces_and_solids_is_added_with_its_signatures)
     CHECK(!addGroup(folder, Group{"Empty", {}, {}, {}}, &error) && error == "a group needs faces or solids");
 }
 
+CASE(a_material_is_added_from_a_card_or_values_and_assigned)
+{
+    // A new study from the box (study spec 4.3 and 4.4): a material by
+    // its values, one from a FreeCAD card (copied into inputs/), each
+    // assigned to a group of solids.
+    QTemporaryDir dir;
+    const QString folder = dir.filePath("box");
+    QString error;
+    CHECK(createStudy(folder, QString(GF_FIXTURES) + "/freecad/box.brep", 2, &error));
+    CHECK(addGroup(folder, Group{"Part", {}, {1}, {}}, &error));
+    CHECK(addMaterial(folder, "Steel", {{"YoungsModulus", 210000}, {"PoissonRatio", 0.3}}, {}, &error)
+          && error.isEmpty());
+    CHECK(addMaterial(folder, "Generic", {}, QString(GF_FIXTURES) + "/materials/Steel-Generic.FCMat", &error)
+          && error.isEmpty());
+    CHECK(QFile::exists(folder + "/inputs/Steel-Generic.FCMat"));
+    CHECK(assignMaterial(folder, "Part", "Steel", &error) && error.isEmpty());
+    Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty());
+    const Material *steel = s.setup.material("Steel"), *generic = s.setup.material("Generic");
+    CHECK(steel && steel->values.count("YoungsModulus") && steel->values.at("YoungsModulus") == 210000
+          && steel->values.count("PoissonRatio") && steel->values.at("PoissonRatio") == 0.3);
+    CHECK(generic && generic->card == "inputs/Steel-Generic.FCMat");
+    CHECK(s.setup.assign.count("Part") && s.setup.assign.at("Part") == "Steel");
+    // Assigned again: the new one replaces the old.
+    CHECK(assignMaterial(folder, "Part", "Generic", &error));
+    s = readStudy(folder, &error);
+    CHECK(s.setup.assign.count("Part") && s.setup.assign.at("Part") == "Generic");
+    // Refused, said, the file kept.
+    CHECK(!addMaterial(folder, "Steel", {{"YoungsModulus", 1}}, {}, &error)
+          && error == "there is a material named Steel already");
+    CHECK(!addMaterial(folder, "Bare", {{"PoissonRatio", 0.3}}, {}, &error)
+          && error == "a material needs a FreeCAD card or its Young's modulus");
+    CHECK(!assignMaterial(folder, "Ghost", "Steel", &error) && error == "there is no group named Ghost");
+    CHECK(!assignMaterial(folder, "Part", "Brass", &error) && error == "there is no material named Brass");
+    CHECK(addFaceGroup(folder, "Top", {6}, &error));
+    CHECK(!assignMaterial(folder, "Top", "Steel", &error) && error == "group Top holds no solids");
+}
+
 CASE(what_can_be_edited_is_offered_with_its_value_and_unit)
 {
     QString error;

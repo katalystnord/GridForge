@@ -18,7 +18,7 @@ int main()
         }
     };
     WindowState s;
-    check(s, "Open a study: File, Open Study (a folder with a study.json).");
+    check(s, "Open a study: File, Open Study, or make one from a part's geometry: File, New Study from Geometry.");
     s.studyOpen = true;
     s.geometry = "dogbone.step";
     s.meshing = true;
@@ -31,6 +31,18 @@ int main()
     s.meshed = true;
     s.canSolve = true;
     s.toolkit = "CalculiX";
+    // A study not set up yet: each next step said in turn, from the window
+    // alone (the release walkthrough, ROADMAP Phase 3).
+    s.hasMaterial = s.hasSupport = s.hasLoad = false;
+    s.freecadGroups = 3;
+    check(s, "Mesh ready. Add the 3 groups named in FreeCAD: Study, Add Groups From FreeCAD.");
+    s.freecadGroups = 0;
+    check(s, "Give the part a material: Study, Add Material.");
+    s.hasMaterial = true;
+    check(s, "Hold the part: click the faces it is held by, then choose a support in Properties.");
+    s.hasSupport = true;
+    check(s, "Load it: click the faces it is loaded on, then choose Move, Force or Pressure in Properties.");
+    s.hasLoad = true;
     check(s, "Mesh ready. Press Run (F5) to solve with CalculiX.");
     // A group signed on faces the geometry no longer has (study spec 4.2):
     // said before a solve is tried, even after one.

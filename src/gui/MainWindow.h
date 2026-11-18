@@ -171,6 +171,11 @@ private:
     // Said once a mesh is ready, if that file holds groups the study lacks.
     void offerFreecadGroups();
     void addFreecadGroups();
+    // How many of the FreeCAD group file's groups the study lacks.
+    int freecadGroupsMissing() const;
+    // Study, Add Material: its form in Properties (a FreeCAD card or values,
+    // assigned to a group of solids).
+    void showMaterialForm();
     // The picked faces' signatures, as the mesh measured them.
     std::map<int, gf::core::FaceSignature> signaturesOf(const std::vector<int> &faces) const;
     // Edge picking for a load along an edge: the geometry's edges drawn,
@@ -233,6 +238,7 @@ private:
     QDoubleSpinBox *m_deform = nullptr;
     QAction *m_autoDeform = nullptr;
     QAction *m_addFreecadGroups = nullptr;
+    QAction *m_addMaterial = nullptr;
     QLabel *m_increments = nullptr;
     QAction *m_openParaView = nullptr;
     QAction *m_rescale = nullptr;

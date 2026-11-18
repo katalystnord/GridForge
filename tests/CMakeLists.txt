@@ -703,6 +703,15 @@ set_tests_properties(groups_the_freecad_macro_wrote_are_read PROPERTIES
 # share/ (programs: Debian policy): the toolkit-folder case red against
 # the share/ path, green after.
 
+# NEGATIVE CHECKS, 2026-11-18, the release walkthrough (ROADMAP Phase 3's
+# exit): red at its first banner before the set-up steps were said; red at
+# "Give the part a material" with the material left out of the banner's
+# state. addMaterial and assignMaterial red against stubs. The study the
+# walkthrough made, kept once and solved by the real ccx 2.23: the
+# reaction on the held face 98.5095 N, the load 100 N less the 1.4905 N
+# on the edge it shares with the loaded face (ccx's FORC leaves out a
+# node's own load).
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

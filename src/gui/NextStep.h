@@ -15,6 +15,11 @@ struct WindowState {
     QString changedGroup;     // a group whose faces the geometry no longer has
     bool meshed = false;
     bool canSolve = false;    // the study has a solve step
+    // Set-up still to do before a solve (each said in turn):
+    int freecadGroups = 0;    // groups in a FreeCAD group file the study lacks
+    bool hasMaterial = true;  // a material assigned
+    bool hasSupport = true;   // a support, from the start or in a step
+    bool hasLoad = true;      // a load in a step
     QString toolkit;          // the solve toolkit's name
     bool running = false;
     int run = 0;              // the run running, or the last
