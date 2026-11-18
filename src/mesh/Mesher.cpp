@@ -1,5 +1,7 @@
 #include "mesh/Mesher.h"
 
+#include "core/FaceSignature.h"
+
 #include <QCryptographicHash>
 #include <QFileInfo>
 
@@ -22,6 +24,7 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <Poly_Triangulation.hxx>
@@ -271,6 +274,55 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
     return out;
 }
 
+// The geometry at `path`, a STEP (every root of it as one shape) or
+// OpenCASCADE's own .brep, as FreeCAD's exportBrep writes it
+// (docs/specs/groups-v1.md; no units in it: millimetres, FreeCAD's).
+// Netgen's LoadOCC_STEP is not used: it keeps only the first root of a
+// STEP, and a file with a root per body lost the rest without a word
+// (2026-11-18); it also read names, colours and Netgen's own stored mesh
+// sizes, which would have changed the mesh unseen. Null, with *why, if
+// the file cannot be read.
+static TopoDS_Shape readGeometry(const QString &path, QString *why)
+{
+    const QString file = QFileInfo(path).fileName();
+    TopoDS_Shape shape;
+    if (QFileInfo(path).suffix().compare("brep", Qt::CaseInsensitive) == 0
+        || QFileInfo(path).suffix().compare("brp", Qt::CaseInsensitive) == 0) {
+        BRep_Builder builder;
+        if (!BRepTools::Read(shape, path.toUtf8().constData(), builder) || shape.IsNull())
+            *why = QString("%1 could not be read as BREP").arg(file);
+        return shape;
+    }
+    STEPControl_Reader reader;
+    if (reader.ReadFile(path.toUtf8().constData()) != IFSelect_RetDone) {
+        *why = QString("%1 could not be read as STEP").arg(file);
+        return shape;
+    }
+    reader.TransferRoots();
+    return reader.OneShape();
+}
+
+double suggestedSize(const QString &path, QString *error)
+{
+    QString why;
+    const TopoDS_Shape shape = QFileInfo(path).isFile() ? readGeometry(path, &why) : TopoDS_Shape();
+    if (why.isEmpty() && shape.IsNull())
+        why = QString("no geometry at %1").arg(path);
+    if (!why.isEmpty()) {
+        if (error)
+            *error = why;
+        return 0;
+    }
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    const double raw = std::sqrt(box.SquareExtent()) / 25 * (1 + 1e-9);
+    const double power = std::pow(10.0, std::floor(std::log10(raw)));
+    const double m = raw / power;
+    if (error)
+        error->clear();
+    return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * power;
+}
+
 Recipe recipeFrom(const QJsonObject &parameters)
 {
     Recipe r;
@@ -311,19 +363,20 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     TopTools_IndexedMapOfShape joinedFaces;
     std::vector<double> thickness, thinFaces;
     Walls walls;
+    std::vector<gf::core::SolidSignature> solidSignatures;
     try {
-        // Read with OpenCASCADE's own STEP reader, every root of the file
-        // as one shape. Netgen's LoadOCC_STEP keeps only the first root,
-        // and a file with a root per body (as a writer given one body at a
-        // time writes it) lost the rest without a word (2026-11-18). It
-        // also read names, colours and Netgen's own stored mesh sizes,
-        // which GridForge does not use: a size in the file would have
-        // changed the mesh unseen.
-        STEPControl_Reader reader;
-        if (reader.ReadFile(stepPath.toUtf8().constData()) != IFSelect_RetDone)
-            return fail(QString("%1 could not be read as STEP").arg(file));
-        reader.TransferRoots();
-        const TopoDS_Shape shape = reader.OneShape();
+        QString unread;
+        const TopoDS_Shape shape = readGeometry(stepPath, &unread);
+        if (!unread.isEmpty())
+            return fail(unread);
+        // Each of the file's solids, its volume and centre, in the order
+        // the solids are numbered (Solid<n>, as join() takes them).
+        for (TopExp_Explorer e(shape, TopAbs_SOLID); e.More(); e.Next()) {
+            GProp_GProps props;
+            BRepGProp::VolumeProperties(e.Current(), props);
+            const gp_Pnt c = props.CentreOfMass();
+            solidSignatures.push_back({props.Mass(), {c.X(), c.Y(), c.Z()}});
+        }
         TopTools_IndexedMapOfShape fileSolidMap;
         if (!shape.IsNull())
             TopExp::MapShapes(shape, TopAbs_SOLID, fileSolidMap);
@@ -574,6 +627,17 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         faceThickness->InsertNextValue(at >= 1 ? thickness[at - 1] : 0);
     }
     grid->GetFieldData()->AddArray(faceThickness);
+    vtkNew<vtkDoubleArray> solidVolume;
+    solidVolume->SetName("solid volume");
+    vtkNew<vtkDoubleArray> solidCentre;
+    solidCentre->SetName("solid centre");
+    solidCentre->SetNumberOfComponents(3);
+    for (const gf::core::SolidSignature &v : solidSignatures) {
+        solidVolume->InsertNextValue(v.volume);
+        solidCentre->InsertNextTypedTuple(v.centre.data());
+    }
+    grid->GetFieldData()->AddArray(solidVolume);
+    grid->GetFieldData()->AddArray(solidCentre);
     grid->GetFieldData()->AddArray(faceKind);
     grid->GetFieldData()->AddArray(faceArea);
     grid->GetFieldData()->AddArray(faceCentre);

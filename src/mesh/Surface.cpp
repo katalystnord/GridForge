@@ -347,4 +347,18 @@ std::optional<gf::core::FaceSignature> faceSignature(const gf::core::ResultsSeri
     return s;
 }
 
+std::optional<gf::core::SolidSignature> solidSignature(const gf::core::ResultsSeries &mesh, int solid)
+{
+    if (mesh.points.empty() || !mesh.points.front().grid)
+        return std::nullopt;
+    vtkFieldData *data = mesh.points.front().grid->GetFieldData();
+    vtkDataArray *volume = data->GetArray("solid volume"), *centre = data->GetArray("solid centre");
+    if (!volume || !centre || solid < 1 || solid > volume->GetNumberOfTuples() || solid > centre->GetNumberOfTuples())
+        return std::nullopt;
+    gf::core::SolidSignature s;
+    s.volume = volume->GetComponent(solid - 1, 0);
+    centre->GetTuple(solid - 1, s.centre.data());
+    return s;
+}
+
 } // namespace gf::mesh

@@ -310,6 +310,47 @@ QString copyDogbone(QTemporaryDir &dir)
     return dir.path();
 }
 
+CASE(a_new_study_is_made_from_a_geometry_file)
+{
+    // FreeCAD's box and the group file beside it (fixtures/freecad): the
+    // geometry and the groups copied into inputs/, a study.json naming
+    // them, its mesh size as given, one static step, the study's units mm.
+    QTemporaryDir dir;
+    const QString folder = dir.filePath("box study");
+    QString error;
+    CHECK(createStudy(folder, QString(GF_FIXTURES) + "/freecad/box.brep", 2, &error) && error.isEmpty());
+    CHECK(QFile::exists(folder + "/inputs/box.brep") && QFile::exists(folder + "/inputs/box.groups.json"));
+    const Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty());
+    const StudyStep *part = s.step("part"), *mesh = s.step("mesh"), *solve = s.step("solve");
+    CHECK(part && part->kind == "input" && part->file == "inputs/box.brep");
+    CHECK(mesh && mesh->by == "gridforge" && mesh->parameters["maxSize"].toDouble() == 2
+          && mesh->parameters["order"].toInt() == 2);
+    CHECK(solve && solve->by == "calculix");
+    CHECK(s.setup.units == Units::MillimetreNewtonSecond && s.setup.steps.size() == 1
+          && s.setup.steps[0].kind == "static" && s.setup.groups.empty());
+    // Not over a study, nor without geometry.
+    CHECK(!createStudy(folder, QString(GF_FIXTURES) + "/freecad/box.brep", 2, &error));
+    CHECK(error == "there is a study in " + folder + " already");
+    CHECK(!createStudy(dir.filePath("other"), dir.filePath("none.step"), 2, &error));
+    CHECK(error == "no geometry at " + dir.filePath("none.step"));
+}
+
+CASE(a_group_of_faces_and_solids_is_added_with_its_signatures)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    Group g{"Grip and body", {6}, {1}, {{6, FaceSignature{"plane", 80, {150, 0, 2}}}}};
+    CHECK(addGroup(folder, g, &error) && error.isEmpty());
+    const Study s = readStudy(folder, &error);
+    const Group *read = s.setup.group("Grip and body");
+    CHECK(error.isEmpty() && read && read->faces == std::vector<int>{6} && read->solids == std::vector<int>{1});
+    CHECK(read && read->signatures.count(6) && read->signatures.at(6).area == 80);
+    CHECK(!addGroup(folder, g, &error) && error == "there is a group named Grip and body already");
+    CHECK(!addGroup(folder, Group{"Empty", {}, {}, {}}, &error) && error == "a group needs faces or solids");
+}
+
 CASE(what_can_be_edited_is_offered_with_its_value_and_unit)
 {
     QString error;

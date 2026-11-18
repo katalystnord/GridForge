@@ -17,6 +17,15 @@ bool sameFace(const FaceSignature &was, const FaceSignature &now)
     return std::sqrt(dx * dx + dy * dy + dz * dz) <= 1e-6 * std::sqrt(was.area);
 }
 
+bool sameSolid(const SolidSignature &was, const SolidSignature &now)
+{
+    if (std::abs(now.volume - was.volume) > 1e-6 * was.volume)
+        return false;
+    const double dx = now.centre[0] - was.centre[0], dy = now.centre[1] - was.centre[1],
+                 dz = now.centre[2] - was.centre[2];
+    return std::sqrt(dx * dx + dy * dy + dz * dz) <= 1e-6 * std::cbrt(was.volume);
+}
+
 QString describeFace(const FaceSignature &s, const QString &length)
 {
     auto n = [](double x) { return QString::number(std::abs(x) < 1e-12 ? 0.0 : x, 'g', 6); };

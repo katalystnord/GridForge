@@ -43,6 +43,18 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
 // any of that fails.
 bool editStudy(const QString &folder, const QString &key, const Edit &edit, QString *error);
 
+// A new study in `folder` (made if need be; refused over a study) for the
+// geometry at `geometry` (a STEP or a FreeCAD .brep): the geometry copied
+// into inputs/, with the group file beside it if there is one
+// (<name>.groups.json, docs/specs/groups-v1.md); its mesh at `maxSize`,
+// quadratic; a CalculiX solve; one static step, in mm, N, s.
+bool createStudy(const QString &folder, const QString &geometry, double maxSize, QString *error);
+
+// Adds a group of faces and/or solids, with its faces' signatures, as it
+// is (a group from FreeCAD, docs/specs/groups-v1.md). False with *error
+// and the file unchanged without faces or solids or with a name taken.
+bool addGroup(const QString &folder, const Group &group, QString *error);
+
 // Signs a group's faces again (study spec 4.2): `signatures` for its own
 // faces replace those it had, as the faces are now. False with *error if
 // there is no such group.

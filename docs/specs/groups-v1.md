@@ -1,6 +1,6 @@
 # Named groups from FreeCAD, version 1
 
-**Status: DRAFT, for David's review (2026-11-18).**
+**Status: approved by David, 2026-11-18; built the same day.**
 
 How a part leaves FreeCAD with its faces already named, so loads and
 supports can be set up on them in GridForge without picking them again.
@@ -103,7 +103,12 @@ a number does not.
   The two meet only at these two files (tenet 6).
 - Its tests run it in FreeCADCmd where FreeCAD is installed, on the box
   fixture, and compare its file with one written by hand from the box's
-  known faces.
+  known faces; GridForge then reads the macro's own files. FreeCADCmd keeps
+  neither a script's prints nor its exit code (FreeCAD 1.1.4), so the
+  test's verdict is a file (`tests/freecad/`).
+- In GridForge: File, New Study from Geometry takes the `.brep` (or a
+  STEP) and copies the group file beside it into the study's `inputs/`;
+  once meshed, Study, Add Groups From FreeCAD adds the groups found.
 
 ## 5. Not in version 1
 

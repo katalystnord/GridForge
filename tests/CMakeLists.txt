@@ -665,6 +665,32 @@ endif()
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 
+# Named groups from FreeCAD (docs/specs/groups-v1.md): the macro's group
+# file read against GridForge's mesh, each face found by its signature.
+add_executable(test_groups_file test_groups_file.cpp)
+target_link_libraries(test_groups_file PRIVATE gf_mesh)
+target_compile_definitions(test_groups_file PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME groups_from_freecad_are_found_by_their_faces_signatures COMMAND test_groups_file)
+# GridForge's FreeCAD macro, run in FreeCAD where FreeCAD is installed (or
+# its Flatpak); skipped elsewhere (CI). Its group file against the one
+# written by hand from the box's faces; then GridForge reads its files.
+add_test(NAME the_freecad_macro_writes_the_groups_as_specified
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/freecad/run-macro-test.sh ${CMAKE_SOURCE_DIR}
+            ${CMAKE_CURRENT_BINARY_DIR}/freecad-out)
+set_tests_properties(the_freecad_macro_writes_the_groups_as_specified PROPERTIES
+    SKIP_RETURN_CODE 77 TIMEOUT 300 FIXTURES_SETUP freecad_macro)
+add_test(NAME groups_the_freecad_macro_wrote_are_read COMMAND test_groups_file)
+set_tests_properties(groups_the_freecad_macro_wrote_are_read PROPERTIES
+    FIXTURES_REQUIRED freecad_macro
+    ENVIRONMENT "GF_FREECAD_OUT=${CMAKE_CURRENT_BINARY_DIR}/freecad-out")
+# NEGATIVE CHECKS, 2026-11-18, groups from FreeCAD: each group-file case
+# red against stubs of readGroupsFile and facesMatching; createStudy,
+# addGroup and suggestedSize red against stubs; the window's case red
+# against a stub newStudy, and with the offer after meshing left out. The
+# macro's test red with one area of the hand-written file changed (600 to
+# 601). FreeCADCmd keeps neither prints nor exit codes, so the verdict is
+# a file the runner reads.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

@@ -950,6 +950,39 @@ private slots:
         QVERIFY(!w.findChild<QLabel *>("nextStep")->text().contains("changed"));
     }
 
+    void a_new_study_from_freecads_brep_takes_its_groups()
+    {
+        // FreeCAD's box and its group file (fixtures/freecad,
+        // docs/specs/groups-v1.md): a new study from the .brep, meshed, and
+        // the groups found on GridForge's own faces by their signatures.
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = dir.filePath("box");
+        QVERIFY(w.newStudy(QString(GF_FIXTURES) + "/freecad/box.brep", folder));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.mesh().points.empty(), 120000);
+        auto *messages = w.findChild<QPlainTextEdit *>("messages");
+        QVERIFY2(messages->toPlainText().contains(
+                     "box.groups.json beside the geometry holds 3 groups not in the study: Study, Add Groups From FreeCAD"),
+                 qPrintable(messages->toPlainText()));
+        auto *add = w.findChild<QAction *>("addFreecadGroups");
+        QVERIFY(add && add->isEnabled());
+        add->trigger();
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QVERIFY(findItem(tree, "Back") && findItem(tree, "Ends") && findItem(tree, "Steel part"));
+        QCOMPARE(findItem(tree, "Back")->text(1), QString("face 1"));
+        QString error;
+        const gf::core::Study s = gf::core::readStudy(folder, &error);
+        QVERIFY(error.isEmpty() && s.setup.group("Ends"));
+        QCOMPARE(s.setup.group("Ends")->faces, (std::vector<int>{5, 6}));
+        QCOMPARE(s.setup.group("Ends")->signatures.size(), size_t(2));
+        QCOMPARE(s.setup.group("Steel part")->solids, std::vector<int>{1});
+        QVERIFY(messages->toPlainText().contains("3 groups from box.groups.json added"));
+        // Again: each already there, said, and left as it is.
+        add->trigger();
+        QVERIFY(messages->toPlainText().contains("a group named Back is in the study already; left as it is"));
+    }
+
     void a_drag_turns_the_view_and_picks_nothing()
     {
         MainWindow w;

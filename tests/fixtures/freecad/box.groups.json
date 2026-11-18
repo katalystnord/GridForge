@@ -1,0 +1,25 @@
+{
+  "format": "gridforge-groups",
+  "version": "1.0",
+  "geometry": "box.brep",
+  "units": "mm",
+  "written by": "by hand, from the box's known faces (README.md)",
+  "groups": {
+    "Back": {
+      "faces": [
+        {"freecad": "Face1", "kind": "plane", "area": 600, "centre": [0, 10, 15]}
+      ]
+    },
+    "Ends": {
+      "faces": [
+        {"freecad": "Face5", "kind": "plane", "area": 200, "centre": [5, 10, 0]},
+        {"freecad": "Face6", "kind": "plane", "area": 200, "centre": [5, 10, 30]}
+      ]
+    },
+    "Steel part": {
+      "solids": [
+        {"freecad": "Solid1", "volume": 6000, "centre": [5, 10, 15]}
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@
 
 #include "CellChecks.h"
 #include "mesh/Mesher.h"
+#include "mesh/Surface.h"
 
 #include <QJsonObject>
 #include <QRegularExpression>
@@ -344,6 +345,45 @@ CASE(a_mesh_steps_parameters_are_its_recipe)
     CHECK(r.maxSize == 3 && r.order == 2 && r.throughWall == 2);
     r = recipeFrom(QJsonObject{{"maxSize", 3}, {"throughWall", 0}});
     CHECK(r.maxSize == 3 && r.order == 1 && r.throughWall == 0);
+}
+
+CASE(a_brep_from_freecad_is_meshed_as_its_step)
+{
+    // The box written by FreeCAD's exportBrep (fixtures/freecad/box.brep):
+    // the same six faces as box.step, the same numbers, and its solid's
+    // volume and centre, known: 6000 mm3 at (5, 10, 15).
+    QString error;
+    const ResultsSeries brep =
+        meshStep(QString(GF_FIXTURES) + "/freecad/box.brep", Recipe{5, 1}, &error);
+    CHECK(error.isEmpty() && grid(brep));
+    const ResultsSeries step = mesh("box.step", 5, 1);
+    for (int f = 1; f <= 6; ++f) {
+        const auto a = faceSignature(brep, f), b = faceSignature(step, f);
+        CHECK(a && b && gf::core::sameFace(*b, *a));
+    }
+    CHECK(brep.provenance.contains("source: box.brep"));
+    const auto solid = solidSignature(brep, 1);
+    CHECK(solid && std::abs(solid->volume - 6000) < 1e-9);
+    CHECK(solid && std::abs(solid->centre[0] - 5) < 1e-9 && std::abs(solid->centre[1] - 10) < 1e-9
+          && std::abs(solid->centre[2] - 15) < 1e-9);
+    CHECK(!solidSignature(brep, 2));
+    // Two cubes side by side: each its own, in the file's order.
+    const ResultsSeries two = mesh("twoboxes.step", 5, 1);
+    const auto one = solidSignature(two, 1), other = solidSignature(two, 2);
+    CHECK(one && other && std::abs(one->volume - 1000) < 1e-9 && std::abs(other->volume - 1000) < 1e-9);
+    CHECK(one && other && std::abs(one->centre[0] - 5) < 1e-9 && std::abs(other->centre[0] - 15) < 1e-9);
+}
+
+CASE(a_mesh_size_is_suggested_from_the_parts_size)
+{
+    // A twenty-fifth of the bounding box's diagonal, rounded down to 1, 2
+    // or 5 times a power of ten: the box's diagonal is sqrt(10^2 + 20^2 +
+    // 30^2) = 37.4, a 25th 1.5, so 1; the dogbone's sqrt(150^2 + 20^2 +
+    // 4^2) = 151.4, a 25th 6.06, so 5.
+    QString error;
+    CHECK(suggestedSize(QString(GF_FIXTURES) + "/freecad/box.brep", &error) == 1 && error.isEmpty());
+    CHECK(suggestedSize(QString(GF_FIXTURES) + "/step/dogbone.step", &error) == 5 && error.isEmpty());
+    CHECK(suggestedSize(QString(GF_FIXTURES) + "/step/none.step", &error) == 0 && !error.isEmpty());
 }
 
 CASE(touching_solids_share_their_nodes_where_they_touch)

@@ -12,6 +12,7 @@
 #include "core/StudyOutline.h"
 #include "core/Toolkit.h"
 #include "mesh/Groups.h"
+#include "mesh/GroupsFile.h"
 #include "mesh/Mesher.h"
 #include "mesh/Quality.h"
 
@@ -347,6 +348,20 @@ void MainWindow::buildActions()
         if (!dir.isEmpty())
             openStudy(dir);
     });
+    QAction *create = file->addAction(tr("&New Study from Geometry..."));
+    create->setObjectName(QStringLiteral("newStudy"));
+    create->setShortcut(QKeySequence::New);
+    create->setToolTip(tr("A study for a STEP, or a .brep from FreeCAD with its groups"));
+    connect(create, &QAction::triggered, this, [this] {
+        const QString geometry = QFileDialog::getOpenFileName(
+            this, tr("The geometry to study"), {}, tr("Geometry (*.step *.stp *.brep *.brp)"));
+        if (geometry.isEmpty())
+            return;
+        const QString folder =
+            QFileDialog::getExistingDirectory(this, tr("An empty folder for the study"), QFileInfo(geometry).absolutePath());
+        if (!folder.isEmpty())
+            newStudy(geometry, folder);
+    });
     QAction *reload = file->addAction(icon("pqReloadFile"), tr("&Reload"));
     reload->setObjectName(QStringLiteral("reloadStudy"));
     connect(reload, &QAction::triggered, this, [this] {
@@ -359,7 +374,11 @@ void MainWindow::buildActions()
     QMenu *view = menuBar()->addMenu(tr("&View"));
     for (QDockWidget *d : findChildren<QDockWidget *>())
         view->addAction(d->toggleViewAction());
-    menuBar()->addMenu(tr("&Study"));
+    QMenu *studyMenu = menuBar()->addMenu(tr("&Study"));
+    m_addFreecadGroups = studyMenu->addAction(tr("Add Groups From FreeCAD"));
+    m_addFreecadGroups->setObjectName(QStringLiteral("addFreecadGroups"));
+    m_addFreecadGroups->setToolTip(tr("The groups named in FreeCAD, from the group file beside the geometry"));
+    connect(m_addFreecadGroups, &QAction::triggered, this, &MainWindow::addFreecadGroups);
     menuBar()->addMenu(tr("&Mesh"));
     QMenu *run = menuBar()->addMenu(tr("&Run"));
     menuBar()->addMenu(tr("R&esults"));
@@ -611,6 +630,7 @@ bool MainWindow::openStudy(const QString &path)
         QString groupProblem;
         const bool fits = mesh::addGroupSets(m_mesh, m_study.setup, &groupProblem);
         checkGroups();
+        offerFreecadGroups();
         if (!fits && m_changedGroup.isEmpty())
             say(tr("The groups do not fit the mesh: %1").arg(groupProblem), Tone::Problem);
         lightFaces({});
@@ -848,6 +868,7 @@ void MainWindow::onMeshed()
     showLayer(m_layouts->currentIndex());
     setCamera(-1, -1, -1, 0, 0, 1);
     checkGroups();
+    offerFreecadGroups();
     if (!done.groupProblem.isEmpty() && m_changedGroup.isEmpty())
         say(tr("The groups do not fit the mesh: %1").arg(done.groupProblem), Tone::Problem);
 
@@ -934,6 +955,7 @@ void MainWindow::updateBanner()
 void MainWindow::updateActions()
 {
     const bool meshed = !m_mesh.points.empty();
+    m_addFreecadGroups->setEnabled(meshed && !freecadGroupsFile().isEmpty());
     m_runAction->setEnabled(meshed && m_changedGroup.isEmpty() && !m_runner.running()
                             && !m_study.stepsOf("solve").empty());
     m_stopAction->setEnabled(m_runner.running());
@@ -1526,6 +1548,83 @@ void MainWindow::checkGroups()
             }
     }
     updateActions();
+}
+
+bool MainWindow::newStudy(const QString &geometry, const QString &folder)
+{
+    QString error;
+    const double size = mesh::suggestedSize(geometry, &error);
+    if (size <= 0 || !core::createStudy(folder, geometry, size, &error)) {
+        say(tr("Cannot make the study: %1").arg(error), Tone::Problem);
+        return false;
+    }
+    say(tr("Study made in %1 for %2, its largest element %3 (a 25th of the part's size; change it in the Mesh "
+           "step's Properties)")
+            .arg(folder, QFileInfo(geometry).fileName())
+            .arg(size),
+        Tone::Done);
+    return openStudy(folder);
+}
+
+QString MainWindow::freecadGroupsFile() const
+{
+    for (const core::StudyStep *i : m_study.stepsOf("input")) {
+        const QFileInfo part(QDir(m_study.folder).filePath(i->file));
+        const QString path = part.dir().filePath(part.completeBaseName() + ".groups.json");
+        if (QFile::exists(path))
+            return path;
+    }
+    return {};
+}
+
+void MainWindow::offerFreecadGroups()
+{
+    const QString path = freecadGroupsFile();
+    if (path.isEmpty() || m_mesh.points.empty())
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    int missing = 0;
+    const QJsonObject groups = QJsonDocument::fromJson(f.readAll()).object()["groups"].toObject();
+    for (auto it = groups.begin(); it != groups.end(); ++it)
+        missing += m_study.setup.group(it.key()) ? 0 : 1;
+    if (missing > 0)
+        say(tr("%1 beside the geometry holds %2 not in the study: Study, Add Groups From FreeCAD")
+                .arg(QFileInfo(path).fileName(), missing == 1 ? tr("1 group") : tr("%1 groups").arg(missing)));
+}
+
+void MainWindow::addFreecadGroups()
+{
+    const QString path = freecadGroupsFile();
+    const std::vector<const core::StudyStep *> inputs = m_study.stepsOf("input");
+    if (path.isEmpty() || inputs.empty() || m_mesh.points.empty())
+        return;
+    const mesh::GroupsFile found =
+        mesh::readGroupsFile(path, QFileInfo(inputs.front()->file).fileName(), m_mesh, m_study.setup.units);
+    const QString file = QFileInfo(path).fileName();
+    if (!found.error.isEmpty()) {
+        say(tr("%1: %2").arg(file, found.error), Tone::Problem);
+        return;
+    }
+    for (const QString &problem : found.problems)
+        say(problem, Tone::Problem);
+    int added = 0;
+    for (const core::Group &g : found.groups) {
+        if (m_study.setup.group(g.name)) {
+            say(tr("a group named %1 is in the study already; left as it is").arg(g.name), Tone::Warning);
+            continue;
+        }
+        QString error;
+        if (core::addGroup(m_study.folder, g, &error))
+            ++added;
+        else
+            say(tr("Cannot add group %1: %2").arg(g.name, error), Tone::Problem);
+    }
+    if (added > 0) {
+        say(tr("%1 from %2 added").arg(added == 1 ? tr("1 group") : tr("%1 groups").arg(added), file), Tone::Done);
+        openStudy(m_study.folder);
+    }
 }
 
 void MainWindow::makeGroup()

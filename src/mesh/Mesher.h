@@ -40,6 +40,11 @@ struct Recipe {
 // "throughWall"), what is not given left at its default.
 Recipe recipeFrom(const QJsonObject &parameters);
 
+// A largest element to start from for the geometry at `path` (STEP or
+// .brep): a twenty-fifth of its bounding box's diagonal, rounded down to
+// 1, 2 or 5 times a power of ten. 0, with *error, if it cannot be read.
+double suggestedSize(const QString &path, QString *error);
+
 // The engine as it will be named in the provenance: "Netgen v6.2.2608-...
 // (github.com/katalystnord/netgen at 7420b2f9...)".
 QString engine();

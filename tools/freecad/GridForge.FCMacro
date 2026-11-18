@@ -1,0 +1,219 @@
+# GridForge.FCMacro: name groups of faces in FreeCAD and hand the part to
+# GridForge as <part>.brep and <part>.groups.json
+# (docs/specs/groups-v1.md in GridForge's source).
+#
+# Copy this file into FreeCAD's macro folder (Macro, Macros..., the folder
+# shown there) and run it from the Macro menu. It needs nothing beyond
+# FreeCAD itself (FreeCAD 1.1.4 checked).
+#
+#   1. Select faces of one part in the 3D view (or the part in the tree,
+#      for the whole solid), type a name, Add group.
+#   2. Export for GridForge: the .brep and the group file, side by side.
+#
+# The groups are kept on the part as the property GridForgeGroups, so they
+# are saved with the document.
+#
+# Copyright Katalyst Nord. SPDX-License-Identifier: LGPL-2.1-or-later
+
+import json
+import os
+
+import FreeCAD
+
+__version__ = "0.1"
+
+# FreeCAD's surface class names, in GridForge's words (study spec 4.2).
+KINDS = {
+    "Plane": "plane",
+    "Cylinder": "cylinder",
+    "Cone": "cone",
+    "Sphere": "sphere",
+    "Toroid": "torus",
+    "BezierSurface": "Bezier surface",
+    "BSplineSurface": "B-spline surface",
+    "SurfaceOfRevolution": "surface of revolution",
+    "SurfaceOfExtrusion": "surface of extrusion",
+    "OffsetSurface": "offset surface",
+}
+
+
+def _point(v):
+    return [round(v.x, 12), round(v.y, 12), round(v.z, 12)]
+
+
+def face_entry(shape, name):
+    """A face ("Face12") by its name and its signature."""
+    face = shape.getElement(name)
+    return {
+        "freecad": name,
+        "kind": KINDS.get(type(face.Surface).__name__, "other"),
+        "area": face.Area,
+        "centre": _point(face.CenterOfMass),
+    }
+
+
+def solid_entry(shape, name):
+    """A solid ("Solid1") by its name, volume and centre."""
+    solid = shape.getElement(name)
+    return {"freecad": name, "volume": solid.Volume, "centre": _point(solid.CenterOfMass)}
+
+
+def group_file(shape, groups, geometry):
+    """The group file for `shape`, written as `geometry` (a file name);
+    `groups` maps each name to FreeCAD's element names ("Face12",
+    "Solid1")."""
+    out = {}
+    for name, elements in groups.items():
+        faces = [face_entry(shape, e) for e in elements if e.startswith("Face")]
+        solids = [solid_entry(shape, e) for e in elements if e.startswith("Solid")]
+        group = {}
+        if faces:
+            group["faces"] = faces
+        if solids:
+            group["solids"] = solids
+        out[name] = group
+    return {
+        "format": "gridforge-groups",
+        "version": "1.0",
+        "geometry": geometry,
+        "units": "mm",
+        "written by": "GridForge's FreeCAD macro %s, in FreeCAD %s"
+        % (__version__, ".".join(FreeCAD.Version()[:3])),
+        "groups": out,
+    }
+
+
+def export(shape, groups, folder, name):
+    """Writes <name>.brep and <name>.groups.json into `folder`; returns
+    their paths."""
+    brep = os.path.join(folder, name + ".brep")
+    path = os.path.join(folder, name + ".groups.json")
+    shape.exportBrep(brep)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(group_file(shape, groups, name + ".brep"), f, indent=2)
+        f.write("\n")
+    return brep, path
+
+
+def _groups_of(obj):
+    if hasattr(obj, "GridForgeGroups") and obj.GridForgeGroups:
+        return json.loads(obj.GridForgeGroups)
+    return {}
+
+
+def _keep(obj, groups):
+    if not hasattr(obj, "GridForgeGroups"):
+        obj.addProperty("App::PropertyString", "GridForgeGroups", "GridForge",
+                        "Groups named for GridForge, as JSON")
+    obj.GridForgeGroups = json.dumps(groups)
+
+
+def _panel():
+    import FreeCADGui as Gui
+    from PySide import QtGui
+
+    class Panel(QtGui.QDialog):
+        def __init__(self):
+            super().__init__(Gui.getMainWindow())
+            self.setWindowTitle("GridForge groups")
+            self.obj = None
+            layout = QtGui.QVBoxLayout(self)
+            self.part = QtGui.QLabel("Select faces of a part")
+            layout.addWidget(self.part)
+            self.list = QtGui.QListWidget()
+            layout.addWidget(self.list)
+            row = QtGui.QHBoxLayout()
+            self.name = QtGui.QLineEdit()
+            self.name.setPlaceholderText("Group name, e.g. Fixed grip")
+            add = QtGui.QPushButton("Add group")
+            remove = QtGui.QPushButton("Remove")
+            row.addWidget(self.name)
+            row.addWidget(add)
+            row.addWidget(remove)
+            layout.addLayout(row)
+            export_button = QtGui.QPushButton("Export for GridForge...")
+            layout.addWidget(export_button)
+            add.clicked.connect(self.add)
+            remove.clicked.connect(self.remove)
+            export_button.clicked.connect(self.export)
+            # A part selected as the macro starts: its groups so far.
+            try:
+                obj, _ = self.selected()
+            except ValueError:
+                obj = None
+            if obj is not None and hasattr(obj, "Shape"):
+                self.obj = obj
+            self.refresh()
+
+        def selected(self):
+            sel = Gui.Selection.getSelectionEx()
+            if not sel:
+                return None, []
+            obj = sel[0].Object
+            names = []
+            for s in sel:
+                if s.Object != obj:
+                    raise ValueError("faces of one part only: %s and %s" % (obj.Label, s.Object.Label))
+                names += [n for n in s.SubElementNames if n.startswith("Face")]
+            if not names:  # the part itself: its solids
+                names = ["Solid%d" % (i + 1) for i in range(len(obj.Shape.Solids))]
+            return obj, names
+
+        def refresh(self):
+            self.list.clear()
+            if self.obj is None:
+                return
+            self.part.setText("Part: %s" % self.obj.Label)
+            for name, elements in _groups_of(self.obj).items():
+                self.list.addItem("%s: %s" % (name, ", ".join(elements)))
+
+        def add(self):
+            try:
+                obj, names = self.selected()
+            except ValueError as e:
+                QtGui.QMessageBox.warning(self, "GridForge", str(e))
+                return
+            name = self.name.text().strip()
+            if obj is None or not name:
+                QtGui.QMessageBox.information(self, "GridForge", "Select faces, then name the group.")
+                return
+            if self.obj is not None and obj != self.obj:
+                QtGui.QMessageBox.warning(self, "GridForge", "The groups are on %s; one part per export." % self.obj.Label)
+                return
+            self.obj = obj
+            groups = _groups_of(obj)
+            groups[name] = names
+            _keep(obj, groups)
+            self.name.clear()
+            self.refresh()
+
+        def remove(self):
+            item = self.list.currentItem()
+            if self.obj is None or item is None:
+                return
+            groups = _groups_of(self.obj)
+            groups.pop(item.text().split(":")[0], None)
+            _keep(self.obj, groups)
+            self.refresh()
+
+        def export(self):
+            if self.obj is None:
+                obj, _ = self.selected()
+                self.obj = obj
+            if self.obj is None:
+                QtGui.QMessageBox.information(self, "GridForge", "Select the part first.")
+                return
+            folder = QtGui.QFileDialog.getExistingDirectory(self, "Folder for the part")
+            if not folder:
+                return
+            brep, path = export(self.obj.Shape, _groups_of(self.obj), folder, self.obj.Label)
+            QtGui.QMessageBox.information(self, "GridForge", "Written:\n%s\n%s" % (brep, path))
+
+    # Kept, or Python would close the panel as soon as the macro returns.
+    global _shown
+    _shown = Panel()
+    _shown.show()
+
+
+if FreeCAD.GuiUp:
+    _panel()

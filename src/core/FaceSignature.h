@@ -24,6 +24,16 @@ struct FaceSignature {
 // further than that.
 bool sameFace(const FaceSignature &was, const FaceSignature &now);
 
+// A solid's: its volume and the centre of its volume.
+struct SolidSignature {
+    double volume = 0;
+    std::array<double, 3> centre{0, 0, 0};
+};
+
+// The same solid, to rounding: the volume within a millionth of it, the
+// centre within a millionth of its size (the cube root of its volume).
+bool sameSolid(const SolidSignature &was, const SolidSignature &now);
+
 // "a plane of 200 mm2 at (5, 10, 30)", lengths in `length`.
 QString describeFace(const FaceSignature &s, const QString &length);
 

@@ -176,7 +176,8 @@ directions, coloured by kind, the selected one in ember.
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.
 - Geometry in: `.brep` + the group file from a FreeCAD macro we ship
-  (`docs/specs/groups-v1.md`, DRAFT);
+  (`docs/specs/groups-v1.md`; built 2026-11-18: File, New Study from
+  Geometry, and Study, Add Groups From FreeCAD);
   STEP with picking faces; per-face fingerprints: each group made in
   the window keeps its faces' kind, area and centre (study spec 4.2), and
   a face the geometry no longer has is said before a solve, with the

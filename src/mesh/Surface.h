@@ -68,4 +68,8 @@ std::optional<std::array<double, 3>> edgeDirection(const gf::core::ResultsSeries
 // the geometry, not the mesh. None if there is no such face.
 std::optional<gf::core::FaceSignature> faceSignature(const gf::core::ResultsSeries &mesh, int face);
 
+// A solid's signature, as gf_mesh hands it on (field data "solid volume",
+// "solid centre"), numbered as the mesh's Solid<n> sets; none if no such.
+std::optional<gf::core::SolidSignature> solidSignature(const gf::core::ResultsSeries &mesh, int solid);
+
 } // namespace gf::mesh

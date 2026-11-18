@@ -77,6 +77,7 @@ add_library(gf_mesh STATIC
     mesh/Mesher.cpp
     mesh/Quality.cpp
     mesh/Groups.cpp
+    mesh/GroupsFile.cpp
     mesh/Surface.cpp
 )
 target_include_directories(gf_mesh PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

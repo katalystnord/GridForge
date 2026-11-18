@@ -100,6 +100,11 @@ public:
     // A factor for the deformed shape that makes the largest displacement
     // about a tenth of the model's size, rounded down to 1, 2 or 5 times a
     // power of ten; never below 1 (true scale).
+    // A new study in `folder` for the geometry at `geometry` (a STEP or
+    // FreeCAD's .brep, with its group file if beside it), opened; its
+    // mesh size suggested from the part's size.
+    bool newStudy(const QString &geometry, const QString &folder);
+
     static double autoDeform(double modelSize, double largestDisplacement);
 
     // A view (the direction looked in, and up) turned to show a movement
@@ -160,6 +165,12 @@ private:
     // Each signed group checked against the mesh (study spec 4.2): one
     // whose faces changed is marked in the tree, said, and stops a solve.
     void checkGroups();
+    // The group file FreeCAD's macro writes beside the study's geometry
+    // (<name>.groups.json, docs/specs/groups-v1.md); empty if there is none.
+    QString freecadGroupsFile() const;
+    // Said once a mesh is ready, if that file holds groups the study lacks.
+    void offerFreecadGroups();
+    void addFreecadGroups();
     // The picked faces' signatures, as the mesh measured them.
     std::map<int, gf::core::FaceSignature> signaturesOf(const std::vector<int> &faces) const;
     // Edge picking for a load along an edge: the geometry's edges drawn,
@@ -221,6 +232,7 @@ private:
     QComboBox *m_colourBy = nullptr;
     QDoubleSpinBox *m_deform = nullptr;
     QAction *m_autoDeform = nullptr;
+    QAction *m_addFreecadGroups = nullptr;
     QLabel *m_increments = nullptr;
     QAction *m_openParaView = nullptr;
     QAction *m_rescale = nullptr;

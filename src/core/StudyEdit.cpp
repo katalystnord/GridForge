@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QSaveFile>
 
@@ -282,6 +283,101 @@ bool editStudy(const QString &folder, const QString &key, const Edit &edit, QStr
 {
     return rewriteStudy(
         folder, [&](const QJsonObject &study, QString *e) { return withEdit(study, key, edit, e); }, error);
+}
+
+bool createStudy(const QString &folder, const QString &geometry, double maxSize, QString *error)
+{
+    auto fail = [&](const QString &why) {
+        if (error)
+            *error = why;
+        return false;
+    };
+    const QFileInfo part(geometry);
+    if (!part.isFile())
+        return fail("no geometry at " + geometry);
+    QDir dir(folder);
+    if (dir.exists("study.json"))
+        return fail("there is a study in " + folder + " already");
+    if (!dir.mkpath("inputs"))
+        return fail("cannot make " + dir.filePath("inputs"));
+    const QString name = part.fileName();
+    if (!QFile::copy(geometry, dir.filePath("inputs/" + name)))
+        return fail("cannot copy " + geometry + " into " + dir.filePath("inputs"));
+    // The group file FreeCAD's macro writes beside its .brep.
+    const QString groups = part.dir().filePath(part.completeBaseName() + ".groups.json");
+    if (QFile::exists(groups) && !QFile::copy(groups, dir.filePath("inputs/" + QFileInfo(groups).fileName())))
+        return fail("cannot copy " + groups + " into " + dir.filePath("inputs"));
+    const QJsonObject study{
+        {"format", "gridforge-study"},
+        {"version", "1.0"},
+        {"steps", QJsonArray{
+             QJsonObject{{"id", "part"}, {"kind", "input"}, {"file", "inputs/" + name}},
+             QJsonObject{{"id", "mesh"}, {"kind", "mesh"}, {"by", "gridforge"},
+                         {"inputs", QJsonObject{{"geometry", "part.file"}}},
+                         {"parameters", QJsonObject{{"maxSize", maxSize}, {"order", 2}}}},
+             QJsonObject{{"id", "solve"}, {"kind", "solve"}, {"by", QJsonObject{{"toolkit", "calculix"}}},
+                         {"inputs", QJsonObject{{"mesh", "mesh.mesh"}}},
+                         {"parameters", QJsonObject{{"kind", "structural.static"}}}}}},
+        {"setup", QJsonObject{{"units", "mm-N-s"},
+                              {"groups", QJsonObject{}},
+                              {"materials", QJsonObject{}},
+                              {"assign", QJsonObject{}},
+                              {"supports", QJsonArray{}},
+                              {"steps", QJsonArray{QJsonObject{
+                                            {"name", "Step 1"},
+                                            {"kind", "static"},
+                                            {"output", QJsonArray{"displacement", "reaction", "stress"}}}}}}}};
+    QSaveFile out(dir.filePath("study.json"));
+    if (!out.open(QIODevice::WriteOnly) || out.write(QJsonDocument(study).toJson()) < 0 || !out.commit())
+        return fail("cannot write " + dir.filePath("study.json"));
+    if (error)
+        error->clear();
+    return true;
+}
+
+bool addGroup(const QString &folder, const Group &group, QString *error)
+{
+    const QString named = group.name.trimmed();
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            if (named.isEmpty())
+                return fail("a group needs a name");
+            if (group.faces.empty() && group.solids.empty())
+                return fail("a group needs faces or solids");
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject groups = setup["groups"].toObject();
+            if (groups.contains(named))
+                return fail(QString("there is a group named %1 already").arg(named));
+            QJsonObject g;
+            auto list = [](const std::vector<int> &n) {
+                QJsonArray a;
+                for (int i : std::set<int>(n.begin(), n.end()))
+                    a.append(i);
+                return a;
+            };
+            if (!group.faces.empty())
+                g["faces"] = list(group.faces);
+            if (!group.solids.empty())
+                g["solids"] = list(group.solids);
+            QJsonObject signed_;
+            for (int f : group.faces)
+                if (const auto at = group.signatures.find(f); at != group.signatures.end())
+                    signed_[QString::number(f)] = faceSignatureJson(at->second);
+            if (!signed_.isEmpty())
+                g["signatures"] = signed_;
+            groups[named] = g;
+            setup["groups"] = groups;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
 }
 
 bool signGroup(const QString &folder, const QString &name, const std::map<int, FaceSignature> &signatures,
