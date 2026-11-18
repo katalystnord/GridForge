@@ -11,6 +11,10 @@ ratio 0.3), clamped at one grip (face 12, x = 0) and bent through its
 Both are what the window's load form writes for those choices (pick
 face 6; Force or Move; Z, clicked twice for -z; the size).
 
+`study.json` is the push as a study for the window: open the folder in
+GridForge, mesh, Run, and the results show the bend (Exaggerate, beside
+the Deform box, turns the view across it).
+
     GF_CCX=../../tools/ccx-flatpak \
         ../../build-ninja/src/gf-study solve push.json dogbone.step --size 3 --order 2 -o job-push
     GF_CCX=../../tools/ccx-flatpak \
