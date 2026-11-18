@@ -45,4 +45,5 @@ build-sanitize/
 tests/fetched/
 .cache/
 examples/*/job/
+examples/*/job-*/
 examples/*/steps/

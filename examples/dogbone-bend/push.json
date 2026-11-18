@@ -1,0 +1,18 @@
+{
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Dogbone": {"solids": [1]},
+      "Fixed grip": {"faces": [12]},
+      "Pushed grip": {"faces": [6]}
+    },
+    "materials": {"Steel": {"values": {"YoungsModulus": 199900, "PoissonRatio": 0.3}}},
+    "assign": {"Dogbone": "Steel"},
+    "supports": [{"group": "Fixed grip", "fixed": true}],
+    "steps": [
+      {"name": "Bend", "kind": "static",
+       "loads": [{"group": "Pushed grip", "force": {"z": -10}, "direction": "-z"}],
+       "output": ["displacement", "reaction", "stress"]}
+    ]
+  }
+}
