@@ -186,7 +186,8 @@ directions, coloured by kind, the selected one in ember.
   "Open in ParaView" by handing over the file.
 - Exit: walkthrough test from a FreeCAD export to a ParaView file using
   only on-screen guidance; AppImage (built 2026-11-18, ccx 2.23 inside:
-  `tools/appimage/`); release 0.1.
+  `tools/appimage/`); .deb packages for Ubuntu 26.04 (gridforge and
+  gridforge-calculix, built 2026-11-18: `tools/deb/`); release 0.1.
 
 ## Phase 4: Nonlinear breadth (M)
 
