@@ -200,6 +200,14 @@ directions, coloured by kind, the selected one in ember.
 
 - A SurView strain field and TenSense's force curve, imported as files,
   beside the CalculiX prediction; difference fields out to ParaView.
+- Started 2026-11-18: `gf-study compare` (core/TestCurve) reads
+  TenSense's analysed curve (.vtp) and sets a solve's force on a group
+  against a virtual extensometer's strain beside it, in words and a CSV.
+  First case: CRM 661 from NPL's TENSTAND, predicted from TenSense's
+  analysis within 1.2 % from yield to the maximum force
+  (examples/crm661-tension; a calibration check, not yet a validation).
+  Next: the curves plotted in the window; a second test predicted from
+  the first's material; SurView's strain fields.
 
 ## Theme: foams and cellular materials (David, 2026-11-18)
 

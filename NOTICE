@@ -83,6 +83,17 @@ Test data
 tests/fixtures/materials/Steel-Generic.FCMat is FreeCAD's material card
 by Juergen Riegel, CC-BY-3.0, copied unchanged from FreeCAD 1.1.4.
 
+tests/fixtures/tensense/Zx3.vtp is TenSense 0.3.0's analysis of BAM's
+tensile test Zx3: Schilling, M., Glaubitz, S., Matzak, K., Rehmer, B.,
+Skrotzki, B. (2022), "Full dataset of several mechanical tests on an S355
+steel sheet as reference data for digital representations" (1.0.0),
+Zenodo, doi:10.5281/zenodo.6778336, CC BY 4.0. Changed: analysed and
+written as a curve by TenSense (tests/fixtures/tensense/README.md).
+
+examples/crm661-tension fetches NPL's TENSTAND datafiles when it runs
+(National Physical Laboratory, NPL Report DEPC MPE 015, 2005); none is
+included, as NPL states no licence for them.
+
 Programs run, not included
 --------------------------
 

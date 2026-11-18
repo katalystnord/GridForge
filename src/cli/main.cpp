@@ -25,6 +25,10 @@
 //       ratio in every size, in DIR/mesh-1..3; how far the largest
 //       displacement and von Mises stress can be trusted against the mesh
 //       (core/Convergence), on the terminal and in DIR/convergence.json
+//   gf-study compare results.vtkhdf test.vtp --force-on GROUP --gauge "x,y,z;x,y,z" [-o compare.csv]
+//       measured against predicted (core/TestCurve): the solve's force on
+//       the group against a virtual extensometer's strain, beside the
+//       test's as TenSense analysed it (its .vtp); in words, and in a CSV
 //   gf-study mesh-worker part.step --recipe JSON -o mesh.vtu
 //       what the window runs to mesh (core/MeshRun): the part meshed by
 //       the mesh step's parameters as study.json keeps them, to one .vtu
@@ -38,6 +42,7 @@
 #include "calculix/DeckWriter.h"
 #include "calculix/InpWriter.h"
 #include "core/Convergence.h"
+#include "core/TestCurve.h"
 #include "core/Job.h"
 #include "core/MeshRun.h"
 #include "core/JobRunner.h"
@@ -67,6 +72,7 @@
 #include <vtkDoubleArray.h>
 #include <vtkNew.h>
 
+#include <array>
 #include <csignal>
 #include <cstdio>
 
@@ -237,6 +243,72 @@ int meshWorker(const QString &input, const QString &recipeJson, const QString &o
 // --refine GROUP=SIZE, each given: the mesh step's "refine" (study spec
 // 2.1), for deck, solve and converge.
 QJsonObject refineOption;
+
+// Measured against predicted (core/TestCurve): a results file's curve,
+// through a virtual extensometer and a group's reactions, beside a test's
+// curve as TenSense analysed it; the two in words, and side by side in a
+// CSV for a plot.
+int compare(const QString &results, const QString &measuredPath, const QString &group, const QString &gauge,
+            const QString &timesText, const QString &out)
+{
+    bool timesOk = true;
+    const int times = timesText.isEmpty() ? 1 : timesText.toInt(&timesOk);
+    if (!timesOk || times < 1) {
+        std::fprintf(stderr, "gf-study: --times is a whole number, 1 or more, not %s\n", qPrintable(timesText));
+        return 1;
+    }
+    std::array<double, 3> ends[2];
+    const QStringList points = gauge.split(';');
+    bool ok = points.size() == 2 && !group.isEmpty();
+    for (int p = 0; ok && p < 2; ++p) {
+        const QStringList xyz = points[p].split(',');
+        ok = xyz.size() == 3;
+        for (int d = 0; ok && d < 3; ++d)
+            ends[p][d] = xyz[d].trimmed().toDouble(&ok);
+    }
+    if (!ok) {
+        std::fprintf(stderr, "gf-study: compare needs --force-on GROUP and --gauge \"x,y,z;x,y,z\", the "
+                             "extensometer's two points in the part as it was made\n");
+        return 1;
+    }
+    QString error;
+    const gf::core::TestCurve measured = gf::core::readTenSenseCurve(measuredPath, &error);
+    gf::core::TestCurve predicted;
+    if (error.isEmpty())
+        predicted = gf::core::predictedCurve(results, group, ends[0], ends[1], &error);
+    if (!error.isEmpty()) {
+        std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+        return 1;
+    }
+    // A model that is a part of the test piece by symmetry carries that
+    // part of its force.
+    if (times > 1) {
+        for (double &f : predicted.force)
+            f *= times;
+        predicted.source += QString(", its force times %1 (the model is 1/%1 of the test piece)").arg(times);
+    }
+    const gf::core::CurveComparison c = gf::core::compareCurves(measured, predicted);
+    std::printf("%s\n%s\n%s\n", qPrintable(measured.source), qPrintable(predicted.source),
+                qPrintable(gf::core::comparisonWords(c)));
+    if (!out.isEmpty()) {
+        QSaveFile csv(out);
+        QByteArray text = "# " + measured.source.toUtf8() + "\n# " + predicted.source.toUtf8()
+                          + "\nstrain,predicted force (N),measured force (N),difference\n";
+        for (const auto &p : c.points)
+            text += QString("%1,%2,%3,%4\n")
+                        .arg(p.strain, 0, 'g', 8)
+                        .arg(p.predicted, 0, 'g', 8)
+                        .arg(p.measured, 0, 'g', 8)
+                        .arg(p.difference(), 0, 'g', 6)
+                        .toUtf8();
+        if (!csv.open(QIODevice::WriteOnly) || csv.write(text) < 0 || !csv.commit()) {
+            std::fprintf(stderr, "gf-study: cannot write %s\n", qPrintable(out));
+            return 1;
+        }
+        std::printf("wrote %s\n", qPrintable(out));
+    }
+    return 0;
+}
 
 // The set-up read and filled from its cards, and the part meshed with its
 // groups as sets: what both deck and solve start from.
@@ -604,6 +676,8 @@ int main(int argc, char *argv[])
                                      "  converge setup.json part.step -o DIR   the set-up solved "
                                      "on three meshes, each finer by --ratio, and how far its "
                                      "results can be trusted against the mesh\n"
+                                     "  compare results.vtkhdf test.vtp --force-on GROUP --gauge \"x,y,z;x,y,z\"   "
+                                     "a solve's curve beside a test's, as TenSense analysed it\n"
                                      "  mesh-worker part.step --recipe JSON -o mesh.vtu   what the "
                                      "window runs to mesh, in a process of its own\n\n"
                                      "A part is a STEP file or a .brep (as FreeCAD's exportBrep "
@@ -648,6 +722,17 @@ int main(int argc, char *argv[])
                                                  "largest element there (repeatable: --refine Fillet=0.5).",
                                        "GROUP=SIZE");
     parser.addOption(refineOpt);
+    const QCommandLineOption forceOnOpt("force-on", "compare: the group of faces the test's force acts on.",
+                                        "GROUP");
+    const QCommandLineOption gaugeOpt("gauge", "compare: the extensometer's two points in the part as made, "
+                                               "\"x,y,z;x,y,z\".",
+                                      "POINTS");
+    parser.addOption(forceOnOpt);
+    const QCommandLineOption timesOpt("times", "compare: the model is 1/N of the test piece by symmetry (a "
+                                               "quarter: 4); its force is taken N times.",
+                                      "N");
+    parser.addOption(timesOpt);
+    parser.addOption(gaugeOpt);
     parser.addPositionalArgument("command", "convert, mesh, deck or solve");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
@@ -683,6 +768,9 @@ int main(int argc, char *argv[])
     if (args.size() == 3 && args[0] == "deck")
         return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
                     parser.value(outOpt));
+    if (args.size() == 3 && args[0] == "compare")
+        return compare(args[1], args[2], parser.value(forceOnOpt), parser.value(gaugeOpt), parser.value(timesOpt),
+                       parser.value(outOpt));
     if (args.size() == 3 && args[0] == "converge")
         return converge(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
                         parser.value(outOpt), parser.value(ratioOpt));

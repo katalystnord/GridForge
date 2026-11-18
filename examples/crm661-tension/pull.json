@@ -1,0 +1,29 @@
+{
+  "setup": {
+    "units": "mm-N-s",
+    "groups": {
+      "Bar": {"solids": [1]},
+      "Pulled end": {"faces": [2]},
+      "Held end": {"faces": [3]},
+      "Cut y": {"faces": [4]},
+      "Cut z": {"faces": [5]}
+    },
+    "materials": {
+      "CRM 661": {"card": "inputs/CRM661.FCMat",
+                  "plastic": "inputs/CRM661-plastic.inp",
+                  "values": {"PoissonRatio": 0.3}}
+    },
+    "assign": {"Bar": "CRM 661"},
+    "supports": [
+      {"group": "Held end", "symmetry": true},
+      {"group": "Cut y", "symmetry": true},
+      {"group": "Cut z", "symmetry": true}
+    ],
+    "steps": [
+      {"name": "Pull", "kind": "static",
+       "increments": {"initial": 0.01, "max": 0.02},
+       "loads": [{"group": "Pulled end", "displacement": {"x": 18.9}}],
+       "output": ["displacement", "reaction", "stress", "plastic strain"]}
+    ]
+  }
+}

@@ -100,6 +100,17 @@ add_test(NAME a_study_is_read_and_checked COMMAND test_study)
 # shown with large displacements: each red.
 
 # A solve stage's job folder: written from a set-up and mesh, read back.
+add_executable(test_test_curve test_test_curve.cpp)
+target_link_libraries(test_test_curve PRIVATE gf_calculix)
+target_compile_definitions(test_test_curve PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME a_measured_curve_is_set_beside_the_predicted_one COMMAND test_test_curve)
+# NEGATIVE CHECKS, 2026-11-18, measured against predicted: the cases
+# written first, red against a stub (10). Then each rule broken, the test
+# run, restored: the gauge's points not moved with the part: red (2); the
+# force taken across the gauge, not along it: red; the first crossing's
+# guard dropped: survived at first (the unloading case could not tell),
+# the case sharpened (and a curve starting above the strain added): red.
+
 add_executable(test_convergence test_convergence.cpp)
 target_link_libraries(test_convergence PRIVATE gf_core)
 add_test(NAME a_mesh_convergence_check_says_how_far_a_result_can_be_trusted COMMAND test_convergence)
@@ -547,6 +558,22 @@ add_test(NAME cli_refuses_to_refine_a_group_not_there
             ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --refine Nope=1 -o ${CMAKE_CURRENT_BINARY_DIR}/refine-no)
 set_tests_properties(cli_refuses_to_refine_a_group_not_there PROPERTIES
     PASS_REGULAR_EXPRESSION "gf-study: the mesh's refine: no group \"Nope\"")
+
+# gf-study compare: the solve's results (cli_solves_a_setup_through_its_
+# toolkit's) beside a TenSense curve. The words are what is checked here;
+# the arithmetic is test_test_curve's. A gauge not given is refused.
+add_test(NAME cli_sets_a_measured_curve_beside_the_predicted
+    COMMAND gf-study compare ${CMAKE_CURRENT_BINARY_DIR}/solve-out/results/results.vtkhdf
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tensense/Zx3.vtp --force-on Pulled --gauge "2,10,15;8,10,15"
+            --times 4 -o ${CMAKE_CURRENT_BINARY_DIR}/compare-out.csv)
+set_tests_properties(cli_sets_a_measured_curve_beside_the_predicted PROPERTIES
+    DEPENDS cli_solves_a_setup_through_its_toolkit
+    PASS_REGULAR_EXPRESSION "measured: Zx3\\.vtp \\(TenSense's analysed curve\\)\npredicted: results\\.vtkhdf, the force on Pulled, an extensometer of 6 from \\(2, 10, 15\\), its force times 4 \\(the model is 1/4 of the test piece\\)\npredicted against measured, at 1 strain [^\n]*\nwrote [^\n]*compare-out\\.csv")
+add_test(NAME cli_refuses_a_comparison_without_its_gauge
+    COMMAND gf-study compare ${CMAKE_CURRENT_BINARY_DIR}/solve-out/results/results.vtkhdf
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tensense/Zx3.vtp --force-on Pulled)
+set_tests_properties(cli_refuses_a_comparison_without_its_gauge PROPERTIES
+    PASS_REGULAR_EXPRESSION "gf-study: compare needs --force-on GROUP and --gauge")
 
 add_test(NAME cli_checks_the_results_against_the_mesh
     COMMAND gf-study converge ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json

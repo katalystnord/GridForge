@@ -43,6 +43,15 @@ gf-study \- GridForge, the meshing and simulation workbench, without a window
 .B \-o
 .I DIR
 .br
+.B gf-study compare
+.I results.vtkhdf test.vtp
+.B \-\-force\-on
+.I GROUP
+.B \-\-gauge
+.I POINTS
+.RB [ \-\-times " " \fIN\fR]
+.RB [ \-o " " \fIFILE\fR]
+.br
 .B gf-study mesh-worker
 .I part
 .B \-\-recipe
@@ -82,6 +91,14 @@ stress can be trusted against the mesh: converging (with its order, its
 value at zero element size and the grid convergence index of Celik et
 al. 2008), oscillating, or not converging (a sharp corner, or a load on
 an edge or a point). Also written to DIR/convergence.json.
+.TP
+.B compare
+Measured against predicted: a solve's force on a group (\-\-force-on,
+times \-\-times N for a model that is 1/N of the test piece by symmetry)
+against the strain of a virtual extensometer between two points of the
+part (\-\-gauge "x,y,z;x,y,z"), beside a test's curve as TenSense
+analysed it (its .vtp); the largest and mean differences in words, every
+point in the CSV given with \-o.
 .TP
 .B mesh-worker
 What the window runs to mesh, in a process of its own, so that a crash in
