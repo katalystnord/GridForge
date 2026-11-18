@@ -47,3 +47,4 @@ tests/fetched/
 examples/*/job/
 examples/*/job-*/
 examples/*/steps/
+__pycache__/
