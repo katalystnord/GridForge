@@ -271,6 +271,9 @@ private slots:
     {
         MainWindow w;
         w.show();
+        // The name alone, as FreeCAD's and ParaView's titles: no slogan
+        // (David, 2026-11-18); then the study open.
+        QCOMPARE(w.windowTitle(), QString("GridForge"));
         QVERIFY(w.openStudy(QString(GF_FIXTURES) + "/studies/dogbone"));
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         QCOMPARE(topLevel(tree), QStringList({"Geometry", "Mesh", "Materials", "Groups", "Supports", "Steps", "Jobs",
@@ -281,7 +284,7 @@ private slots:
         QVERIFY(!load->icon(0).isNull());  // FreeCAD's FEM icon
         QCOMPARE(w.findChild<QLabel *>("units")->text(), QString("mm, N, s, MPa"));
         QCOMPARE(w.findChild<QComboBox *>("stepChooser")->currentText(), QString("Pull"));
-        QVERIFY(w.windowTitle().contains("dogbone"));
+        QCOMPARE(w.windowTitle(), QString("GridForge - dogbone"));
     }
 
     void properties_taller_than_its_dock_can_be_scrolled()

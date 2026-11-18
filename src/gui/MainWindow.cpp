@@ -167,7 +167,7 @@ QDockWidget *dock(QMainWindow *w, const QString &title, const QString &name, QWi
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(core::applicationName() + " - " + core::applicationSubtitle());
+    setWindowTitle(core::applicationName());  // the name alone, as FreeCAD and ParaView
     QPalette accent = palette();
     accent.setColor(QPalette::Highlight, ember);
     accent.setColor(QPalette::HighlightedText, Qt::white);
