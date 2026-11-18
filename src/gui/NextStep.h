@@ -12,6 +12,7 @@ struct WindowState {
     QString geometry;         // the geometry file's name
     bool meshing = false;
     QString meshProblem;      // why the mesh could not be made
+    QString changedGroup;     // a group whose faces the geometry no longer has
     bool meshed = false;
     bool canSolve = false;    // the study has a solve step
     QString toolkit;          // the solve toolkit's name

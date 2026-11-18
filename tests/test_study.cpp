@@ -377,6 +377,38 @@ CASE(picked_faces_become_a_named_group_in_the_study)
     const Group *g = s.setup.group("Grip faces");
     CHECK(error.isEmpty() && g && g->faces == std::vector<int>({3, 7}) && g->solids.empty());
     CHECK(s.setup.group("Fixed grip") && s.setup.group("Fixed grip")->faces == std::vector<int>({12}));
+    CHECK(g && g->signatures.empty());  // none given: none written
+    // With the faces' signatures, as the window measures them: kept for
+    // the group's faces only.
+    const FaceSignature seven{"cylinder", 70.28, {37.5, 7.3, 2}}, three{"plane", 80, {0, 0, 2}};
+    CHECK(addFaceGroup(folder, "Signed", {7, 3}, &error, {{7, seven}, {3, three}, {9, three}}) && error.isEmpty());
+    const Study t = readStudy(folder, &error);
+    const Group *h = t.setup.group("Signed");
+    CHECK(error.isEmpty() && h && h->signatures.size() == 2);
+    if (h && h->signatures.size() == 2) {
+        CHECK(h->signatures.at(7).kind == "cylinder" && h->signatures.at(7).area == 70.28
+              && h->signatures.at(7).centre == seven.centre);
+        CHECK(h->signatures.at(3).kind == "plane" && h->signatures.at(3).centre == three.centre);
+    }
+}
+
+CASE(a_groups_faces_are_signed_again_as_they_are_now)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    const FaceSignature was{"plane", 80, {150, 0, 2}}, now{"plane", 80.5, {150.1, 0, 2}};
+    CHECK(addFaceGroup(folder, "Grip", {6}, &error, {{6, was}}) && error.isEmpty());
+    // Kept as they are now: the new signature replaces the old; one for a
+    // face not in the group is not kept.
+    CHECK(signGroup(folder, "Grip", {{6, now}, {9, was}}, &error) && error.isEmpty());
+    const Study s = readStudy(folder, &error);
+    const Group *g = s.setup.group("Grip");
+    CHECK(error.isEmpty() && g && g->signatures.size() == 1 && g->signatures.count(6));
+    if (g && g->signatures.count(6))
+        CHECK(g->signatures.at(6).area == 80.5 && g->signatures.at(6).centre == now.centre);
+    CHECK(!signGroup(folder, "Ghost", {{6, now}}, &error));
+    CHECK(error == "there is no group named Ghost");
 }
 
 CASE(a_group_without_a_name_faces_or_a_name_of_its_own_is_refused)

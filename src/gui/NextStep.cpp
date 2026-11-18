@@ -12,6 +12,10 @@ QString nextStep(const WindowState &s)
     if (!s.meshProblem.isEmpty())
         return QStringLiteral("The mesh could not be made: %1. Fix the geometry or the recipe, then File, Reload.")
             .arg(s.meshProblem);
+    if (!s.changedGroup.isEmpty() && !s.running)
+        return QStringLiteral("Group %1's faces have changed with the geometry: select it in the Study tree to keep "
+                              "them as they are now, or pick them again.")
+            .arg(s.changedGroup);
     if (s.running)
         return QStringLiteral("Solving with %1, run %2: %3 (%4%). Stop cancels and keeps its files.")
             .arg(s.toolkit)

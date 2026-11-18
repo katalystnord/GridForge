@@ -16,6 +16,7 @@ add_library(gf_core STATIC
     core/StudyOutline.cpp
     core/StudyEdit.cpp
     core/Direction.cpp
+    core/FaceSignature.cpp
     core/LoadChoice.cpp
     core/JobRunner.cpp
 )

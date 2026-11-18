@@ -176,7 +176,10 @@ directions, coloured by kind, the selected one in ember.
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.
 - Geometry in: `.brep` + the group file from a FreeCAD macro we ship;
-  STEP with picking faces; per-face fingerprints.
+  STEP with picking faces; per-face fingerprints: each group made in
+  the window keeps its faces' kind, area and centre (study spec 4.2), and
+  a face the geometry no longer has is said before a solve, with the
+  choice to keep the faces as they are now.
 - Run monitor that never blocks; quick look (deformed shape, contours);
   "Open in ParaView" by handing over the file.
 - Exit: walkthrough test from a FreeCAD export to a ParaView file using

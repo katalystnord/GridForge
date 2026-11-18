@@ -184,6 +184,33 @@ that still matches its signature keeps its place; one that does not is
 asks. (Matching faces across CAD changes in general is a known hard
 problem; version 1 only notices.)
 
+The signatures are kept in the group, by face number (added 2026-11-18,
+David approving the shape):
+
+```json
+"Pushed grip": {"faces": [6],
+                "signatures": {"6": {"kind": "plane", "area": 80, "centre": [150, 0, 2]}}}
+```
+
+- `kind` is OpenCASCADE's kind of surface, in words: `plane`, `cylinder`,
+  `cone`, `sphere`, `torus`, `Bezier surface`, `B-spline surface`,
+  `surface of revolution`, `surface of extrusion`, `offset surface` or
+  `other`.
+- `area` and `centre` (the centre of the face's area) are measured on the
+  geometry, not the mesh, in the geometry's lengths as `gf_mesh` reads
+  them.
+- A face still matches when its kind is the same, its area within a
+  millionth of what it was, and its centre within a millionth of the root
+  of that area: a STEP written again rounds its numbers, and a changed
+  face moves further than that.
+- `"signatures"` is optional. The window writes it for every group it
+  makes; a group written by hand without it is not checked. A signature
+  for a face the group does not hold is refused.
+- A group whose faces no longer match is refused when a deck is written,
+  saying what the face was and what it is now. The window says so before
+  a solve is tried, and offers to keep the faces as they are now, which
+  signs them again.
+
 ### 4.3 Materials
 
 A material is a FreeCAD 1.x material card (`.FCMat`, YAML), copied into

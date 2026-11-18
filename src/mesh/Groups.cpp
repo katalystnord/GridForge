@@ -1,5 +1,7 @@
 #include "mesh/Groups.h"
 
+#include "mesh/Surface.h"
+
 #include <set>
 
 namespace gf::mesh {
@@ -24,11 +26,33 @@ int count(const gf::core::ResultsSeries &mesh, const char *prefix)
 
 } // namespace
 
+QString faceChange(const gf::core::Group &group, const gf::core::ResultsSeries &mesh, gf::core::Units units)
+{
+    const QString length = units == gf::core::Units::MetreNewtonSecond ? "m" : "mm";
+    for (const auto &[f, was] : group.signatures) {
+        // A mesh that does not measure its faces (one from Gmsh) has
+        // nothing to compare: nothing is said, and nothing guessed.
+        const auto now = faceSignature(mesh, f);
+        if (now && !gf::core::sameFace(was, *now))
+            return QString("group \"%1\": face %2 is not the face the group was made on: it was %3, and is now %4; "
+                           "pick the group's faces again, or keep them as they are now")
+                .arg(group.name)
+                .arg(f)
+                .arg(gf::core::describeFace(was, length), gf::core::describeFace(*now, length));
+    }
+    return {};
+}
+
 bool addGroupSets(gf::core::ResultsSeries &mesh, const gf::core::Setup &setup, QString *error)
 {
     const int faces = count(mesh, "Face"), solids = count(mesh, "Solid");
     std::vector<gf::core::NamedSet> added;
     for (const gf::core::Group &group : setup.groups) {
+        if (const QString changed = faceChange(group, mesh, setup.units); !changed.isEmpty()) {
+            if (error)
+                *error = changed;
+            return false;
+        }
         std::set<vtkIdType> nodes, elements;
         for (int f : group.faces) {
             if (f > faces) {

@@ -609,7 +609,9 @@ bool MainWindow::openStudy(const QString &path)
         // The groups' sets made again, as they are in the study now.
         m_mesh.sets.resize(std::min(m_mesh.sets.size(), m_meshOwnSets));
         QString groupProblem;
-        if (!mesh::addGroupSets(m_mesh, m_study.setup, &groupProblem))
+        const bool fits = mesh::addGroupSets(m_mesh, m_study.setup, &groupProblem);
+        checkGroups();
+        if (!fits && m_changedGroup.isEmpty())
             say(tr("The groups do not fit the mesh: %1").arg(groupProblem), Tone::Problem);
         lightFaces({});
         for (QTreeWidgetItem *item : m_tree->findItems(tr("Mesh"), Qt::MatchExactly)) {
@@ -763,7 +765,7 @@ void MainWindow::startMeshing()
         done.mesh = mesh::meshStep(file, recipe, &done.error);
         done.ownSets = done.mesh.sets.size();
         if (done.error.isEmpty())
-            mesh::addGroupSets(done.mesh, setup, &done.error);
+            mesh::addGroupSets(done.mesh, setup, &done.groupProblem);
         return done;
     }));
 }
@@ -845,6 +847,9 @@ void MainWindow::onMeshed()
     refreshMarkers();
     showLayer(m_layouts->currentIndex());
     setCamera(-1, -1, -1, 0, 0, 1);
+    checkGroups();
+    if (!done.groupProblem.isEmpty() && m_changedGroup.isEmpty())
+        say(tr("The groups do not fit the mesh: %1").arg(done.groupProblem), Tone::Problem);
 
     const QString detail = tr("%1 tetrahedra, %2 nodes; %3")
                                .arg(grid->GetNumberOfCells())
@@ -910,6 +915,7 @@ void MainWindow::updateBanner()
         s.geometry = QFileInfo(i->file).fileName();
     s.meshing = m_meshPending;
     s.meshProblem = m_meshProblem;
+    s.changedGroup = m_changedGroup;
     s.meshed = !m_mesh.points.empty();
     const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
     s.canSolve = !solves.empty();
@@ -928,7 +934,8 @@ void MainWindow::updateBanner()
 void MainWindow::updateActions()
 {
     const bool meshed = !m_mesh.points.empty();
-    m_runAction->setEnabled(meshed && !m_runner.running() && !m_study.stepsOf("solve").empty());
+    m_runAction->setEnabled(meshed && m_changedGroup.isEmpty() && !m_runner.running()
+                            && !m_study.stepsOf("solve").empty());
     m_stopAction->setEnabled(m_runner.running());
     const bool results = m_results.timeCount() > 0;
     for (QAction *a : m_vcr)
@@ -1330,7 +1337,7 @@ void MainWindow::applyLoad(LoadForm *form, const QString &key)
         return;
     }
     if (key.isEmpty() && !m_study.setup.group(choice.group)) {
-        if (!core::addFaceGroup(m_study.folder, choice.group, m_picked, &error)) {
+        if (!core::addFaceGroup(m_study.folder, choice.group, m_picked, &error, signaturesOf(m_picked))) {
             say(tr("Cannot make the group: %1").arg(error), Tone::Problem);
             return;
         }
@@ -1421,6 +1428,39 @@ void MainWindow::showGroupEditing(const QString &group)
     row->addWidget(remove);
     row->addStretch();
     m_propertyForm->addRow(buttons);
+    // Faces no longer those it was made on: said, and kept as they are
+    // now only when asked (study spec 4.2).
+    if (const core::Group *g = m_study.setup.group(group)) {
+        const QString changed = mesh::faceChange(*g, m_mesh, m_study.setup.units);
+        if (!changed.isEmpty()) {
+            auto *why = new QLabel(changed, m_properties);
+            why->setObjectName(QStringLiteral("facesChanged"));
+            why->setWordWrap(true);
+            QPalette p = why->palette();
+            p.setColor(QPalette::WindowText, toneColour(Tone::Problem));
+            why->setPalette(p);
+            m_propertyForm->addRow(tr("Faces"), why);
+            auto *keep = new QPushButton(icon("pqApply"), tr("Keep the faces as they are now"), m_properties);
+            keep->setObjectName(QStringLiteral("keepFaces"));
+            keep->setToolTip(tr("Sign the group's faces again as the geometry has them now"));
+            m_propertyForm->addRow(keep);
+            const std::vector<int> faces = g->faces;
+            connect(keep, &QPushButton::clicked, this, [this, group, faces] {
+                QString error;
+                if (!core::signGroup(m_study.folder, group, signaturesOf(faces), &error)) {
+                    say(tr("Cannot keep the faces: %1").arg(error), Tone::Problem);
+                    return;
+                }
+                say(tr("Group %1 kept on %2 as they are now").arg(group, facesText(faces)), Tone::Done);
+                openStudy(m_study.folder);
+                for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+                    if ((*it)->data(0, Qt::UserRole).toString() == "group:" + group) {
+                        m_tree->setCurrentItem(*it);
+                        break;
+                    }
+            });
+        }
+    }
     auto doRename = [this, name, group] {
         const QString to = name->text().trimmed();
         if (to == group)
@@ -1457,13 +1497,44 @@ void MainWindow::showGroupEditing(const QString &group)
     });
 }
 
+std::map<int, core::FaceSignature> MainWindow::signaturesOf(const std::vector<int> &faces) const
+{
+    std::map<int, core::FaceSignature> out;
+    for (int f : faces)
+        if (const auto s = mesh::faceSignature(m_mesh, f))
+            out[f] = *s;
+    return out;
+}
+
+void MainWindow::checkGroups()
+{
+    m_changedGroup.clear();
+    if (m_mesh.points.empty())
+        return;
+    for (const core::Group &g : m_study.setup.groups) {
+        const QString changed = mesh::faceChange(g, m_mesh, m_study.setup.units);
+        if (changed.isEmpty())
+            continue;
+        if (m_changedGroup.isEmpty())
+            m_changedGroup = g.name;
+        say(changed, Tone::Problem);
+        for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+            if ((*it)->data(0, Qt::UserRole).toString() == "group:" + g.name) {
+                (*it)->setText(1, tr("%1; its faces changed").arg((*it)->text(1)));
+                (*it)->setForeground(1, toneColour(Tone::Problem));
+                (*it)->setToolTip(1, changed);
+            }
+    }
+    updateActions();
+}
+
 void MainWindow::makeGroup()
 {
     auto *name = m_properties->findChild<QLineEdit *>(QStringLiteral("groupName"));
     const QString named = name ? name->text().trimmed() : QString();
     const std::vector<int> faces = m_picked;
     QString error;
-    if (!core::addFaceGroup(m_study.folder, named, faces, &error)) {
+    if (!core::addFaceGroup(m_study.folder, named, faces, &error, signaturesOf(faces))) {
         say(tr("Cannot make the group: %1").arg(error), Tone::Problem);
         return;
     }

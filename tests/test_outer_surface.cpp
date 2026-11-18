@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <functional>
 #include <map>
+#include <set>
 #include <vector>
 
 using namespace gf::mesh;
@@ -289,6 +290,52 @@ CASE(the_geometrys_edges_are_handed_on_with_their_ends)
     const vtkIdType linear = geometryEdges(mesh("box.step", 1))->GetNumberOfCells();
     const vtkIdType quadratic = geometryEdges(mesh("box.step", 2))->GetNumberOfCells();
     CHECK(linear > 0 && quadratic == 2 * linear);
+}
+
+CASE(each_faces_signature_is_handed_on_as_the_geometry_has_it)
+{
+    // The box: six planes, each a side of 10 x 20 x 30 at the origin, its
+    // centre the middle of the side.
+    const ResultsSeries box = mesh("box.step", 1);
+    const std::vector<std::pair<double, std::array<double, 3>>> sides{
+        {600, {0, 10, 15}}, {600, {10, 10, 15}}, {300, {5, 0, 15}},
+        {300, {5, 20, 15}}, {200, {5, 10, 0}},   {200, {5, 10, 30}}};
+    std::set<size_t> found;
+    for (int f = 1; f <= 6; ++f) {
+        const auto s = faceSignature(box, f);
+        CHECK(s && s->kind == "plane");
+        for (size_t k = 0; s && k < sides.size(); ++k) {
+            const auto &c = sides[k].second;
+            if (std::abs(s->area - sides[k].first) < 1e-9 && std::abs(s->centre[0] - c[0]) < 1e-9
+                && std::abs(s->centre[1] - c[1]) < 1e-9 && std::abs(s->centre[2] - c[2]) < 1e-9)
+                found.insert(k);
+        }
+    }
+    CHECK(found.size() == 6);
+    // Face 1 is x = 0 (the spec example's "Back").
+    const auto back = faceSignature(box, 1);
+    CHECK(back && std::abs(back->centre[0]) < 1e-9 && std::abs(back->area - 600) < 1e-9);
+    CHECK(!faceSignature(box, 0) && !faceSignature(box, 7));
+    // The dogbone: 10 planes and 4 cylinders, the R30 transitions, each a
+    // strip 4 mm wide (the thickness) along an arc of angle t, sin t =
+    // sqrt(30^2 - 25^2) / 30: it runs from the narrow part, 5 mm in from
+    // the grip's edge, to where it meets the grip.
+    const ResultsSeries bone = mesh("dogbone.step", 1);
+    const double strip = 4 * 30 * std::asin(std::sqrt(275.0) / 30);
+    int planes = 0, cylinders = 0;
+    for (int f = 1; f <= 14; ++f) {
+        const auto s = faceSignature(bone, f);
+        CHECK(s);
+        if (!s)
+            continue;
+        planes += s->kind == "plane";
+        if (s->kind == "cylinder") {
+            ++cylinders;
+            CHECK(std::abs(s->area - strip) < 1e-9 * strip);
+        }
+    }
+    CHECK(planes == 10 && cylinders == 4);
+    CHECK(!faceSignature(bone, 15));
 }
 
 CASE(a_curved_edge_has_no_one_direction)

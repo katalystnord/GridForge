@@ -10,8 +10,14 @@
 
 namespace gf::mesh {
 
+// Why a group's faces are not those it was made on (study spec 4.2): the
+// first signed face that no longer matches, with what it was and what it
+// is now; empty if all match, or if the mesh does not measure its faces.
+QString faceChange(const gf::core::Group &group, const gf::core::ResultsSeries &mesh, gf::core::Units units);
+
 // Adds the groups' sets to the mesh. False with *error set if a group
-// names a face or solid the mesh does not have.
+// names a face or solid the mesh does not have, or a face that is not the
+// one it was made on (faceChange).
 bool addGroupSets(gf::core::ResultsSeries &mesh, const gf::core::Setup &setup, QString *error);
 
 } // namespace gf::mesh

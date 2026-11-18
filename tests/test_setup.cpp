@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
+#include <array>
 #include <cstdio>
 #include <functional>
 #include <vector>
@@ -187,6 +188,38 @@ CASE(each_fault_is_refused_saying_what_and_where)
     CHECK(errorWith("materials.Steel.values", "{\"YoungsModulus\": \"stiff\"}")
           == "materials.Steel.values.YoungsModulus: not a number");
     CHECK(errorWith("steps", "[]") == "steps: none; a study needs at least one");
+}
+
+CASE(a_groups_face_signatures_are_read_and_checked)
+{
+    QJsonObject o = json(example);
+    QJsonObject groups = o["groups"].toObject();
+    groups["Back"] = QJsonDocument::fromJson(
+                         R"({"faces": [1], "signatures": {"1": {"kind": "plane", "area": 600, "centre": [0, 10, 15]}}})")
+                         .object();
+    o["groups"] = groups;
+    QString error;
+    const Setup s = readSetup(o, &error);
+    CHECK(error.isEmpty());
+    const Group *back = s.group("Back");
+    CHECK(back && back->signatures.size() == 1 && back->signatures.count(1));
+    if (back && back->signatures.count(1)) {
+        const FaceSignature &f = back->signatures.at(1);
+        CHECK(f.kind == "plane" && f.area == 600 && f.centre == (std::array<double, 3>{0, 10, 15}));
+    }
+    CHECK(s.group("Side") && s.group("Side")->signatures.empty());  // none written: none kept
+    const char *one = R"({"kind": "plane", "area": 600, "centre": [0, 10, 15]})";
+    CHECK(errorWith("groups.Back.signatures", (QByteArray("{\"2\": ") + one + "}").constData())
+          == "groups.Back.signatures: face 2 is not in the group");
+    CHECK(errorWith("groups.Back.signatures", (QByteArray("{\"one\": ") + one + "}").constData())
+          == "groups.Back.signatures: \"one\" is not a face number");
+    CHECK(errorWith("groups.Back.signatures", "{\"1\": {\"area\": 600, \"centre\": [0, 10, 15]}}")
+          == "groups.Back.signatures.1.kind: missing");
+    CHECK(errorWith("groups.Back.signatures", "{\"1\": {\"kind\": \"plane\", \"area\": 0, \"centre\": [0, 10, 15]}}")
+          == "groups.Back.signatures.1.area: not a number above 0");
+    CHECK(errorWith("groups.Back.signatures", "{\"1\": {\"kind\": \"plane\", \"area\": 600, \"centre\": [0, 10]}}")
+          == "groups.Back.signatures.1.centre: not three numbers");
+    CHECK(errorWith("groups.Back.signatures", "[1]") == "groups.Back.signatures: not an object of faces");
 }
 
 CASE(forces_pressure_and_gravity_are_read)

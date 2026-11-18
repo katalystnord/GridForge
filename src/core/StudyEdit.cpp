@@ -278,7 +278,39 @@ bool editStudy(const QString &folder, const QString &key, const Edit &edit, QStr
         folder, [&](const QJsonObject &study, QString *e) { return withEdit(study, key, edit, e); }, error);
 }
 
-bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error)
+bool signGroup(const QString &folder, const QString &name, const std::map<int, FaceSignature> &signatures,
+               QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            QJsonObject root = study;
+            QJsonObject setup = root["setup"].toObject();
+            QJsonObject groups = setup["groups"].toObject();
+            if (!groups.contains(name)) {
+                if (e)
+                    *e = QString("there is no group named %1").arg(name);
+                return QJsonObject();
+            }
+            QJsonObject group = groups[name].toObject();
+            QJsonObject signed_;
+            for (const QJsonValue &f : group["faces"].toArray())
+                if (const auto at = signatures.find(f.toInt()); at != signatures.end())
+                    signed_[QString::number(f.toInt())] = faceSignatureJson(at->second);
+            if (signed_.isEmpty())
+                group.remove("signatures");
+            else
+                group["signatures"] = signed_;
+            groups[name] = group;
+            setup["groups"] = groups;
+            root["setup"] = setup;
+            return root;
+        },
+        error);
+}
+
+bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error,
+                  const std::map<int, FaceSignature> &signatures)
 {
     const QString named = name.trimmed();
     return rewriteStudy(
@@ -304,7 +336,14 @@ bool addFaceGroup(const QString &folder, const QString &name, const std::vector<
             QJsonArray list;
             for (int f : once)
                 list.append(f);
-            groups[named] = QJsonObject{{"faces", list}};
+            QJsonObject group{{"faces", list}};
+            QJsonObject signed_;
+            for (int f : once)
+                if (const auto at = signatures.find(f); at != signatures.end())
+                    signed_[QString::number(f)] = faceSignatureJson(at->second);
+            if (!signed_.isEmpty())
+                group["signatures"] = signed_;
+            groups[named] = group;
             setup["groups"] = groups;
             root["setup"] = setup;
             return root;

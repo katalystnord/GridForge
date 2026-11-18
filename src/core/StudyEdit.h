@@ -43,11 +43,19 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
 // any of that fails.
 bool editStudy(const QString &folder, const QString &key, const Edit &edit, QString *error);
 
+// Signs a group's faces again (study spec 4.2): `signatures` for its own
+// faces replace those it had, as the faces are now. False with *error if
+// there is no such group.
+bool signGroup(const QString &folder, const QString &name, const std::map<int, FaceSignature> &signatures,
+               QString *error);
+
 // Adds a group of the geometry's faces (numbered from 1, as gf_mesh's
 // Face<n> sets) to <folder>/study.json, named as given less spaces at
 // either end. False with *error (and the file unchanged) without a name,
-// with a name a group has already, or without faces.
-bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error);
+// with a name a group has already, or without faces. Each face's signature
+// in `signatures` is kept with the group (study spec 4.2); others ignored.
+bool addFaceGroup(const QString &folder, const QString &name, const std::vector<int> &faces, QString *error,
+                  const std::map<int, FaceSignature> &signatures = {});
 
 // Renames a group, and every support and load that names it. False with
 // *error (the file unchanged) without a new name, with a name a group has

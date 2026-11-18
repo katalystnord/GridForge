@@ -813,7 +813,19 @@ private slots:
         QVERIFY(made);
         QCOMPARE(made->text(1), both);
         QString error;
-        QVERIFY(gf::core::readStudy(folder, &error).setup.group("Pull and top"));
+        const gf::core::Study made_ = gf::core::readStudy(folder, &error);
+        const gf::core::Group *g = made_.setup.group("Pull and top");
+        QVERIFY(g);
+        // Each face signed as it is (study spec 4.2): face 2 the side x =
+        // 10, 600 mm2; the top 200 mm2; both flat, centred on their sides.
+        QCOMPARE(g->signatures.size(), size_t(2));
+        const gf::core::FaceSignature s2 = g->signatures.at(2);
+        QVERIFY(s2.kind == "plane" && std::abs(s2.area - 600) < 1e-9 && std::abs(s2.centre[0] - 10) < 1e-9);
+        int topFace = 0;
+        for (const auto &[f, sig] : g->signatures)
+            if (std::abs(sig.centre[2] - 30) < 1e-9)
+                topFace = f;
+        QVERIFY(topFace && std::abs(g->signatures.at(topFace).area - 200) < 1e-9);
         QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
         // The kept mesh has the new group's set, for the deck.
         bool hasSet = false;
@@ -891,6 +903,43 @@ private slots:
         QVERIFY(!findItem(tree, "Extra"));
         QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("Group Extra deleted (face 4)"));
         QVERIFY(!gf::core::readStudy(folder, &error).setup.group("Extra"));
+    }
+
+    void a_group_whose_faces_changed_is_said_and_can_be_kept_as_they_are()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QString error;
+        // Signed as a cylinder: as if the geometry had changed under it.
+        QVERIFY(gf::core::addFaceGroup(folder, "Top", {6}, &error, {{6, {"cylinder", 200, {5, 10, 30}}}}));
+        QVERIFY(w.openStudy(folder));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.mesh().points.empty(), 60000);
+        // Not solved on faces that are not the group's: said before Run.
+        QVERIFY(!w.findChild<QAction *>("run")->isEnabled());
+        QVERIFY(w.findChild<QLabel *>("nextStep")->text().startsWith("Group Top's faces have changed"));
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QTreeWidgetItem *top = findItem(tree, "Top");
+        QVERIFY(top);
+        QVERIFY2(top->text(1).contains("changed"), qPrintable(top->text(1)));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "group \"Top\": face 6 is not the face the group was made on: it was a cylinder of 200 mm2 at (5, 10, 30), "
+            "and is now a plane of 200 mm2 at (5, 10, 30)"));
+        QVERIFY(!findItem(tree, "Pulled")->text(1).contains("changed"));  // unsigned: nothing to say
+        // Kept as they are now: signed again, and no longer said.
+        tree->setCurrentItem(top);
+        auto *keep = w.findChild<QPushButton *>("keepFaces");
+        QVERIFY(keep);
+        QTest::mouseClick(keep, Qt::LeftButton);
+        const gf::core::Study s = gf::core::readStudy(folder, &error);
+        QVERIFY(error.isEmpty() && s.setup.group("Top"));
+        QCOMPARE(s.setup.group("Top")->signatures.at(6).kind, QString("plane"));
+        top = findItem(tree, "Top");
+        QVERIFY(top);
+        QCOMPARE(top->text(1), QString("face 6"));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        QVERIFY(!w.findChild<QLabel *>("nextStep")->text().contains("changed"));
     }
 
     void a_drag_turns_the_view_and_picks_nothing()

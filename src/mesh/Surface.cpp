@@ -7,6 +7,7 @@
 #include <vtkIdList.h>
 #include <vtkIntArray.h>
 #include <vtkNew.h>
+#include <vtkStringArray.h>
 #include <vtkUnstructuredGrid.h>
 
 #include <algorithm>
@@ -327,6 +328,23 @@ std::optional<std::array<double, 3>> edgeDirection(const gf::core::ResultsSeries
     if (problem)
         problem->clear();
     return d;
+}
+
+std::optional<gf::core::FaceSignature> faceSignature(const gf::core::ResultsSeries &mesh, int face)
+{
+    if (mesh.points.empty() || !mesh.points.front().grid)
+        return std::nullopt;
+    vtkFieldData *data = mesh.points.front().grid->GetFieldData();
+    auto *kind = vtkStringArray::SafeDownCast(data->GetAbstractArray("face kind"));
+    vtkDataArray *area = data->GetArray("face area"), *centre = data->GetArray("face centre");
+    if (!kind || !area || !centre || face < 1 || face > kind->GetNumberOfValues()
+        || face > area->GetNumberOfTuples() || face > centre->GetNumberOfTuples())
+        return std::nullopt;
+    gf::core::FaceSignature s;
+    s.kind = QString::fromStdString(kind->GetValue(face - 1));
+    s.area = area->GetComponent(face - 1, 0);
+    centre->GetTuple(face - 1, s.centre.data());
+    return s;
 }
 
 } // namespace gf::mesh

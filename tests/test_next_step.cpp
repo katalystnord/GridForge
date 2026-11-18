@@ -32,6 +32,17 @@ int main()
     s.canSolve = true;
     s.toolkit = "CalculiX";
     check(s, "Mesh ready. Press Run (F5) to solve with CalculiX.");
+    // A group signed on faces the geometry no longer has (study spec 4.2):
+    // said before a solve is tried, even after one.
+    s.changedGroup = "Top";
+    check(s, "Group Top's faces have changed with the geometry: select it in the Study tree to keep them as they are "
+             "now, or pick them again.");
+    s.outcome = WindowState::Outcome::Solved;
+    s.run = 1;
+    check(s, "Group Top's faces have changed with the geometry: select it in the Study tree to keep them as they are "
+             "now, or pick them again.");
+    s.outcome = WindowState::Outcome::None;
+    s.changedGroup.clear();
     s.running = true;
     s.run = 2;
     check(s, "Solving with CalculiX, run 2: starting (0%). Stop cancels and keeps its files.");

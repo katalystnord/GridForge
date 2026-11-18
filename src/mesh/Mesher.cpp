@@ -18,8 +18,12 @@
 
 #include <BOPAlgo_Builder.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
@@ -119,6 +123,25 @@ QString engine()
 {
     return QString("Netgen %1 (github.com/katalystnord/netgen at %2)")
         .arg(GF_NETGEN_VERSION, GF_NETGEN_COMMIT);
+}
+
+// A face's kind of surface, in words for study.json: OpenCASCADE's own
+// kinds (GeomAbs_SurfaceType), as "plane", "cylinder", ...
+static const char *surfaceKind(GeomAbs_SurfaceType t)
+{
+    switch (t) {
+    case GeomAbs_Plane: return "plane";
+    case GeomAbs_Cylinder: return "cylinder";
+    case GeomAbs_Cone: return "cone";
+    case GeomAbs_Sphere: return "sphere";
+    case GeomAbs_Torus: return "torus";
+    case GeomAbs_BezierSurface: return "Bezier surface";
+    case GeomAbs_BSplineSurface: return "B-spline surface";
+    case GeomAbs_SurfaceOfRevolution: return "surface of revolution";
+    case GeomAbs_SurfaceOfExtrusion: return "surface of extrusion";
+    case GeomAbs_OffsetSurface: return "offset surface";
+    default: return "other";
+    }
 }
 
 gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, QString *error)
@@ -290,6 +313,30 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     grid->GetFieldData()->AddArray(edgeSegments);
     grid->GetFieldData()->AddArray(edgeEnds);
     grid->GetFieldData()->AddArray(edgeStraight);
+
+    // Each face's signature (study spec 4.2): its kind, area and centre,
+    // measured on the geometry, so a group can tell when its faces have
+    // changed. Face n is the OCC face map's n, as Netgen's SurfNr.
+    vtkNew<vtkStringArray> faceKind;
+    faceKind->SetName("face kind");
+    vtkNew<vtkDoubleArray> faceArea;
+    faceArea->SetName("face area");
+    vtkNew<vtkDoubleArray> faceCentre;
+    faceCentre->SetName("face centre");
+    faceCentre->SetNumberOfComponents(3);
+    for (int f = 1; f <= faces; ++f) {
+        const TopoDS_Face face = TopoDS::Face(geometry->fmap(f));
+        faceKind->InsertNextValue(surfaceKind(BRepAdaptor_Surface(face).GetType()));
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(face, props);
+        faceArea->InsertNextValue(props.Mass());
+        const gp_Pnt c = props.CentreOfMass();
+        const double centre[3] = {c.X(), c.Y(), c.Z()};
+        faceCentre->InsertNextTypedTuple(centre);
+    }
+    grid->GetFieldData()->AddArray(faceKind);
+    grid->GetFieldData()->AddArray(faceArea);
+    grid->GetFieldData()->AddArray(faceCentre);
 
     gf::core::ResultsSeries series;
     series.points.push_back({0.0, grid});

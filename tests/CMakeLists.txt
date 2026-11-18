@@ -607,6 +607,12 @@ endif()
 # NEGATIVE CHECK, 2026-11-18, the sanitized build: the geometry edges read
 # through netgen::OCCEdge, gf-study fails to link under GF_SANITIZE
 # ("undefined reference to typeinfo for netgen::OCCEdge"), as on CI.
+# NEGATIVE CHECKS, 2026-11-18, face signatures (study spec 4.2): with
+# sameFace always true, describeFace and faceSignatureJson empty,
+# faceSignature none, addFaceGroup and signGroup writing nothing, each of
+# the setup, study, deck writer and outer surface cases red; in the window,
+# a group made from picked faces unsigned, red; the group check after
+# meshing left out, red; Run not held back by a changed group, red.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

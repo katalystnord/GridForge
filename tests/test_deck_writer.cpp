@@ -169,6 +169,34 @@ CASE(a_face_the_mesh_does_not_have_is_refused)
     CHECK(error == "group \"Back\": face 9; the geometry has 6");
 }
 
+CASE(a_face_that_is_no_longer_what_its_group_was_made_on_is_said_never_guessed)
+{
+    // Face 1 of the box is the side x = 0: a plane of 600 mm2 at (0, 10, 15).
+    auto signedAs = [](const char *kind, double area, double x) {
+        return [=](QJsonObject &o) {
+            QJsonObject g = o["groups"].toObject();
+            g["Back"] = QJsonObject{
+                {"faces", QJsonArray{1}},
+                {"signatures", QJsonObject{{"1", QJsonObject{{"kind", kind}, {"area", area},
+                                                              {"centre", QJsonArray{x, 10, 15}}}}}}};
+            o["groups"] = g;
+        };
+    };
+    QString error;
+    CHECK(!deckWith(signedAs("plane", 600, 0), &error).isEmpty() && error.isEmpty());
+    // Rounded as a STEP written again rounds: still the face.
+    CHECK(!deckWith(signedAs("plane", 600 * (1 + 1e-9), 1e-9), &error).isEmpty() && error.isEmpty());
+    // Not the face it was: said, with what it was and what it is now.
+    CHECK(deckWith(signedAs("cylinder", 600, 0), &error).isEmpty());
+    CHECK(error == "group \"Back\": face 1 is not the face the group was made on: it was a cylinder of 600 mm2 at "
+                   "(0, 10, 15), and is now a plane of 600 mm2 at (0, 10, 15); pick the group's faces again, or keep "
+                   "them as they are now");
+    CHECK(deckWith(signedAs("plane", 606, 0), &error).isEmpty());
+    CHECK(error.startsWith("group \"Back\": face 1 is not the face the group was made on: it was a plane of 606 mm2"));
+    CHECK(deckWith(signedAs("plane", 600, 0.01), &error).isEmpty());
+    CHECK(error.contains("it was a plane of 600 mm2 at (0.01, 10, 15)"));
+}
+
 CASE(the_specs_example_gives_the_hand_written_deck)
 {
     QString error;

@@ -2,6 +2,8 @@
 
 #include <QJsonArray>
 
+#include <algorithm>
+
 
 namespace gf::core {
 
@@ -39,6 +41,39 @@ std::vector<int> numbers(const QJsonValue &v, const QString &where, const char *
         if (n.toInt() < 1)
             fault(where, QString("%1 %2; %1s are numbered from 1").arg(what).arg(n.toInt()));
         out.push_back(n.toInt());
+    }
+    return out;
+}
+
+// Each face's signature when the group was made (study spec 4.2), by face
+// number, for the group's own faces only.
+std::map<int, FaceSignature> signatures(const QJsonValue &v, const Group &group, const QString &where)
+{
+    if (!v.isObject())
+        fault(where, "not an object of faces");
+    std::map<int, FaceSignature> out;
+    const QJsonObject o = v.toObject();
+    for (auto it = o.begin(); it != o.end(); ++it) {
+        bool number = false;
+        const int face = it.key().toInt(&number);
+        if (!number)
+            fault(where, QString("\"%1\" is not a face number").arg(it.key()));
+        if (std::find(group.faces.begin(), group.faces.end(), face) == group.faces.end())
+            fault(where, QString("face %1 is not in the group").arg(face));
+        const QString at = where + "." + it.key();
+        const QJsonObject s = it.value().toObject();
+        FaceSignature f;
+        if (!s["kind"].isString() || s["kind"].toString().isEmpty())
+            fault(at + ".kind", "missing");
+        f.kind = s["kind"].toString();
+        if (!s["area"].isDouble() || s["area"].toDouble() <= 0)
+            fault(at + ".area", "not a number above 0");
+        f.area = s["area"].toDouble();
+        const QJsonArray c = s["centre"].toArray();
+        if (c.size() != 3 || !c[0].isDouble() || !c[1].isDouble() || !c[2].isDouble())
+            fault(at + ".centre", "not three numbers");
+        f.centre = {c[0].toDouble(), c[1].toDouble(), c[2].toDouble()};
+        out[face] = f;
     }
     return out;
 }
@@ -131,9 +166,11 @@ Setup read(const QJsonObject &o)
     for (auto it = groups.begin(); it != groups.end(); ++it) {
         const QString where = "groups." + it.key();
         const QJsonObject g = it.value().toObject();
-        Group group{it.key(), numbers(g["faces"], where, "face"), numbers(g["solids"], where, "solid")};
+        Group group{it.key(), numbers(g["faces"], where, "face"), numbers(g["solids"], where, "solid"), {}};
         if (group.faces.empty() && group.solids.empty())
             fault(where, "names no faces or solids");
+        if (g.contains("signatures"))
+            group.signatures = signatures(g["signatures"], group, where + ".signatures");
         s.groups.push_back(group);
     }
 

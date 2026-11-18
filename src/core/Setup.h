@@ -11,6 +11,7 @@
 // a group of faces, gravity on the solids (all, or a group's).
 
 #include "core/Direction.h"
+#include "core/FaceSignature.h"
 
 #include <QJsonObject>
 #include <QString>
@@ -28,6 +29,9 @@ struct Group {
     QString name;
     std::vector<int> faces;   // the geometry's face numbers, from 1
     std::vector<int> solids;  // the geometry's solid numbers, from 1
+    // Each face's signature when the group was made, by face number; a
+    // group written by hand may have none (study spec 4.2).
+    std::map<int, FaceSignature> signatures;
 };
 
 struct Material {

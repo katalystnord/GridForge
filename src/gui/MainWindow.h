@@ -61,6 +61,7 @@ class LoadForm;
 struct MeshDone {
     gf::core::ResultsSeries mesh;
     QString error;
+    QString groupProblem;  // the groups do not fit the mesh (the mesh is fine)
     int opening = 0;
     size_t ownSets = 0;  // the mesh's own sets (Face<n>, Solid<n>) come first; the groups' after
 };
@@ -156,6 +157,11 @@ private:
     // The supports and loads that hold in the step chosen in the toolbar,
     // drawn on the model; the selected item's in ember.
     void refreshMarkers();
+    // Each signed group checked against the mesh (study spec 4.2): one
+    // whose faces changed is marked in the tree, said, and stops a solve.
+    void checkGroups();
+    // The picked faces' signatures, as the mesh measured them.
+    std::map<int, gf::core::FaceSignature> signaturesOf(const std::vector<int> &faces) const;
     // Edge picking for a load along an edge: the geometry's edges drawn,
     // the next click in the view picks the nearest for `form`.
     void startEdgePick(LoadForm *form);
@@ -172,6 +178,7 @@ private:
     int m_runNumber = 0;
     QString m_runFolder;
     QString m_meshProblem, m_progressText;
+    QString m_changedGroup;  // the first group whose faces changed, if any
     int m_percent = 0;
     WindowState::Outcome m_outcome = WindowState::Outcome::None;
     ResultsFile m_results;

@@ -7,6 +7,7 @@
 // array "face", the face of the geometry it lies on, from gf_mesh's
 // Face<n> sets (from 1); 0 if it lies on none.
 
+#include "core/FaceSignature.h"
 #include "core/ResultsSeries.h"
 
 #include <QString>
@@ -61,5 +62,10 @@ vtkSmartPointer<vtkPolyData> geometryEdges(const gf::core::ResultsSeries &mesh);
 // curve's own way), as a unit vector. None, with *problem, if the edge is
 // curved or there is no such edge.
 std::optional<std::array<double, 3>> edgeDirection(const gf::core::ResultsSeries &mesh, int edge, QString *problem);
+
+// A face's signature (study spec 4.2), as gf_mesh hands it on with the
+// mesh (field data "face kind", "face area", "face centre"), measured on
+// the geometry, not the mesh. None if there is no such face.
+std::optional<gf::core::FaceSignature> faceSignature(const gf::core::ResultsSeries &mesh, int face);
 
 } // namespace gf::mesh
