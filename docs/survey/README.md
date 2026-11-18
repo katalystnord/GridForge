@@ -18,6 +18,12 @@ across Kitware's software, their licences, who reuses ParaView's, and a
 house style for ours). Researched by sub-agents; the icon counts and the
 licence text were checked again by hand against ParaView's source.
 
+Added 2026-11-18: [loads-and-supports.md](loads-and-supports.md) (how
+sixteen programs, open source and proprietary, let the user give a support
+or a load its kind, direction and magnitude, and draw it). Researched by
+sub-agents; PrePoMax's manual (s5.7.4, s5.7.5) and FreeCAD's Force panel
+were read by hand.
+
 Added 2026-11-17: [meshing.md](meshing.md), whether to adopt, wrap or
 write GridForge's mesher: what CalculiX, OpenFOAM® and surrogates need,
 the bar commercial meshers set, the open meshers, other kinds of meshes,
