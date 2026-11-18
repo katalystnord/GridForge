@@ -1,4 +1,6 @@
 #include "gui/MainWindow.h"
+#include "core/TestCurve.h"
+#include "gui/CurvePlot.h"
 #include "gui/LoadForm.h"
 #include "gui/Markers.h"
 #include "gui/Style.h"
@@ -20,6 +22,8 @@
 #include <QComboBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QSaveFile>
+#include <QSpinBox>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -329,10 +333,13 @@ void MainWindow::buildDocks()
     QDockWidget *job = dock(this, tr("Job"), "jobDock", m_job);
     QDockWidget *stepsDock = dock(this, tr("Steps"), "stepsDock", steps);
     QDockWidget *deck = dock(this, tr("Deck"), "deckDock", m_deck);
+    m_curvePlot = new CurvePlot(this);
+    QDockWidget *compare = dock(this, tr("Measured against Predicted"), "compareDock", m_curvePlot);
     addDockWidget(Qt::BottomDockWidgetArea, messages);
     tabifyDockWidget(messages, job);
     tabifyDockWidget(job, stepsDock);
     tabifyDockWidget(stepsDock, deck);
+    tabifyDockWidget(deck, compare);
     messages->raise();
     resizeDocks({study}, {470}, Qt::Horizontal);  // room for the values beside the names
     resizeDocks({messages}, {160}, Qt::Vertical);
@@ -384,6 +391,11 @@ void MainWindow::buildActions()
     m_addMaterial->setObjectName(QStringLiteral("addMaterial"));
     m_addMaterial->setToolTip(tr("A material from a FreeCAD card or its values, for a group of solids"));
     connect(m_addMaterial, &QAction::triggered, this, &MainWindow::showMaterialForm);
+    studyMenu->addSeparator();
+    m_compareTest = studyMenu->addAction(tr("Compare with a Test..."));
+    m_compareTest->setObjectName(QStringLiteral("compareTest"));
+    m_compareTest->setToolTip(tr("A test's curve, as TenSense analysed it, beside the run's"));
+    connect(m_compareTest, &QAction::triggered, this, &MainWindow::showCompareForm);
     menuBar()->addMenu(tr("&Mesh"));
     QMenu *run = menuBar()->addMenu(tr("&Run"));
     menuBar()->addMenu(tr("R&esults"));
@@ -1027,6 +1039,7 @@ void MainWindow::updateActions()
                             && !m_study.stepsOf("solve").empty());
     m_stopAction->setEnabled(m_runner.running() || m_meshRun.running());
     const bool results = m_results.timeCount() > 0;
+    m_compareTest->setEnabled(results);
     for (QAction *a : m_vcr)
         a->setEnabled(results);
     m_colourBy->setEnabled(results);
@@ -1741,6 +1754,102 @@ void MainWindow::addFreecadGroups()
         say(tr("%1 from %2 added").arg(added == 1 ? tr("1 group") : tr("%1 groups").arg(added), file), Tone::Done);
         openStudy(m_study.folder);
     }
+}
+
+void MainWindow::showCompareForm()
+{
+    endEdgePick();
+    while (m_propertyForm->count() > 0) {
+        QLayoutItem *row = m_propertyForm->takeAt(0);
+        delete row->widget();
+        delete row;
+    }
+    // The test: TenSense's analysed curve.
+    auto *fileRow = new QWidget(m_properties);
+    auto *fileLayout = new QHBoxLayout(fileRow);
+    fileLayout->setContentsMargins(0, 0, 0, 0);
+    auto *file = new QLineEdit(fileRow);
+    file->setObjectName(QStringLiteral("testFile"));
+    file->setPlaceholderText(tr("TenSense's analysed curve, a .vtp"));
+    auto *choose = new QPushButton(tr("Choose..."), fileRow);
+    fileLayout->addWidget(file, 1);
+    fileLayout->addWidget(choose);
+    m_propertyForm->addRow(tr("Test"), fileRow);
+    connect(choose, &QPushButton::clicked, this, [this, file] {
+        const QString f = QFileDialog::getOpenFileName(this, tr("A test's curve"), m_study.folder,
+                                                       tr("TenSense curves (*.vtp)"));
+        if (!f.isEmpty())
+            file->setText(f);
+    });
+    // Where the force acts: a group of faces.
+    auto *group = new QComboBox(m_properties);
+    group->setObjectName(QStringLiteral("forceOn"));
+    for (const core::Group &g : m_study.setup.groups)
+        if (!g.faces.empty())
+            group->addItem(g.name);
+    m_propertyForm->addRow(tr("Force on"), group);
+    // The extensometer: two points of the part as it was made.
+    auto *from = new QLineEdit(m_properties), *to = new QLineEdit(m_properties);
+    from->setObjectName(QStringLiteral("gaugeFrom"));
+    to->setObjectName(QStringLiteral("gaugeTo"));
+    from->setPlaceholderText(tr("x, y, z"));
+    to->setPlaceholderText(tr("x, y, z"));
+    m_propertyForm->addRow(tr("Extensometer from"), from);
+    m_propertyForm->addRow(tr("to"), to);
+    auto *share = new QSpinBox(m_properties);
+    share->setObjectName(QStringLiteral("modelShare"));
+    share->setRange(1, 64);
+    share->setPrefix(tr("1/"));
+    share->setToolTip(tr("The model's part of the test piece by symmetry (a quarter: 1/4); its force is taken that "
+                         "many times"));
+    m_propertyForm->addRow(tr("Model is"), share);
+    auto *apply = new QPushButton(icon("pqApply"), tr("Compare"), m_properties);
+    apply->setObjectName(QStringLiteral("applyCompare"));
+    m_propertyForm->addRow(apply);
+    connect(apply, &QPushButton::clicked, this, [this, file, group, from, to, share] {
+        auto point = [](const QString &text, std::array<double, 3> *out) {
+            const QStringList xyz = text.split(',');
+            bool ok = xyz.size() == 3;
+            for (int d = 0; ok && d < 3; ++d)
+                (*out)[d] = xyz[d].trimmed().toDouble(&ok);
+            return ok;
+        };
+        std::array<double, 3> a{}, b{};
+        if (!point(from->text(), &a) || !point(to->text(), &b)) {
+            say(tr("Cannot compare: the gauge's points are each x, y, z"), Tone::Problem);
+            return;
+        }
+        QString error;
+        const core::TestCurve measured = core::readTenSenseCurve(file->text().trimmed(), &error);
+        core::TestCurve predicted;
+        if (error.isEmpty())
+            predicted = core::predictedCurve(m_results.path(), group->currentText(), a, b, &error);
+        if (!error.isEmpty()) {
+            say(tr("Cannot compare: %1").arg(error), Tone::Problem);
+            return;
+        }
+        if (share->value() > 1) {
+            for (double &f : predicted.force)
+                f *= share->value();
+            predicted.source += tr(", its force times %1 (the model is 1/%1 of the test piece)").arg(share->value());
+        }
+        const core::CurveComparison c = core::compareCurves(measured, predicted);
+        m_curvePlot->setCurves(measured, predicted);
+        if (auto *d = findChild<QDockWidget *>("compareDock")) {
+            d->show();
+            d->raise();
+        }
+        say(core::comparisonWords(c), Tone::Done);
+        // Kept beside the run's results: <run>/compare.csv.
+        QDir run = QFileInfo(m_results.path()).absoluteDir();
+        run.cdUp();
+        QSaveFile csv(run.filePath("compare.csv"));
+        const QByteArray text = gf::core::comparisonCsv(measured, predicted, c);
+        if (csv.open(QIODevice::WriteOnly) && csv.write(text) >= 0 && csv.commit())
+            say(tr("Kept in %1").arg(csv.fileName()), Tone::Detail);
+        else
+            say(tr("Cannot write %1").arg(csv.fileName()), Tone::Problem);
+    });
 }
 
 void MainWindow::showMaterialForm()

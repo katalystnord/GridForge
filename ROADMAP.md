@@ -206,8 +206,11 @@ directions, coloured by kind, the selected one in ember.
   First case: CRM 661 from NPL's TENSTAND, predicted from TenSense's
   analysis within 1.2 % from yield to the maximum force
   (examples/crm661-tension; a calibration check, not yet a validation).
-  Next: the curves plotted in the window; a second test predicted from
-  the first's material; SurView's strain fields.
+  A second TENSTAND test (file 01) predicted from file 06's analysis:
+  within 0.69 %. In the window: Study, Compare with a Test, the curves
+  plotted in their own dock, the comparison kept in the run's folder.
+  Next: the comparison kept in study.json, so it is run again with the
+  study; a test of another shape predicted; SurView's strain fields.
 
 ## Theme: foams and cellular materials (David, 2026-11-18)
 

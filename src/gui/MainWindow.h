@@ -180,6 +180,9 @@ private:
     // Study, Add Material: its form in Properties (a FreeCAD card or values,
     // assigned to a group of solids).
     void showMaterialForm();
+    // Measured against predicted: a test's curve (TenSense's .vtp) beside
+    // the run shown, plotted in its dock, said, and kept in the run's folder.
+    void showCompareForm();
     // The picked faces' signatures, as the mesh measured them.
     std::map<int, gf::core::FaceSignature> signaturesOf(const std::vector<int> &faces) const;
     // Edge picking for a load along an edge: the geometry's edges drawn,
@@ -196,6 +199,8 @@ private:
     // The mesher runs as a process of its own (core/MeshRun), its mesh
     // written to a folder of the window's own, then read on another thread.
     gf::core::MeshRun m_meshRun;
+    QAction *m_compareTest = nullptr;
+    class CurvePlot *m_curvePlot = nullptr;
     QTemporaryDir m_meshFolder;
     gf::core::Setup m_meshSetup;  // the set-up the mesh's groups come from
     int m_meshOpening = 0;        // the opening the running meshing is for

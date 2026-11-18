@@ -7,6 +7,7 @@
 
 #include "core/Study.h"
 #include "core/StudyEdit.h"
+#include "gui/CurvePlot.h"
 #include "gui/MainWindow.h"
 #include "gui/Style.h"
 #include "gui/Tone.h"
@@ -16,6 +17,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
@@ -249,6 +251,62 @@ private slots:
         w.findChild<QAction *>("run")->trigger();
         QTRY_COMPARE_WITH_TIMEOUT(
             banner->text(), QString("Run 1 solved. Step through the increments in Results, or Open in ParaView."), 60000);
+    }
+
+    // Measured against predicted in the window (core/TestCurve): a
+    // test's curve as TenSense analysed it, beside the run's, plotted and
+    // said, and kept in the run's folder. The stand-in solve and BAM's
+    // S355 test are not the same test: what is held here is the window's
+    // part; the arithmetic is test_test_curve's.
+    void a_test_s_curve_is_set_beside_the_run_s()
+    {
+        stand_in_ccx(false);
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString study = boxStudy(dir);
+        QVERIFY(w.openStudy(study));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        auto *compare = w.findChild<QAction *>("compareTest");
+        QVERIFY(compare && !compare->isEnabled());  // nothing solved yet
+        w.findChild<QAction *>("run")->trigger();
+        auto *banner = w.findChild<QLabel *>("nextStep");
+        QTRY_VERIFY_WITH_TIMEOUT(banner->text().startsWith("Run 1 solved"), 60000);
+        QVERIFY(compare->isEnabled());
+        compare->trigger();
+        auto *props = w.findChild<QWidget *>("properties");
+        auto *file = props->findChild<QLineEdit *>("testFile");
+        auto *group = props->findChild<QComboBox *>("forceOn");
+        auto *from = props->findChild<QLineEdit *>("gaugeFrom");
+        auto *to = props->findChild<QLineEdit *>("gaugeTo");
+        auto *times = props->findChild<QSpinBox *>("modelShare");
+        auto *apply = props->findChild<QPushButton *>("applyCompare");
+        QVERIFY(file && group && from && to && times && apply);
+        // Groups of faces only, as the force acts on faces.
+        QVERIFY(group->findText("Pulled") >= 0 && group->findText("Steel part") < 0);
+        file->setText(QString(GF_FIXTURES) + "/tensense/Zx3.vtp");
+        group->setCurrentText("Pulled");
+        from->setText("2, 10, 15");
+        to->setText("8, 10, 15");
+        times->setValue(4);
+        QTest::mouseClick(apply, Qt::LeftButton);
+        auto *plot = w.findChild<gf::gui::CurvePlot *>("curvePlot");
+        QVERIFY(plot);
+        QCOMPARE(plot->measured().strain.size(), size_t(1906));
+        QCOMPARE(plot->predicted().strain.size(), size_t(2));  // the zero point and the one increment
+        QVERIFY(w.findChild<QDockWidget *>("compareDock")->isVisible());
+        const QString said = w.findChild<QPlainTextEdit *>("messages")->toPlainText();
+        QVERIFY2(said.contains("predicted against measured, at 1 strain"), qPrintable(said));
+        QVERIFY(QFile::exists(QDir(study).filePath("steps/solve/runs/1/compare.csv")));
+        if (!screenshot.isEmpty()) {
+            plot->resize(640, 300);
+            QVERIFY(plot->grab().save(screenshot));
+        }
+        // Not a gauge: said, nothing plotted anew.
+        to->setText("8, 10");
+        QTest::mouseClick(apply, Qt::LeftButton);
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Cannot compare: the gauge's points are each x, y, z"));
     }
 
     void the_selected_tab_has_an_ember_line_under_it()

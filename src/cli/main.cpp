@@ -292,15 +292,7 @@ int compare(const QString &results, const QString &measuredPath, const QString &
                 qPrintable(gf::core::comparisonWords(c)));
     if (!out.isEmpty()) {
         QSaveFile csv(out);
-        QByteArray text = "# " + measured.source.toUtf8() + "\n# " + predicted.source.toUtf8()
-                          + "\nstrain,predicted force (N),measured force (N),difference\n";
-        for (const auto &p : c.points)
-            text += QString("%1,%2,%3,%4\n")
-                        .arg(p.strain, 0, 'g', 8)
-                        .arg(p.predicted, 0, 'g', 8)
-                        .arg(p.measured, 0, 'g', 8)
-                        .arg(p.difference(), 0, 'g', 6)
-                        .toUtf8();
+        const QByteArray text = gf::core::comparisonCsv(measured, predicted, c);
         if (!csv.open(QIODevice::WriteOnly) || csv.write(text) < 0 || !csv.commit()) {
             std::fprintf(stderr, "gf-study: cannot write %s\n", qPrintable(out));
             return 1;

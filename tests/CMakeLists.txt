@@ -110,6 +110,10 @@ add_test(NAME a_measured_curve_is_set_beside_the_predicted_one COMMAND test_test
 # force taken across the gauge, not along it: red; the first crossing's
 # guard dropped: survived at first (the unloading case could not tell),
 # the case sharpened (and a curve starting above the strain added): red.
+# The window's case (a_test_s_curve_is_set_beside_the_run_s) written
+# first (it did not build: no CurvePlot); then Compare enabled before a
+# solve: red. The plot's ticks: 0.6 made by adding 0.2 three times was
+# red against the exact list, the ticks now made as whole multiples.
 
 add_executable(test_convergence test_convergence.cpp)
 target_link_libraries(test_convergence PRIVATE gf_core)

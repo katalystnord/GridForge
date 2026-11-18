@@ -9,6 +9,7 @@
 // its nodes' reactions along the gauge), and the strain a virtual
 // extensometer reads between two points of the part.
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
 
@@ -52,5 +53,9 @@ CurveComparison compareCurves(const TestCurve &measured, const TestCurve &predic
 // The comparison in words: the largest difference and where, the mean
 // difference, over which strains.
 QString comparisonWords(const CurveComparison &c);
+
+// The comparison as a CSV for a plot: where each curve came from (as #
+// lines), then strain, predicted force, measured force and difference.
+QByteArray comparisonCsv(const TestCurve &measured, const TestCurve &predicted, const CurveComparison &c);
 
 } // namespace gf::core

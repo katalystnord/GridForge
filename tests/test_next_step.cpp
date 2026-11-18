@@ -1,5 +1,6 @@
 // The banner's next step for each state of the window.
 
+#include "gui/CurvePlot.h"
 #include "gui/NextStep.h"
 #include "gui/Tone.h"
 
@@ -98,6 +99,23 @@ int main()
         std::printf("FAIL tone colours\n");
         ++failures;
     }
+    // The measured-against-predicted plot's ticks: 1, 2 or 5 times a power
+    // of ten, covering the range from 0.
+    using gf::gui::niceTicks;
+    auto ticks = [&](double lo, double hi, std::vector<double> expected) {
+        if (niceTicks(lo, hi) != expected) {
+            std::printf("FAIL ticks %g to %g:", lo, hi);
+            for (double t : niceTicks(lo, hi))
+                std::printf(" %g", t);
+            std::printf("\n");
+            ++failures;
+        }
+    };
+    ticks(0, 60.0, {0, 20, 40, 60});
+    ticks(0, 31.5, {0, 10, 20, 30, 40});
+    ticks(0, 3.9, {0, 1, 2, 3, 4});
+    ticks(0, 0.05, {0, 0.01, 0.02, 0.03, 0.04, 0.05});
+    ticks(0, 0, {0, 0.2, 0.4, 0.6, 0.8, 1});
     std::printf("%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }

@@ -94,6 +94,7 @@ target_compile_definitions(gf_mesh PRIVATE OCCGEOMETRY  # Netgen's OCC interface
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
     gui/LoadForm.cpp
+    gui/CurvePlot.cpp
     gui/Markers.cpp
     gui/ResultsFile.cpp
     gui/NextStep.cpp

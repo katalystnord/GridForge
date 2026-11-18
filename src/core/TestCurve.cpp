@@ -228,4 +228,18 @@ QString comparisonWords(const CurveComparison &c)
     return words;
 }
 
+QByteArray comparisonCsv(const TestCurve &measured, const TestCurve &predicted, const CurveComparison &c)
+{
+    QByteArray text = "# " + measured.source.toUtf8() + "\n# " + predicted.source.toUtf8()
+                      + "\nstrain,predicted force (N),measured force (N),difference\n";
+    for (const auto &p : c.points)
+        text += QString("%1,%2,%3,%4\n")
+                    .arg(p.strain, 0, 'g', 8)
+                    .arg(p.predicted, 0, 'g', 8)
+                    .arg(p.measured, 0, 'g', 8)
+                    .arg(p.difference(), 0, 'g', 6)
+                    .toUtf8();
+    return text;
+}
+
 } // namespace gf::core
