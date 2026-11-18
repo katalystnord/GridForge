@@ -604,6 +604,9 @@ endif()
 # case red at the button not lit; the turn alone disabled, the deform case
 # red at 47.2 degrees from the corner's movement (47 by hand). The view's
 # grey left as it was: red.
+# NEGATIVE CHECK, 2026-11-18, the sanitized build: the geometry edges read
+# through netgen::OCCEdge, gf-study fails to link under GF_SANITIZE
+# ("undefined reference to typeinfo for netgen::OCCEdge"), as on CI.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

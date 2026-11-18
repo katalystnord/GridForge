@@ -32,6 +32,7 @@
 #include <vtkPointData.h>
 
 #include <cmath>
+#include <algorithm>
 #include <cstdio>
 #include <functional>
 #include <vector>
@@ -321,6 +322,13 @@ CASE(the_committed_mesh_is_what_gridforge_writes_today)
     const QStringList today = meshInp(mesh, &error).split('\n'), kept = fileLines(fixture("mesh.inp"));
     CHECK(today.size() == kept.size());
     CHECK(today.mid(1) == kept.mid(1));
+    // Where they part, so a machine that meshes differently says how.
+    for (qsizetype i = 1; i < std::min(today.size(), kept.size()); ++i)
+        if (today[i] != kept[i]) {
+            std::printf("  line %lld differs:\n    today: %s\n    kept:  %s\n", static_cast<long long>(i + 1),
+                        qPrintable(today[i]), qPrintable(kept[i]));
+            break;
+        }
 }
 
 int main()

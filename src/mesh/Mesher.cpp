@@ -14,11 +14,12 @@
 
 // Netgen's own headers; OpenCASCADE's come in through occgeom.hpp.
 #include <meshing.hpp>
-#include <occ/occ_edge.hpp>
 #include <occgeom.hpp>
 
 #include <BOPAlgo_Builder.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Edge.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
@@ -275,11 +276,16 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     vtkNew<vtkIntArray> edgeStraight;
     edgeStraight->SetName("edge straight");
     for (int e = 0; e < edges; ++e) {
-        const auto &edge = static_cast<const netgen::OCCEdge &>(geometry->GetEdge(e));
+        // Netgen's edge e is the OCC edge map's e + 1 (OCCGeometry builds
+        // its edges in that order, and its GetEdge(shape) counts on it).
+        // Not through netgen::OCCEdge: Netgen does not export that class's
+        // type, and the sanitized build's checks need it (CI, 2026-11-18).
+        const netgen::GeometryEdge &edge = geometry->GetEdge(e);
         const netgen::Point<3> first = edge.GetPoint(0), last = edge.GetPoint(1);
         const double ends[6] = {first(0), first(1), first(2), last(0), last(1), last(2)};
         edgeEnds->InsertNextTypedTuple(ends);
-        edgeStraight->InsertNextValue(BRepAdaptor_Curve(edge.Shape()).GetType() == GeomAbs_Line ? 1 : 0);
+        const TopoDS_Edge shape = TopoDS::Edge(geometry->emap(e + 1));
+        edgeStraight->InsertNextValue(BRepAdaptor_Curve(shape).GetType() == GeomAbs_Line ? 1 : 0);
     }
     grid->GetFieldData()->AddArray(edgeSegments);
     grid->GetFieldData()->AddArray(edgeEnds);
