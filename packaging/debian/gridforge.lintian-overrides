@@ -1,0 +1,7 @@
+# Netgen's own install rules append OpenCASCADE's library folder as a
+# fallback for a bundled OpenCASCADE (netgen/CMakeLists.txt, "The
+# OpenCascade libraries are not copied into the install tree"); here it is
+# the standard system folder, so the path changes nothing. These two
+# libraries leave the package when it uses Debian's Netgen (README.source).
+custom-library-search-path RUNPATH /usr/lib/x86_64-linux-gnu [usr/lib/gridforge/libnglib.so]
+custom-library-search-path RUNPATH /usr/lib/x86_64-linux-gnu [usr/lib/gridforge/libngcore.so]

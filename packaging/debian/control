@@ -5,7 +5,6 @@ Maintainer: David <david@katalystnord.com>
 Build-Depends: debhelper-compat (= 13),
                cmake,
                ninja-build,
-               g++,
                gfortran,
                qt6-base-dev,
                libvtk9-qt-dev,

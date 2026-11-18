@@ -85,7 +85,11 @@ endif()
 # Installed programs keep the paths they were linked with (Netgen's
 # build-netgen/install/lib among them), so they run where installed and the
 # AppImage's packager finds every library; it rewrites them for the AppImage.
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# A default only: the .deb turns it off (packaging/debian/rules), and a
+# plain set() would override that.
+if(NOT DEFINED CMAKE_INSTALL_RPATH_USE_LINK_PATH)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 enable_testing()
 
