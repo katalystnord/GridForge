@@ -599,6 +599,11 @@ endif()
 # NEGATIVE CHECKS, 2026-11-18, a force along a picked edge: the case red
 # (Edge disabled). Then the click not taken for an edge; the edge's
 # direction not measured for the form: each red.
+# NEGATIVE CHECKS, 2026-11-18, the deformed view: with viewAcross a stub
+# returning the view as given, the turned-view case red, and the deform
+# case red at the button not lit; the turn alone disabled, the deform case
+# red at 47.2 degrees from the corner's movement (47 by hand). The view's
+# grey left as it was: red.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

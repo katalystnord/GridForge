@@ -15,6 +15,7 @@
 #include <vtkUnstructuredGrid.h>
 
 #include <utility>
+#include <array>
 #include <vector>
 
 #include <vtkHDFReader.h>
@@ -47,6 +48,8 @@ public:
     bool canDeform() const { return !m_displacement.isEmpty(); }
     // The largest displacement at time point k (0 if none).
     double largestDisplacement(int k);
+    // The displacement of the point that moves most at time point k (0s if none).
+    std::array<double, 3> largestDisplacementVector(int k);
     std::pair<double, double> range(int k, const QString &field);
 
 private:

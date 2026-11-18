@@ -44,11 +44,13 @@
 #include <QVTKOpenGLNativeWidget.h>
 
 #include <vtkActor2DCollection.h>
+#include <vtkCamera.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkRendererCollection.h>
 
 #include <cmath>
+#include <array>
 #include <cstdio>
 #include <functional>
 #include <cstdlib>
@@ -229,7 +231,9 @@ private slots:
         QVERIFY(r->GetGradientBackground());
         double bottom[3];
         r->GetBackground(bottom);
-        QVERIFY(bottom[0] < 0.15 && bottom[2] < 0.15);  // graphite, not ParaView's (0.32, 0.34, 0.43)
+        // Graphite, not ParaView's (0.32, 0.34, 0.43); lightened a shade
+        // (David, 2026-11-18) from (0.105, 0.112, 0.122).
+        QVERIFY(bottom[0] > 0.15 && bottom[0] < 0.25 && bottom[2] < 0.25);
     }
 
     void the_banner_follows_the_study_through_a_solve()
@@ -957,15 +961,77 @@ private slots:
         QVERIFY(factor && factor->isEnabled());
         QCOMPARE(factor->value(), 1.0);  // true scale first
         QVERIFY2(label->text().contains("true scale"), qPrintable(label->text()));
-        w.findChild<QAction *>("autoDeform")->trigger();
+        // Looking along the pull (+X), the stretch is seen end-on.
+        w.findChild<QAction *>("pqXPlus")->trigger();
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        vtkCamera *camera = view->renderWindow()->GetRenderers()->GetFirstRenderer()->GetActiveCamera();
+        auto *exaggerate = w.findChild<QAction *>("autoDeform");
+        QVERIFY(!exaggerate->isChecked());
+        exaggerate->trigger();
         QVERIFY(factor->value() > 1);
+        QVERIFY(exaggerate->isChecked());
+        // Turned to look across the largest displacement, known by hand: the
+        // far corner (10, 20, 30) moves (10, -6, -9) x the strain (Poisson's
+        // ratio 0.3); at least 70 degrees from it, less a degree for ccx's
+        // own numbers against the hand ones.
+        auto angle = [&] {
+            double d[3];
+            camera->GetDirectionOfProjection(d);
+            const double u[3] = {10, -6, -9};
+            const double c = (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) / std::sqrt(100.0 + 36 + 81);
+            return std::acos(std::abs(c)) * 180 / M_PI;
+        };
+        QVERIFY2(angle() > 69, qPrintable(QString::number(angle())));
         if (!screenshot.isEmpty()) {
             QTest::qWait(100);
             w.grab().save(screenshot.chopped(4) + "-deformed.png");
         }
         QVERIFY2(label->text().contains(QString("deformed \u00d7%1").arg(factor->value())), qPrintable(label->text()));
+        // Clicked again: true scale, the view left where it is.
+        double before[3], after[3];
+        camera->GetDirectionOfProjection(before);
+        exaggerate->trigger();
+        QCOMPARE(factor->value(), 1.0);
+        QVERIFY(!exaggerate->isChecked());
+        QVERIFY2(label->text().contains("true scale"), qPrintable(label->text()));
+        camera->GetDirectionOfProjection(after);
+        QVERIFY(std::abs(before[0] - after[0]) + std::abs(before[1] - after[1]) + std::abs(before[2] - after[2]) < 1e-12);
+        // A factor typed in lights it too.
         factor->setValue(0);
         QVERIFY2(label->text().contains("undeformed"), qPrintable(label->text()));
+        QVERIFY(exaggerate->isChecked());
+    }
+
+    void a_view_along_the_displacement_is_turned_across_it()
+    {
+        using V = std::array<double, 3>;
+        auto dot = [](const V &a, const V &b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+        auto norm = [&](V a) {
+            const double n = std::sqrt(dot(a, a));
+            return V{a[0] / n, a[1] / n, a[2] / n};
+        };
+        auto degrees = [&](const V &a, const V &b) { return std::acos(std::abs(dot(norm(a), norm(b)))) * 180 / M_PI; };
+        // The bent dogbone seen from the isometric view, its tip moving -z:
+        // 54.7 degrees from it, turned to 70, in the same plane, from the
+        // same side, z still up.
+        const V iso{-1, -1, -1}, z{0, 0, 1}, down{0, 0, -1};
+        auto [v, up] = MainWindow::viewAcross(iso, z, down);
+        QVERIFY(std::abs(degrees(v, down) - 70) < 1e-9);
+        const V across{iso[1] * down[2] - iso[2] * down[1], iso[2] * down[0] - iso[0] * down[2],
+                       iso[0] * down[1] - iso[1] * down[0]};
+        QVERIFY(std::abs(dot(v, across)) < 1e-12);  // only tipped, not swung round
+        QVERIFY(dot(v, down) > 0);
+        QVERIFY(std::abs(dot(up, v)) < 1e-12 && dot(up, z) > 0.9);
+        // Already across (a side view): left as it is.
+        auto [side, sideUp] = MainWindow::viewAcross({0, 1, 0}, z, down);
+        QVERIFY(side == (V{0, 1, 0}) && sideUp == z);
+        // Straight along it: turned to 70 degrees all the same, up across.
+        auto [along, alongUp] = MainWindow::viewAcross(down, {0, 1, 0}, down);
+        QVERIFY(std::abs(degrees(along, down) - 70) < 1e-9);
+        QVERIFY(std::abs(dot(alongUp, along)) < 1e-12 && std::abs(dot(alongUp, alongUp) - 1) < 1e-12);
+        // Nothing moved: nothing to turn.
+        auto [still, stillUp] = MainWindow::viewAcross(iso, z, {0, 0, 0});
+        QVERIFY(still == iso && stillUp == z);
     }
 
     void the_steps_dock_shows_each_load_by_step_and_a_click_opens_it()

@@ -29,6 +29,8 @@
 
 #include <vtkSmartPointer.h>
 
+#include <array>
+#include <utility>
 #include <vector>
 
 class QComboBox;
@@ -98,6 +100,14 @@ public:
     // about a tenth of the model's size, rounded down to 1, 2 or 5 times a
     // power of ten; never below 1 (true scale).
     static double autoDeform(double modelSize, double largestDisplacement);
+
+    // A view (the direction looked in, and up) turned to show a movement
+    // along `moved`: tipped in the plane of the view and the movement until
+    // it is at least 70 degrees from it, so the movement is seen at 94 % of
+    // its length and the view keeps some depth; up kept as near as it was.
+    // A view already that far across, or nothing moved, is left as given.
+    static std::pair<std::array<double, 3>, std::array<double, 3>>
+    viewAcross(const std::array<double, 3> &view, const std::array<double, 3> &up, const std::array<double, 3> &moved);
 
     static double legendLeft(double viewPixels, double boxPixels, double titlePixels);
 

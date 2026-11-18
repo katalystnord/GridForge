@@ -110,6 +110,24 @@ double ResultsFile::largestDisplacement(int k)
     return canDeform() ? range(k, m_displacement + magnitude).second : 0;
 }
 
+std::array<double, 3> ResultsFile::largestDisplacementVector(int k)
+{
+    std::array<double, 3> most{0, 0, 0};
+    vtkSmartPointer<vtkUnstructuredGrid> g = canDeform() ? model(k, {}) : nullptr;
+    vtkDataArray *u = g ? g->GetPointData()->GetArray(m_displacement.toUtf8().constData()) : nullptr;
+    double largest = -1;
+    for (vtkIdType i = 0; u && i < u->GetNumberOfTuples(); ++i) {
+        double d[3];
+        u->GetTuple(i, d);
+        const double n = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        if (n > largest) {
+            largest = n;
+            most = {d[0], d[1], d[2]};
+        }
+    }
+    return most;
+}
+
 vtkSmartPointer<vtkUnstructuredGrid> ResultsFile::model(int k, const QString &field, double deform)
 {
     if (!m_reader || k < 0 || k >= timeCount())

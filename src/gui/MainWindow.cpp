@@ -97,8 +97,9 @@ QIcon icon(const QString &name) { return QIcon(":/icons/" + name + ".svg"); }
 // colours, so the two are told apart at a glance. Ember orange for the
 // accent (the banner, selections, the selected tab's line: gui/Style),
 // dark graphite for the view.
-const double graphiteBottom[3] = {0.105, 0.112, 0.122};
-const double graphiteTop[3] = {0.305, 0.318, 0.337};
+// A shade lighter than first (David, 2026-11-18; was 0.105 to 0.305).
+const double graphiteBottom[3] = {0.180, 0.188, 0.200};
+const double graphiteTop[3] = {0.400, 0.412, 0.431};
 
 // The tree's icon for an outline item: FreeCAD's FEM icons for what FreeCAD
 // users know (supports, loads, materials, the mesh), ParaView's for the rest.
@@ -473,10 +474,34 @@ void MainWindow::buildActions()
     m_autoDeform = results->addAction(icon("pqWarp"), tr("Exaggerate the deformation to see it"));
     m_autoDeform->setObjectName(QStringLiteral("autoDeform"));
     m_autoDeform->setToolTip(tr("Exaggerate the deformation so the largest displacement is about a tenth of the "
-                                "model; the factor is shown beside the increment"));
-    connect(m_autoDeform, &QAction::triggered, this, [this] {
+                                "model, and look across it; again: true scale"));
+    // Lit while the shape is not at true scale, however the factor was set.
+    m_autoDeform->setCheckable(true);
+    connect(m_deform, &QDoubleSpinBox::valueChanged, this, [this](double f) { m_autoDeform->setChecked(f != 1); });
+    connect(m_autoDeform, &QAction::triggered, this, [this](bool exaggerate) {
+        if (!exaggerate) {
+            m_deform->setValue(1);
+            return;
+        }
         vtkSmartPointer<vtkUnstructuredGrid> g = m_results.model(m_increment, {});
         m_deform->setValue(autoDeform(g ? g->GetLength() : 0, m_results.largestDisplacement(m_increment)));
+        // Seen end-on, a movement does not show however large it is drawn
+        // (a bend looked at from above it, 2026-11-18).
+        vtkCamera *c = m_renderer->GetActiveCamera();
+        std::array<double, 3> view, up;
+        c->GetDirectionOfProjection(view.data());
+        c->GetViewUp(up.data());
+        const auto [turned, upright] = viewAcross(view, up, m_results.largestDisplacementVector(m_increment));
+        if (turned != view) {
+            double focal[3];
+            c->GetFocalPoint(focal);
+            const double distance = c->GetDistance();
+            c->SetPosition(focal[0] - distance * turned[0], focal[1] - distance * turned[1],
+                           focal[2] - distance * turned[2]);
+            c->SetViewUp(upright.data());
+            m_renderer->ResetCamera();
+        }
+        m_view->renderWindow()->Render();
     });
     m_openParaView = results->addAction(icon("pqOpen"), tr("Open in ParaView"));
     m_openParaView->setObjectName(QStringLiteral("openInParaView"));
@@ -1463,6 +1488,45 @@ double MainWindow::autoDeform(double modelSize, double largestDisplacement)
     const double power = std::pow(10.0, std::floor(std::log10(raw)));
     const double m = raw / power;
     return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * power;
+}
+
+std::pair<std::array<double, 3>, std::array<double, 3>>
+MainWindow::viewAcross(const std::array<double, 3> &view, const std::array<double, 3> &up, const std::array<double, 3> &moved)
+{
+    using V = std::array<double, 3>;
+    auto dot = [](const V &a, const V &b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    auto less = [](const V &a, double k, const V &b) { return V{a[0] - k * b[0], a[1] - k * b[1], a[2] - k * b[2]}; };
+    auto unit = [&](const V &a) {
+        const double n = std::sqrt(dot(a, a));
+        return n > 1e-9 ? V{a[0] / n, a[1] / n, a[2] / n} : V{0, 0, 0};
+    };
+    const V d = unit(moved), v = unit(view);
+    const double reach = std::cos(70 * M_PI / 180);
+    if (dot(d, d) == 0 || dot(v, v) == 0)
+        return {view, up};
+    const double c = dot(v, d);
+    if (std::abs(c) <= reach)
+        return {view, up};
+    // The way to tip towards: the view's own part across the movement;
+    // looking straight along it, away from up, so the top comes into view.
+    V across = unit(less(v, c, d));
+    if (dot(across, across) == 0)
+        across = unit(less(V{-up[0], -up[1], -up[2]}, -dot(up, d), d));
+    if (dot(across, across) == 0) {
+        const int i = std::abs(d[0]) <= std::abs(d[1]) && std::abs(d[0]) <= std::abs(d[2]) ? 0
+                      : std::abs(d[1]) <= std::abs(d[2])                                   ? 1
+                                                                                           : 2;
+        V axis{0, 0, 0};
+        axis[i] = 1;
+        across = unit(less(axis, d[i], d));
+    }
+    const double side = c > 0 ? 1 : -1, tipped = std::sin(70 * M_PI / 180);
+    const V turned{side * reach * d[0] + tipped * across[0], side * reach * d[1] + tipped * across[1],
+                   side * reach * d[2] + tipped * across[2]};
+    V upright = unit(less(up, dot(up, turned), turned));
+    if (dot(upright, upright) == 0)
+        upright = unit(less(V{-d[0], -d[1], -d[2]}, -dot(d, turned), turned));
+    return {turned, upright};
 }
 
 double MainWindow::legendLeft(double viewPixels, double boxPixels, double titlePixels)
