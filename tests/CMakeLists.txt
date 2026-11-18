@@ -377,6 +377,12 @@ add_test(NAME the_outer_surface_knows_its_geometry_faces COMMAND test_outer_surf
 # stubs. Then curved faces not refused; faces facing apart not refused;
 # the centre not weighted by area: each red. The dogbone's 4 curved and 10
 # flat faces are counted from its STEP file (CYLINDRICAL_SURFACE, PLANE).
+# NEGATIVE CHECKS, 2026-11-18, the geometry's edges: the 2 cases red
+# against stubs. Then quadratic segments not split at their middle node
+# (green at first: straight edges cannot tell; a count added, now red);
+# curved edges given a direction: each red. Every segment Netgen lists
+# kept, duplicates and all: green, as Netgen's list holds each once; the
+# set stays, and its comment says so instead of a guess.
 
 # What the window draws for a step's supports and loads.
 add_executable(test_markers test_markers.cpp)
@@ -387,6 +393,8 @@ add_test(NAME supports_and_loads_are_drawn_where_and_how_they_act COMMAND test_m
 # Then each rule broken, the test run, restored: cones not into the solid;
 # arrows always out of the faces; a pressure drawn outward; a fixed support
 # drawn with one cone: each red.
+# NEGATIVE CHECK, 2026-11-18, the nearest edge: red against a stub; then a
+# segment's ends ignored (measured to its line): red.
 
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE gf_mesh)
@@ -588,6 +596,9 @@ endif()
 # (220, 60, 60), passed the ember test, as it would pass a user's eye; now
 # yellow, as Abaqus/CAE's. The face-colour cases now look at face 2 off its
 # centre, where its pull's arrow starts.
+# NEGATIVE CHECKS, 2026-11-18, a force along a picked edge: the case red
+# (Edge disabled). Then the click not taken for an edge; the edge's
+# direction not measured for the form: each red.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

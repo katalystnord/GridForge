@@ -5,6 +5,7 @@
 #include "core/StudyOutline.h"
 #include "mesh/Surface.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace gf::gui {
@@ -106,6 +107,28 @@ std::vector<Marker> markersFor(const core::Study &study, int step, vtkPolyData *
         }
     }
     return out;
+}
+
+int nearestEdge(const std::vector<std::array<double, 4>> &segments, const std::vector<int> &edgeOf, double x,
+                double y, double within)
+{
+    int best = 0;
+    double nearest = within;
+    for (size_t i = 0; i < segments.size() && i < edgeOf.size(); ++i) {
+        const auto &s = segments[i];
+        // The distance to the segment: to its line within its length, to
+        // its nearer end beyond.
+        const double dx = s[2] - s[0], dy = s[3] - s[1];
+        const double length2 = dx * dx + dy * dy;
+        double t = length2 > 0 ? ((x - s[0]) * dx + (y - s[1]) * dy) / length2 : 0;
+        t = std::clamp(t, 0.0, 1.0);
+        const double d = std::hypot(x - (s[0] + t * dx), y - (s[1] + t * dy));
+        if (d <= nearest) {
+            nearest = d;
+            best = edgeOf[i];
+        }
+    }
+    return best;
 }
 
 } // namespace gf::gui

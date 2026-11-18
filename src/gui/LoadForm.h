@@ -7,6 +7,7 @@
 //   Load      [Move] [Force] [Pressure]
 //   Where     From the start, in every step | In step Pull | ...
 //   Direction [Normal] [X] [Y] [Z] [Edge] [Components]  [Flip]
+//             (Edge: the view waits for an edge to be clicked)
 //             +z                       (what it comes to, in words)
 //   Size      2 mm                      (a force: "N, total, spread over the faces by area")
 //   Others    free | held               (a move only)
@@ -45,6 +46,9 @@ public:
         // with *problem, if they have no one normal.
         std::function<std::optional<gf::core::Vec3>(QString *problem)> normal;
         int firstFace = 0;  // named in "outward normal of face <n>"
+        // A straight edge's direction, measured on the mesh; none, with
+        // *problem, if it is curved or not there.
+        std::function<std::optional<gf::core::Vec3>(int edge, QString *problem)> edge;
         bool editing = false;
     };
 
@@ -59,9 +63,16 @@ public:
     // number"); empty if it can.
     QString problem() const;
 
+    // The edge picked in the view for a direction along it.
+    void setEdge(int edge);
+    // Whether Edge is the direction chosen (an edge still wanted or given).
+    bool wantsEdge() const;
+
 signals:
     void applyClicked();
     void removeClicked();
+    // Edge chosen: the window is to let an edge be picked in the view.
+    void edgeWanted();
 
 private:
     void showKind();
@@ -75,6 +86,7 @@ private:
     QButtonGroup *m_directions = nullptr;
     int m_lastDirection = -1;
     bool m_reversed = false;
+    int m_edge = 0;  // the edge picked for Edge; 0 until one is
     QComboBox *m_place = nullptr;
     bool m_placeChosen = false;  // by hand: no longer follows the kind
     QWidget *m_directionRow = nullptr;

@@ -10,6 +10,8 @@
 #include <vtkCellData.h>
 #include <vtkDataArray.h>
 #include <vtkIdList.h>
+#include <vtkMath.h>
+#include <vtkNew.h>
 #include <vtkTriangle.h>
 
 #include <algorithm>
@@ -242,6 +244,70 @@ CASE(a_curved_face_has_no_one_normal)
     }
     std::printf("  (dogbone: %d flat, %d curved)\n", flat, curved);
     CHECK(curved == 4 && flat == 10);  // dogbone.step: 14 ADVANCED_FACEs, 4 on CYLINDRICAL_SURFACEs, 10 on PLANEs
+}
+
+CASE(the_geometrys_edges_are_handed_on_with_their_ends)
+{
+    // The box's 12 edges (box.step: 12 EDGE_CURVEs): four each of 10, 20
+    // and 30 mm, each straight along an axis; their segments drawn on the
+    // grid's own points add up to the edge.
+    for (int order : {1, 2}) {
+        const ResultsSeries m = mesh("box.step", order);
+        CHECK(edgeCount(m) == 12);
+        vtkSmartPointer<vtkPolyData> lines = geometryEdges(m);
+        CHECK(lines->GetNumberOfPoints() == m.points.front().grid->GetNumberOfPoints());
+        vtkDataArray *edge = lines->GetCellData()->GetArray("edge");
+        CHECK(edge);
+        if (!edge)
+            continue;
+        std::map<int, double> drawn;
+        vtkNew<vtkIdList> ids;
+        for (vtkIdType c = 0; c < lines->GetNumberOfCells(); ++c) {
+            lines->GetCellPoints(c, ids);
+            double a[3], b[3];
+            lines->GetPoint(ids->GetId(0), a);
+            lines->GetPoint(ids->GetId(1), b);
+            drawn[int(edge->GetComponent(c, 0))] += std::sqrt(vtkMath::Distance2BetweenPoints(a, b));
+        }
+        CHECK(drawn.size() == 12);
+        std::map<long, int> lengths;
+        for (int e = 1; e <= 12; ++e) {
+            QString problem;
+            const auto d = edgeDirection(m, e, &problem);
+            CHECK(d && problem.isEmpty());
+            int axes = 0;
+            for (int k = 0; d && k < 3; ++k)
+                axes += std::abs(std::abs((*d)[k]) - 1) < 1e-12 ? 1 : 0;
+            CHECK(axes == 1);
+            ++lengths[std::lround(drawn[e])];
+            CHECK(std::abs(drawn[e] - std::lround(drawn[e])) < 1e-9);
+        }
+        CHECK((lengths == std::map<long, int>{{10, 4}, {20, 4}, {30, 4}}));
+    }
+    // A second-order mesh is the first-order one with middle nodes: each
+    // segment drawn through its middle, so twice as many.
+    const vtkIdType linear = geometryEdges(mesh("box.step", 1))->GetNumberOfCells();
+    const vtkIdType quadratic = geometryEdges(mesh("box.step", 2))->GetNumberOfCells();
+    CHECK(linear > 0 && quadratic == 2 * linear);
+}
+
+CASE(a_curved_edge_has_no_one_direction)
+{
+    // dogbone.step: 36 EDGE_CURVEs, 8 of them on its four R30 arcs'
+    // CIRCLEs (top and bottom), so 28 straight.
+    const ResultsSeries m = mesh("dogbone.step", 2);
+    CHECK(edgeCount(m) == 36);
+    int straight = 0, curved = 0;
+    for (int e = 1; e <= 36; ++e) {
+        QString problem;
+        if (edgeDirection(m, e, &problem))
+            ++straight;
+        else if (problem == QString("edge %1 is curved, so it has no one direction").arg(e))
+            ++curved;
+    }
+    CHECK(straight == 28 && curved == 8);
+    QString problem;
+    CHECK(!edgeDirection(m, 37, &problem) && problem == "there is no edge 37");
 }
 
 int main()

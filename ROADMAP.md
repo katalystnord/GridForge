@@ -163,7 +163,15 @@ set there or kept from an earlier step (said, in grey); a click selects
 what set it, to edit in Properties. The face under the mouse is tinted
 pale ember and named in the status bar (FreeCAD's preselection). A group
 is renamed in Properties wherever the study uses it (supports, loads, the
-material assignment), and deleted only when nothing uses it.
+material assignment), and deleted only when nothing uses it. Supports and
+loads set up in the window (2026-11-18, from the precedents in
+docs/survey/loads-and-supports.md): picked faces, then Fixed, Per
+direction or Symmetry, or Move, Force or Pressure; a direction from the
+model (a face's normal, X, Y or Z, a picked straight edge) or by
+components, Flip for any; one size, its meaning said. The study keeps
+where a direction came from (study spec 4.6). Each is drawn on the model
+for the step chosen: cones per held direction, arrows in true
+directions, coloured by kind, the selected one in ember.
 
 - Model tree (geometry, mesh, materials, steps, results), the banner-led
   next step (as in TenSense), the generated deck shown.

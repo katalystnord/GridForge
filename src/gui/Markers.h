@@ -34,4 +34,10 @@ struct Marker {
 // before, as the Steps dock shows it). None without a surface.
 std::vector<Marker> markersFor(const gf::core::Study &study, int step, vtkPolyData *surface);
 
+// The edge nearest a click in the view, from the edges' segments as drawn
+// (x1, y1, x2, y2 in the view's pixels, with each segment's edge): the
+// nearest within `within` pixels of the click; 0 if none is.
+int nearestEdge(const std::vector<std::array<double, 4>> &segments, const std::vector<int> &edgeOf, double x,
+                double y, double within);
+
 } // namespace gf::gui

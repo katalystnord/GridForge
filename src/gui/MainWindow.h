@@ -25,6 +25,7 @@
 #include <QJsonObject>
 #include <QMainWindow>
 #include <QPoint>
+#include <QPointer>
 
 #include <vtkSmartPointer.h>
 
@@ -145,6 +146,11 @@ private:
     // The supports and loads that hold in the step chosen in the toolbar,
     // drawn on the model; the selected item's in ember.
     void refreshMarkers();
+    // Edge picking for a load along an edge: the geometry's edges drawn,
+    // the next click in the view picks the nearest for `form`.
+    void startEdgePick(LoadForm *form);
+    void pickEdgeAt(const QPoint &at);
+    void endEdgePick();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -164,6 +170,9 @@ private:
     vtkActor *m_edgesActor = nullptr;    // the mesh's element edges, drawn over it
     vtkActor *m_resultsActor = nullptr;
     vtkActor *m_markersActor = nullptr;  // the supports' and loads' arrows and cones
+    vtkActor *m_edgesPickActor = nullptr;  // the geometry's edges, drawn while one is picked
+    vtkSmartPointer<vtkPolyData> m_geometryEdges;
+    QPointer<LoadForm> m_edgeFor;  // the form an edge is being picked for
     vtkScalarBarActor *m_scalarBar = nullptr;
     vtkSmartPointer<vtkPolyData> m_surface;  // the mesh's outside, each triangle with its geometry face
     vtkSmartPointer<vtkPolyData> m_drawn;    // the same triangles as drawn, three points each

@@ -62,7 +62,9 @@ LoadForm::LoadForm(const Context &context, const core::LoadChoice &start, const 
     setObjectName(QStringLiteral("loadForm"));
     // The choice made is told at a glance: ember, GridForge's colour for
     // what is selected.
-    setStyleSheet(QString("QToolButton { padding: 2px 8px; border: 1px solid palette(mid); border-radius: 3px;"
+    // A border of its own grey: palette(mid) matched the background under
+    // some platforms' palettes, and the choices read as plain words.
+    setStyleSheet(QString("QToolButton { padding: 3px 9px; border: 1px solid #a3a8b0; border-radius: 3px;"
                           " background: palette(button); }"
                           "QToolButton:checked { background: rgb(%1, %2, %3); color: white; border-color: rgb(%1, %2, %3); }"
                           "QToolButton:disabled { color: palette(mid); }")
@@ -122,14 +124,14 @@ LoadForm::LoadForm(const Context &context, const core::LoadChoice &start, const 
     const QString dirTexts[6] = {tr("Normal"), "X", "Y", "Z", tr("Edge"), tr("Components")};
     const QString dirTips[6] = {tr("Out of the faces, square to them"), tr("Along x; click again to turn it round"),
                                 tr("Along y; click again to turn it round"), tr("Along z; click again to turn it round"),
-                                tr("Along a picked edge (picking edges comes next)"), tr("Each direction given")};
+                                tr("Along a straight edge, clicked in the view"), tr("Each direction given")};
     for (int d = 0; d < 6; ++d) {
         QToolButton *b = choiceButton(dirTexts[d], QString("dir:") + dirNames[d], m_directionRow);
         b->setToolTip(dirTips[d]);
         m_directions->addButton(b, d);
         dirs->addWidget(b);
     }
-    m_directions->button(Edge)->setEnabled(false);
+    m_directions->button(Edge)->setEnabled(bool(m_context.edge));
     auto *flip = new QToolButton(m_directionRow);
     flip->setObjectName(QStringLiteral("flip"));
     flip->setText(tr("Flip"));
@@ -234,6 +236,7 @@ LoadForm::LoadForm(const Context &context, const core::LoadChoice &start, const 
         break;
     case From::Edge:
         m_lastDirection = Edge;
+        m_edge = start.direction.number;
         break;
     case From::Components:
         m_lastDirection = Components;
@@ -281,6 +284,8 @@ LoadForm::LoadForm(const Context &context, const core::LoadChoice &start, const 
         m_lastDirection = d;
         showKind();
         changed();
+        if (d == Edge)
+            emit edgeWanted();  // each click: another edge may be wanted
     });
     connect(flip, &QToolButton::clicked, this, [this] {
         m_reversed = !m_reversed;
@@ -375,10 +380,24 @@ void LoadForm::showDirection()
         }
         break;
     }
-    case Edge:
-        text = tr("Picking edges comes next.");
-        colour = toneColour(Tone::Warning);
+    case Edge: {
+        QString problem;
+        const auto e = m_edge > 0 && m_context.edge ? m_context.edge(m_edge, &problem) : std::nullopt;
+        if (m_edge == 0) {
+            text = tr("Click an edge of the model.");
+            colour = toneColour(Tone::Warning);
+        } else if (!e) {
+            text = problem;
+            colour = toneColour(Tone::Problem);
+        } else {
+            const double s = m_reversed ? -1 : 1;
+            text = tr("%1 edge %2: x %3, y %4, z %5")
+                       .arg(m_reversed ? tr("against") : tr("along"))
+                       .arg(m_edge)
+                       .arg(shown(s * e->x), shown(s * e->y), shown(s * e->z));
+        }
         break;
+    }
     default:
         text = tr("As given below.");
         break;
@@ -396,6 +415,18 @@ void LoadForm::changed()
     m_apply->setEnabled(ready);
     light(m_apply, ready);
 }
+
+void LoadForm::setEdge(int edge)
+{
+    m_edge = edge;
+    m_reversed = false;
+    m_lastDirection = Edge;
+    m_directions->button(Edge)->setChecked(true);
+    showKind();
+    changed();
+}
+
+bool LoadForm::wantsEdge() const { return m_lastDirection == Edge; }
 
 QString LoadForm::place() const { return m_place->currentData().toString(); }
 
@@ -421,8 +452,11 @@ core::LoadChoice LoadForm::choice() const
                 c.unit = *n;
         break;
     case Edge:
-        c.direction = m_choice.direction;
-        c.unit = m_choice.unit;
+        c.direction.from = From::Edge;
+        c.direction.number = m_edge;
+        if (m_context.edge && m_edge > 0)
+            if (const auto e = m_context.edge(m_edge, nullptr))
+                c.unit = *e;
         break;
     default:
         c.direction.from = From::Components;
@@ -457,8 +491,13 @@ QString LoadForm::problem() const
         if (!m_context.normal || !m_context.normal(&why))
             return why.isEmpty() ? tr("the faces have no one normal") : why;
     }
-    if (directed && m_lastDirection == Edge)
-        return tr("picking edges comes next; choose another direction");
+    if (directed && m_lastDirection == Edge) {
+        if (m_edge == 0)
+            return tr("click an edge of the model first");
+        QString why;
+        if (!m_context.edge || !m_context.edge(m_edge, &why))
+            return why;
+    }
     const bool byComponents = directed && m_lastDirection == Components;
     if ((directed && !byComponents) || k == int(Kind::Pressure)) {
         if (!number(m_size, false))

@@ -47,4 +47,19 @@ std::array<double, 3> meanNormal(vtkPolyData *surface, const std::vector<int> &f
 // The centre of geometry faces (area weighted), where their loads are drawn.
 std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &faces);
 
+// The geometry's edges, as gf_mesh hands them on with the mesh (the grid's
+// field data: "edge segments", "edge ends", "edge straight"), numbered as
+// Netgen numbers OpenCASCADE's edges (from 1). For drawing and picking an
+// edge, and for a load along one.
+int edgeCount(const gf::core::ResultsSeries &mesh);
+
+// Each edge's mesh segments as lines on the grid's own points, each with
+// the cell array "edge": corner to corner, or through the middle node.
+vtkSmartPointer<vtkPolyData> geometryEdges(const gf::core::ResultsSeries &mesh);
+
+// A straight edge's direction, from its first vertex to its last (its
+// curve's own way), as a unit vector. None, with *problem, if the edge is
+// curved or there is no such edge.
+std::optional<std::array<double, 3>> edgeDirection(const gf::core::ResultsSeries &mesh, int edge, QString *problem);
+
 } // namespace gf::mesh

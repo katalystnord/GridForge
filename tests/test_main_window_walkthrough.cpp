@@ -27,6 +27,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QPlainTextEdit>
 #include <QStatusBar>
@@ -521,6 +522,44 @@ private slots:
             return c.red() > c.blue() + 60 && c.green() > c.blue() + 50 && c.green() > 0.7 * c.red();
         };
         QVERIFY2(pixelsNear(w, tail, yellow) >= 2, qPrintable(QString::number(pixelsNear(w, tail, yellow))));
+    }
+
+    void a_force_along_a_picked_edge()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QVERIFY(w.openStudy(folder));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        auto *props = w.findChild<QWidget *>("properties");
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 10, 5, 22));
+        QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:force"), Qt::LeftButton);
+        // Edge: the view waits for an edge, and says so.
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:edge"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QLabel *>("direction")->text(), QString("Click an edge of the model."));
+        QVERIFY2(w.statusBar()->currentMessage().contains("Click an edge"), qPrintable(w.statusBar()->currentMessage()));
+        if (!screenshot.isEmpty()) {
+            QTest::qWait(100);
+            w.grab().save(screenshot.chopped(4) + "-edges.png");
+        }
+        // The top edge of face 2 (x = 10, z = 30) runs along y.
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 10, 10, 30));
+        const QString along = props->findChild<QLabel *>("direction")->text();
+        QVERIFY2(QRegularExpression("^along edge \\d+: x 0, y -?1, z 0$").match(along).hasMatch(), qPrintable(along));
+        QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));  // the faces stay picked
+        QTest::keyClicks(props->findChild<QLineEdit *>("magnitude"), "50");
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        QString error;
+        const gf::core::Study s = gf::core::readStudy(folder, &error);
+        const QJsonObject entry = gf::core::itemEntry(s.setupJson, "load:0:1");
+        QVERIFY2(entry["direction"].toString().startsWith("along edge "), qPrintable(entry["direction"].toString()));
+        const QJsonObject f = entry["force"].toObject();
+        QCOMPARE(f.keys(), QStringList({"y"}));
+        QCOMPARE(std::abs(f["y"].toDouble()), 50.0);
     }
 
     void the_mesh_size_edited_remeshes_and_nonsense_is_refused()

@@ -73,6 +73,7 @@
 #include <vtkRenderer.h>
 #include <vtkScalarBarActor.h>
 #include <vtkCellPicker.h>
+#include <vtkIdList.h>
 #include <vtkCellArray.h>
 #include <vtkPoints.h>
 #include <vtkStaticCellLocator.h>
@@ -543,6 +544,8 @@ bool MainWindow::openStudy(const QString &path)
     m_runNumber = 0;
     m_toolkitName.clear();
     m_mesh = {};
+    endEdgePick();
+    m_geometryEdges = nullptr;
     m_renderer->RemoveAllViewProps();
     m_tree->clear();
     m_deck->clear();
@@ -604,6 +607,7 @@ bool MainWindow::openStudy(const QString &path)
 
 void MainWindow::showProperties(QTreeWidgetItem *item)
 {
+    endEdgePick();  // the form it was for is going
     while (m_propertyForm->count() > 0) {
         QLayoutItem *row = m_propertyForm->takeAt(0);
         delete row->widget();
@@ -1118,6 +1122,13 @@ void MainWindow::hover(int face)
 
 void MainWindow::pickAt(const QPoint &at, bool add)
 {
+    if (m_edgesPickActor && m_edgeFor && !m_edgeFor->wantsEdge())
+        endEdgePick();  // another direction chosen since
+    if (m_edgesPickActor) {
+        // Waiting for an edge: the click is for that, not for a face.
+        pickEdgeAt(at);
+        return;
+    }
     if (!m_surface || !m_meshActor)
         return;
     const int face = faceAt(at);
@@ -1243,6 +1254,12 @@ void MainWindow::showLoadForm(const QString &key, const QJsonObject &entry)
             return std::nullopt;
         return core::Vec3{(*n)[0], (*n)[1], (*n)[2]};
     };
+    context.edge = [this](int edge, QString *problem) -> std::optional<core::Vec3> {
+        const auto d = mesh::edgeDirection(m_mesh, edge, problem);
+        if (!d)
+            return std::nullopt;
+        return core::Vec3{(*d)[0], (*d)[1], (*d)[2]};
+    };
     context.editing = !key.isEmpty();
     // Where it is, or where a new one goes: the step chosen in the Steps
     // dock, else the first.
@@ -1255,6 +1272,7 @@ void MainWindow::showLoadForm(const QString &key, const QJsonObject &entry)
     auto *form = new LoadForm(context, start, place, m_properties);
     m_propertyForm->addRow(form);
     connect(form, &LoadForm::applyClicked, this, [this, form, key] { applyLoad(form, key); });
+    connect(form, &LoadForm::edgeWanted, this, [this, form] { startEdgePick(form); });
     connect(form, &LoadForm::removeClicked, this, [this, key] {
         const QString title = m_tree->currentItem() ? m_tree->currentItem()->text(0) : key;
         QString error;
@@ -1714,6 +1732,85 @@ void MainWindow::refreshMarkers()
     actor->Register(nullptr);
     if (m_layouts->currentIndex() == 0)
         m_renderer->AddActor(actor);
+    m_view->renderWindow()->Render();
+}
+
+void MainWindow::startEdgePick(LoadForm *form)
+{
+    endEdgePick();
+    if (m_mesh.points.empty())
+        return;
+    if (!m_geometryEdges)
+        m_geometryEdges = mesh::geometryEdges(m_mesh);
+    m_edgeFor = form;
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputData(m_geometryEdges);
+    mapper->ScalarVisibilityOff();
+    // Over the faces, so every edge can be seen and clicked.
+    mapper->SetRelativeCoincidentTopologyLineOffsetParameters(-2, -2);
+    vtkNew<vtkActor> actor;
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(0.96, 0.96, 0.98);
+    actor->GetProperty()->SetLineWidth(3);
+    actor->GetProperty()->LightingOff();
+    actor->PickableOff();
+    m_edgesPickActor = actor;
+    actor->Register(nullptr);
+    m_renderer->AddActor(actor);
+    m_view->renderWindow()->Render();
+    statusBar()->showMessage(tr("Click an edge of the model: the direction is along it. Another direction "
+                                "in the form leaves it."));
+}
+
+void MainWindow::pickEdgeAt(const QPoint &at)
+{
+    if (!m_edgeFor) {
+        endEdgePick();
+        return;
+    }
+    // The edges' segments where they are drawn, in the view's pixels (Qt's:
+    // y down), as onScreen in the walkthrough finds them.
+    vtkDataArray *edge = m_geometryEdges->GetCellData()->GetArray("edge");
+    std::vector<std::array<double, 4>> drawn;
+    std::vector<int> edgeOf;
+    const double k = m_view->devicePixelRatioF();
+    auto toView = [&](const double *p, double &x, double &y) {
+        m_renderer->SetWorldPoint(p[0], p[1], p[2], 1);
+        m_renderer->WorldToDisplay();
+        double d[3];
+        m_renderer->GetDisplayPoint(d);
+        x = d[0] / k;
+        y = m_view->height() - d[1] / k;
+    };
+    vtkNew<vtkIdList> ids;
+    for (vtkIdType c = 0; c < m_geometryEdges->GetNumberOfCells(); ++c) {
+        m_geometryEdges->GetCellPoints(c, ids);
+        std::array<double, 4> s;
+        toView(m_geometryEdges->GetPoint(ids->GetId(0)), s[0], s[1]);
+        toView(m_geometryEdges->GetPoint(ids->GetId(1)), s[2], s[3]);
+        drawn.push_back(s);
+        edgeOf.push_back(int(edge->GetComponent(c, 0)));
+    }
+    const int picked = nearestEdge(drawn, edgeOf, at.x(), at.y(), 10);
+    if (picked == 0) {
+        statusBar()->showMessage(tr("No edge there: click on one of the lines drawn."));
+        return;
+    }
+    LoadForm *form = m_edgeFor;
+    endEdgePick();
+    form->setEdge(picked);
+    statusBar()->showMessage(tr("Edge %1 picked").arg(picked), 4000);
+}
+
+void MainWindow::endEdgePick()
+{
+    m_edgeFor = nullptr;
+    if (!m_edgesPickActor)
+        return;
+    m_renderer->RemoveActor(m_edgesPickActor);
+    m_edgesPickActor->UnRegister(nullptr);
+    m_edgesPickActor = nullptr;
+    statusBar()->clearMessage();
     m_view->renderWindow()->Render();
 }
 

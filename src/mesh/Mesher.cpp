@@ -3,6 +3,7 @@
 #include <QFileInfo>
 
 #include <vtkCellData.h>
+#include <vtkDoubleArray.h>
 #include <vtkCellType.h>
 #include <vtkFieldData.h>
 #include <vtkIntArray.h>
@@ -13,15 +14,18 @@
 
 // Netgen's own headers; OpenCASCADE's come in through occgeom.hpp.
 #include <meshing.hpp>
+#include <occ/occ_edge.hpp>
 #include <occgeom.hpp>
 
 #include <BOPAlgo_Builder.hxx>
+#include <BRepAdaptor_Curve.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <mutex>
 #include <set>
@@ -233,6 +237,53 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
             if (const auto at = place.find(el[k]); at != place.end())
                 faceNodes[face - 1].insert(at->second);
     }
+
+    // The geometry's edges, for drawing and picking one and for a load
+    // along it: each mesh segment (once: Netgen's own list holds each
+    // once, seen 2026-11-18; the set keeps it so), split at its middle
+    // node; each edge's ends, its curve's first
+    // and last points; and whether it is straight. Numbered as Netgen
+    // numbers OpenCASCADE's edges, from 1.
+    const int edges = static_cast<int>(geometry->GetNEdges());
+    std::set<std::array<vtkIdType, 3>> segments;  // edge, then the two points, smaller first
+    auto addSegment = [&](int e, vtkIdType a, vtkIdType b) {
+        segments.insert({e, std::min(a, b), std::max(a, b)});
+    };
+    for (const netgen::Segment &seg : mesh->LineSegments()) {
+        const int e = mesh->GetEdgeDescriptor(seg).EdgeNr();
+        const auto a = place.find(seg[0]), b = place.find(seg[1]);
+        if (e < 1 || e > edges || a == place.end() || b == place.end())
+            continue;
+        const auto m = seg.GetNP() == 3 ? place.find(seg[2]) : place.end();
+        if (m != place.end()) {
+            addSegment(e, a->second, m->second);
+            addSegment(e, m->second, b->second);
+        } else {
+            addSegment(e, a->second, b->second);
+        }
+    }
+    vtkNew<vtkIntArray> edgeSegments;
+    edgeSegments->SetName("edge segments");
+    edgeSegments->SetNumberOfComponents(3);
+    for (const auto &k : segments) {
+        const int t[3] = {int(k[0]), int(k[1]), int(k[2])};
+        edgeSegments->InsertNextTypedTuple(t);
+    }
+    vtkNew<vtkDoubleArray> edgeEnds;
+    edgeEnds->SetName("edge ends");
+    edgeEnds->SetNumberOfComponents(6);
+    vtkNew<vtkIntArray> edgeStraight;
+    edgeStraight->SetName("edge straight");
+    for (int e = 0; e < edges; ++e) {
+        const auto &edge = static_cast<const netgen::OCCEdge &>(geometry->GetEdge(e));
+        const netgen::Point<3> first = edge.GetPoint(0), last = edge.GetPoint(1);
+        const double ends[6] = {first(0), first(1), first(2), last(0), last(1), last(2)};
+        edgeEnds->InsertNextTypedTuple(ends);
+        edgeStraight->InsertNextValue(BRepAdaptor_Curve(edge.Shape()).GetType() == GeomAbs_Line ? 1 : 0);
+    }
+    grid->GetFieldData()->AddArray(edgeSegments);
+    grid->GetFieldData()->AddArray(edgeEnds);
+    grid->GetFieldData()->AddArray(edgeStraight);
 
     gf::core::ResultsSeries series;
     series.points.push_back({0.0, grid});

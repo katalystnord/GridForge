@@ -3,6 +3,7 @@
 #include <vtkCellArray.h>
 #include <vtkCellData.h>
 #include <vtkDataArray.h>
+#include <vtkFieldData.h>
 #include <vtkIdList.h>
 #include <vtkIntArray.h>
 #include <vtkNew.h>
@@ -267,6 +268,65 @@ std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &fac
         for (double &x : c)
             x /= area;
     return c;
+}
+
+namespace {
+
+vtkDataArray *fieldArray(const gf::core::ResultsSeries &mesh, const char *name)
+{
+    if (mesh.points.empty() || !mesh.points.front().grid)
+        return nullptr;
+    return mesh.points.front().grid->GetFieldData()->GetArray(name);
+}
+
+} // namespace
+
+int edgeCount(const gf::core::ResultsSeries &mesh)
+{
+    vtkDataArray *ends = fieldArray(mesh, "edge ends");
+    return ends ? int(ends->GetNumberOfTuples()) : 0;
+}
+
+vtkSmartPointer<vtkPolyData> geometryEdges(const gf::core::ResultsSeries &mesh)
+{
+    auto out = vtkSmartPointer<vtkPolyData>::New();
+    vtkDataArray *segments = fieldArray(mesh, "edge segments");
+    if (mesh.points.empty() || !segments)
+        return out;
+    out->SetPoints(mesh.points.front().grid->GetPoints());
+    vtkNew<vtkCellArray> lines;
+    vtkNew<vtkIntArray> edge;
+    edge->SetName("edge");
+    for (vtkIdType i = 0; i < segments->GetNumberOfTuples(); ++i) {
+        double t[3];
+        segments->GetTuple(i, t);
+        lines->InsertNextCell({vtkIdType(t[1]), vtkIdType(t[2])});
+        edge->InsertNextValue(int(t[0]));
+    }
+    out->SetLines(lines);
+    out->GetCellData()->AddArray(edge);
+    return out;
+}
+
+std::optional<std::array<double, 3>> edgeDirection(const gf::core::ResultsSeries &mesh, int edge, QString *problem)
+{
+    auto fail = [&](const QString &why) {
+        if (problem)
+            *problem = why;
+        return std::nullopt;
+    };
+    vtkDataArray *ends = fieldArray(mesh, "edge ends");
+    vtkDataArray *straight = fieldArray(mesh, "edge straight");
+    if (!ends || !straight || edge < 1 || edge > ends->GetNumberOfTuples())
+        return fail(QString("there is no edge %1").arg(edge));
+    if (straight->GetComponent(edge - 1, 0) == 0)
+        return fail(QString("edge %1 is curved, so it has no one direction").arg(edge));
+    double e[6];
+    ends->GetTuple(edge - 1, e);
+    const std::array<double, 3> d = unit({e[3] - e[0], e[4] - e[1], e[5] - e[2]});
+    if (problem)
+        problem->clear();
+    return d;
 }
 
 } // namespace gf::mesh

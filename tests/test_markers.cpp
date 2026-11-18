@@ -175,6 +175,23 @@ CASE(each_kind_is_drawn_in_its_true_direction)
     CHECK(gui::markersFor(study, 0, nullptr).empty());
 }
 
+CASE(a_click_picks_the_nearest_edge_within_reach)
+{
+    // Two edges drawn: a horizontal one at y = 100 (edge 7, two segments)
+    // and a vertical one at x = 300 (edge 3).
+    const std::vector<std::array<double, 4>> segments{{100, 100, 200, 100}, {200, 100, 280, 100}, {300, 0, 300, 200}};
+    const std::vector<int> edgeOf{7, 7, 3};
+    CHECK(gui::nearestEdge(segments, edgeOf, 150, 104, 8) == 7);
+    CHECK(gui::nearestEdge(segments, edgeOf, 296, 50, 8) == 3);
+    // Nearer the second segment's end than the vertical edge: 7.
+    CHECK(gui::nearestEdge(segments, edgeOf, 284, 100, 8) == 7);
+    CHECK(gui::nearestEdge(segments, edgeOf, 293, 100, 8) == 3);
+    // Beyond a segment's end, measured to the end, not the line.
+    CHECK(gui::nearestEdge(segments, edgeOf, 50, 100, 8) == 0);
+    CHECK(gui::nearestEdge(segments, edgeOf, 150, 120, 8) == 0);
+    CHECK(gui::nearestEdge({}, {}, 0, 0, 8) == 0);
+}
+
 int main()
 {
     for (auto &[name, run] : cases()) {
