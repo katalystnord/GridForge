@@ -110,14 +110,22 @@ std::vector<OutlineItem> studyOutline(const Study &study)
         files << QFileInfo(s->file).fileName();
     out.push_back({"Geometry", files.join(", "), "geometry", "geometry", {}});
 
+    // Groups meshed finer (the GridForge mesh step's "refine"): group -> size.
+    std::map<QString, double> finer;
     for (const StudyStep *m : study.stepsOf("mesh")) {
         QString detail;
-        if (m->by == "gridforge")
+        if (m->by == "gridforge") {
             detail = QString("GridForge (Netgen), largest element %1 %2, %3")
                          .arg(number(m->parameters["maxSize"].toDouble()), u.length,
                               m->parameters["order"].toInt() == 2 ? "quadratic" : "linear");
-        else
+            const QJsonObject refine = m->parameters["refine"].toObject();
+            if (!refine.isEmpty())
+                detail += ", finer on " + refine.keys().join(", ");
+            for (auto it = refine.begin(); it != refine.end(); ++it)
+                finer[it.key()] = it.value().toDouble();
+        } else {
             detail = toolkitName(m->by);
+        }
         out.push_back({"Mesh", detail, "mesh", "mesh:" + m->id, {}});
     }
 
@@ -138,7 +146,9 @@ std::vector<OutlineItem> studyOutline(const Study &study)
     for (const Group &g : setup.groups) {
         QStringList detail;
         if (!g.faces.empty())
-            detail << numbers("face", "faces", g.faces);
+            detail << numbers("face", "faces", g.faces)
+                          + (finer.count(g.name) ? QString(", meshed finer: %1 %2").arg(number(finer.at(g.name)), u.length)
+                                                 : QString());
         if (!g.solids.empty())
             detail << numbers("solid", "solids", g.solids);
         groups.children.push_back({g.name, detail.join("; "), "group", "group:" + g.name, {}});

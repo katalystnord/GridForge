@@ -234,6 +234,10 @@ int meshWorker(const QString &input, const QString &recipeJson, const QString &o
     return 0;
 }
 
+// --refine GROUP=SIZE, each given: the mesh step's "refine" (study spec
+// 2.1), for deck, solve and converge.
+QJsonObject refineOption;
+
 // The set-up read and filled from its cards, and the part meshed with its
 // groups as sets: what both deck and solve start from.
 bool prepare(const QString &setupFile, const QString &part, const QString &size, const QString &order,
@@ -270,6 +274,14 @@ bool prepare(const QString &setupFile, const QString &part, const QString &size,
         return false;
     }
     recipe.finer = finer;
+    if (!refineOption.isEmpty()) {
+        const QJsonObject resolved = gf::core::meshParameters(QJsonObject{{"refine", refineOption}}, *setup, &error);
+        if (!error.isEmpty()) {
+            std::fprintf(stderr, "gf-study: %s\n", qPrintable(error));
+            return false;
+        }
+        recipe.faceSizes = gf::mesh::recipeFrom(resolved).faceSizes;
+    }
     *mesh = gf::mesh::meshStep(part, recipe, &error);
     if (error.isEmpty())
         gf::mesh::addGroupSets(*mesh, *setup, &error);
@@ -632,6 +644,10 @@ int main(int argc, char *argv[])
     const QCommandLineOption ratioOpt("ratio", "converge: how much finer each mesh is than the last (default "
                                                "1.5; at least 1.3).", "R");
     parser.addOption(ratioOpt);
+    const QCommandLineOption refineOpt("refine", "deck, solve, converge: a group of faces meshed finer, its "
+                                                 "largest element there (repeatable: --refine Fillet=0.5).",
+                                       "GROUP=SIZE");
+    parser.addOption(refineOpt);
     parser.addPositionalArgument("command", "convert, mesh, deck or solve");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
@@ -641,6 +657,16 @@ int main(int argc, char *argv[])
                     qPrintable(gf::core::applicationVersion()),
                     qPrintable(gf::core::applicationBuild()));
         return 0;
+    }
+    for (const QString &r : parser.values(refineOpt)) {
+        const qsizetype eq = r.lastIndexOf('=');
+        bool ok = false;
+        const double size = eq > 0 ? r.mid(eq + 1).toDouble(&ok) : 0;
+        if (!ok) {
+            std::fprintf(stderr, "gf-study: --refine is GROUP=SIZE, not %s\n", qPrintable(r));
+            return 1;
+        }
+        refineOption[r.left(eq)] = size;
     }
     const QStringList args = parser.positionalArguments();
     if (args.size() == 2 && args[0] == "convert" && args[1].endsWith(".msh", Qt::CaseInsensitive)) {

@@ -581,10 +581,11 @@ bool MainWindow::openStudy(const QString &path)
     // The mesh is kept when nothing it is made from changed (an edited load,
     // say): the same folder, geometry, mesh recipe and groups.
     auto meshInputs = [](const core::Study &s) {
-        // Not the groups: they are sets on the mesh, made again on it.
+        // Not the groups: they are sets on the mesh, made again on it;
+        // but a refined group's faces are part of the recipe.
         QJsonObject o{{"folder", s.folder}};
         for (const core::StudyStep *m : s.stepsOf("mesh"))
-            o[m->id] = m->parameters;
+            o[m->id] = core::meshParameters(m->parameters, s.setup, nullptr);
         for (const core::StudyStep *i : s.stepsOf("input"))
             o["input:" + i->id] = i->file;
         return o;
@@ -780,7 +781,6 @@ void MainWindow::startMeshing()
         return;
     }
     const QString file = QDir(m_study.folder).filePath(input->file);
-    const mesh::Recipe recipe = mesh::recipeFrom(step.parameters);
     m_meshSetup = m_study.setup;
     m_meshOpening = m_opening;
     say(tr("Meshing %1...").arg(input->file));
@@ -793,7 +793,17 @@ void MainWindow::startMeshing()
     const QString worker = qEnvironmentVariableIsSet("GF_MESH_WORKER")
                                ? qEnvironmentVariable("GF_MESH_WORKER")
                                : core::meshWorkerProgram(QCoreApplication::applicationDirPath(), GF_BUILT_STUDY);
-    m_meshRun.start(worker, file, step.parameters, m_meshFolder.filePath("mesh.vtu"));
+    // The recipe as the mesher takes it: "refine"'s groups as their faces.
+    QString unresolved;
+    const QJsonObject parameters = core::meshParameters(step.parameters, m_study.setup, &unresolved);
+    if (!unresolved.isEmpty()) {
+        MeshDone done;
+        done.opening = m_meshOpening;
+        done.error = unresolved;
+        meshArrived(done);
+        return;
+    }
+    m_meshRun.start(worker, file, parameters, m_meshFolder.filePath("mesh.vtu"));
     updateActions();
 }
 
@@ -1507,6 +1517,49 @@ void MainWindow::showGroupEditing(const QString &group)
     row->addWidget(remove);
     row->addStretch();
     m_propertyForm->addRow(buttons);
+    // A finer mesh on a group of faces (the mesh step's "refine"): its
+    // largest element there; empty, as the rest of the mesh.
+    const core::Group *faceGroup = m_study.setup.group(group);
+    const std::vector<const core::StudyStep *> meshes = m_study.stepsOf("mesh");
+    if (faceGroup && !faceGroup->faces.empty() && !meshes.empty() && meshes.front()->by == "gridforge") {
+        const QJsonValue now = meshes.front()->parameters["refine"].toObject()[group];
+        const QString unit = m_study.setup.units == core::Units::MillimetreNewtonSecond ? "mm" : "m";
+        auto *finer = new QLineEdit(now.isDouble() ? QString::number(now.toDouble()) : QString(), m_properties);
+        finer->setObjectName(QStringLiteral("finerMesh"));
+        finer->setPlaceholderText(tr("as the rest of the mesh"));
+        finer->setToolTip(tr("The largest element on this group's faces, finer than the rest of the mesh"));
+        auto *finerRow = new QWidget(m_properties);
+        auto *finerLayout = new QHBoxLayout(finerRow);
+        finerLayout->setContentsMargins(0, 0, 0, 0);
+        finerLayout->addWidget(finer);
+        finerLayout->addWidget(new QLabel(unit, finerRow));
+        auto *setFiner = new QPushButton(icon("pqApply"), tr("Set"), finerRow);
+        setFiner->setObjectName(QStringLiteral("applyFinerMesh"));
+        finerLayout->addWidget(setFiner);
+        m_propertyForm->addRow(tr("Mesh finer here"), finerRow);
+        auto doFiner = [this, finer, group, unit] {
+            bool ok = true;
+            const QString text = finer->text().trimmed();
+            const double size = text.isEmpty() ? 0 : text.toDouble(&ok);
+            QString error;
+            if (!ok || !core::setFinerMesh(m_study.folder, group, size, &error)) {
+                say(tr("Cannot mesh %1 finer: %2").arg(group, ok ? error : tr("%1 is not a size").arg(text)),
+                    Tone::Problem);
+                return;
+            }
+            say(size > 0 ? tr("%1 meshed finer: %2 %3").arg(group, QString::number(size), unit)
+                         : tr("%1 meshed as the rest").arg(group),
+                Tone::Done);
+            openStudy(m_study.folder);
+            for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+                if ((*it)->data(0, Qt::UserRole).toString() == "group:" + group) {
+                    m_tree->setCurrentItem(*it);
+                    break;
+                }
+        };
+        connect(setFiner, &QPushButton::clicked, this, doFiner);
+        connect(finer, &QLineEdit::returnPressed, this, doFiner);
+    }
     // Faces no longer those it was made on: said, and kept as they are
     // now only when asked (study spec 4.2).
     if (const core::Group *g = m_study.setup.group(group)) {

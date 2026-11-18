@@ -410,6 +410,42 @@ private slots:
         QVERIFY(findItem(w.findChild<QTreeWidget *>("studyTree"), "Mesh")->text(1).contains("tetrahedra"));
     }
 
+    // A group of faces meshed finer (study spec 2.1, "refine"): set in the
+    // group's Properties, written to the mesh step, meshed again.
+    void a_group_s_faces_are_meshed_finer_when_asked()
+    {
+        MainWindow w;
+        w.show();
+        QTemporaryDir dir;
+        const QString study = boxStudy(dir);
+        QVERIFY(w.openStudy(study));
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        const QRegularExpression counts("^([0-9]+) tetrahedra, ([0-9]+) nodes");
+        const int before = counts.match(findItem(tree, "Mesh")->text(1)).captured(2).toInt();
+        QVERIFY(before > 0);
+        tree->setCurrentItem(findItem(tree, "Back"));
+        auto *props = w.findChild<QWidget *>("properties");
+        auto *finer = props->findChild<QLineEdit *>("finerMesh");
+        auto *apply = props->findChild<QPushButton *>("applyFinerMesh");
+        QVERIFY(finer && apply);
+        QVERIFY(finer->text().isEmpty());
+        finer->setText("1");
+        QTest::mouseClick(apply, Qt::LeftButton);
+        QVERIFY(w.meshing());
+        QTRY_VERIFY_WITH_TIMEOUT(!w.meshing(), 60000);
+        const int after = counts.match(findItem(tree, "Mesh")->text(1)).captured(2).toInt();
+        QVERIFY2(after > 2 * before, qPrintable(QString("%1 nodes, then %2").arg(before).arg(after)));
+        QFile f(QDir(study).filePath("study.json"));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QString written = QString::fromUtf8(f.readAll());
+        QVERIFY(written.contains("\"refine\"") && written.contains("\"Back\": 1"));
+        QCOMPARE(findItem(tree, "Back")->text(1), QString("face 1, meshed finer: 1 mm"));
+        QCOMPARE(tree->currentItem()->text(0), QString("Back"));
+        QCOMPARE(w.findChild<QWidget *>("properties")->findChild<QLineEdit *>("finerMesh")->text(), QString("1"));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("Back meshed finer: 1 mm"));
+    }
+
     void a_load_is_edited_in_its_form_and_applied_to_the_study()
     {
         MainWindow w;

@@ -104,4 +104,10 @@ struct Setup {
 // what and where ("steps[0].loads[1]: no group \"Top\"").
 Setup readSetup(const QJsonObject &setup, QString *error);
 
+// A GridForge mesh step's parameters as the mesher takes them: its
+// "refine" (a group of faces -> its largest element there, study spec
+// 2.1) turned into "faceSizes", [[face, size], ...] by face, the smaller
+// size where groups share a face. On a fault, an empty object and *error.
+QJsonObject meshParameters(const QJsonObject &parameters, const Setup &setup, QString *error);
+
 } // namespace gf::core

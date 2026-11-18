@@ -24,6 +24,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <map>
+
 namespace gf::mesh {
 
 struct Recipe {
@@ -38,10 +40,17 @@ struct Recipe {
     // divided by this: the same recipe, finer by one ratio throughout, for
     // a mesh convergence check (core/Convergence). 1: as given.
     double finer = 1;
+    // A largest element of their own for some faces (numbered as the
+    // mesh's Face<n> sets, from 1): the face and the solid under it meshed
+    // at that size, grading out to the rest. From study.json's "refine",
+    // its groups resolved to their faces (core::meshParameters).
+    std::map<int, double> faceSizes;
 };
 
 // A mesh step's parameters as study.json keeps them ("maxSize", "order",
-// "throughWall", "finer"), what is not given left at its default.
+// "throughWall", "finer", and "faceSizes": [[face, size], ...] as
+// core::meshParameters resolves "refine"), what is not given left at its
+// default.
 Recipe recipeFrom(const QJsonObject &parameters);
 
 // A largest element to start from for the geometry at `path` (STEP or

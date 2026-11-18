@@ -127,6 +127,34 @@ CASE(the_specs_example_is_read_as_written)
     CHECK(pull.output == QStringList({"displacement", "reaction", "stress", "strain"}));
 }
 
+// A mesh step's "refine" names groups of faces and a size for each; the
+// mesher is given their faces (core::meshParameters). A face in two such
+// groups takes the smaller size.
+CASE(a_mesh_steps_refine_is_resolved_to_its_groups_faces)
+{
+    QString error;
+    const Setup s = readSetup(json(example), &error);
+    QJsonObject mesh{{"maxSize", 5}, {"refine", QJsonObject{{"Pulled", 1}, {"Back", 0.5}}}};
+    const QJsonObject resolved = meshParameters(mesh, s, &error);
+    CHECK(error.isEmpty());
+    CHECK(resolved["maxSize"].toDouble() == 5);
+    CHECK(resolved["faceSizes"].toArray()
+          == QJsonArray({QJsonArray{1, 0.5}, QJsonArray{2, 1}}));
+    CHECK(!resolved.contains("refine"));
+    // Nothing to refine: the parameters as they were.
+    const QJsonObject plain{{"maxSize", 5}};
+    CHECK(meshParameters(plain, s, &error) == plain);
+    // Faults, said with what and where.
+    auto fault = [&](const QJsonObject &refine) {
+        QString e;
+        const QJsonObject r = meshParameters(QJsonObject{{"maxSize", 5}, {"refine", refine}}, s, &e);
+        return r.isEmpty() ? e : QString("(accepted)");
+    };
+    CHECK(fault({{"Top", 1}}) == "the mesh's refine: no group \"Top\"");
+    CHECK(fault({{"Steel part", 1}}) == "the mesh's refine: group \"Steel part\" is solids; a size is set on faces");
+    CHECK(fault({{"Back", 0}}) == "the mesh's refine: \"Back\" asks a size of 0; a size is above 0");
+}
+
 CASE(si_units_are_read)
 {
     QString error;

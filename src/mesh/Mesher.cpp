@@ -4,6 +4,7 @@
 
 #include <QCryptographicHash>
 #include <QFileInfo>
+#include <QJsonArray>
 
 #include <vtkCellData.h>
 #include <vtkDoubleArray.h>
@@ -168,6 +169,7 @@ struct Walls {
     std::vector<std::pair<gp_Pnt, double>> finer;  // a point and its largest element
     std::vector<double> thin;  // the thin faces' thicknesses, for the provenance
     std::vector<int> thinFaces;  // and their numbers in the map
+    std::vector<std::pair<int, double>> faceSize;  // each face made finer, and its size
 };
 
 // How thick the wall behind each face is: from points across the face, a
@@ -189,7 +191,7 @@ struct Walls {
 // a plate 1.5 mm thick, 5 mm from an edge, the size grew back past the
 // thickness, and one tetrahedron spanned it (seen 2026-11-18).
 static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &faces, double maxSize,
-                          int throughWall, double finer)
+                          int throughWall, double finer, const std::map<int, double> &faceSizes)
 {
     Walls out;
     out.thickness.assign(faces.Extent(), 0);
@@ -246,10 +248,19 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
         // starts to hold, a span of a few thicknesses.
         GProp_GProps area;
         BRepGProp::SurfaceProperties(face, area);
-        if (throughWall <= 0 || nearest <= 0 || h >= maxSize / finer || 4 * nearest > std::sqrt(area.Mass()))
+        const bool thin =
+            !(throughWall <= 0 || nearest <= 0 || h >= maxSize / finer || 4 * nearest > std::sqrt(area.Mass()));
+        // A size asked for the face (a group's "refine"), over finer as
+        // every other size.
+        const auto asked = faceSizes.find(f);
+        const double wanted = std::min(thin ? h : INFINITY, asked != faceSizes.end() ? asked->second / finer : INFINITY);
+        if (!(wanted < maxSize / finer))
             continue;
-        out.thin.push_back(nearest);
-        out.thinFaces.push_back(f);
+        if (thin) {
+            out.thin.push_back(nearest);
+            out.thinFaces.push_back(f);
+        }
+        out.faceSize.push_back({f, wanted});
         // Each triangle cut into k x k, k from its longest side, the
         // points put on the face's own surface through their parameters.
         for (int t = 1; t <= tri->NbTriangles(); ++t) {
@@ -257,7 +268,7 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
             tri->Triangle(t).Get(a, b, c);
             const gp_Pnt pa = tri->Node(a), pb = tri->Node(b), pc = tri->Node(c);
             const double longest = std::max({pa.Distance(pb), pb.Distance(pc), pc.Distance(pa)});
-            const int k = std::max(1, static_cast<int>(std::ceil(longest / h)));
+            const int k = std::max(1, static_cast<int>(std::ceil(longest / wanted)));
             const gp_XY ua = tri->UVNode(a).XY(), ub = tri->UVNode(b).XY(), uc = tri->UVNode(c).XY();
             for (int i = 0; i <= k; ++i)
                 for (int j = 0; i + j <= k; ++j) {
@@ -266,7 +277,7 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
                     // the same reason as the thickness.
                     const gp_Pnt p = surface.Value(uv.X(), uv.Y());
                     auto snap = [&](double x) { return std::round(x / grid) * grid; };
-                    out.finer.push_back({gp_Pnt(snap(p.X()), snap(p.Y()), snap(p.Z())), h});
+                    out.finer.push_back({gp_Pnt(snap(p.X()), snap(p.Y()), snap(p.Z())), wanted});
                 }
         }
     }
@@ -359,6 +370,8 @@ Recipe recipeFrom(const QJsonObject &parameters)
     r.order = parameters["order"].toInt(r.order);
     r.throughWall = parameters["throughWall"].toInt(r.throughWall);
     r.finer = parameters["finer"].toDouble(r.finer);
+    for (const QJsonValue &pair : parameters["faceSizes"].toArray())
+        r.faceSizes[pair.toArray().at(0).toInt()] = pair.toArray().at(1).toDouble();
     return r;
 }
 
@@ -438,12 +451,18 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
                             .arg(file, plural(open.edges, "edge", "edges"), open.edges == 1 ? "s" : "",
                                  open.faces.size() == 1 ? "face" : "faces", list));
         }
-        walls = measureWalls(joined.shape, joinedFaces, recipe.maxSize, recipe.throughWall, recipe.finer);
+        for (const auto &[f, size] : recipe.faceSizes)
+            if (f < 1 || f > joinedFaces.Extent())
+                return fail(QString("the recipe asks a size for face %1, and %2 has faces 1 to %3")
+                                .arg(f).arg(file).arg(joinedFaces.Extent()));
+            else if (!(size > 0))
+                return fail(QString("the recipe asks a size of %1 for face %2; a size is above 0").arg(size).arg(f));
+        walls = measureWalls(joined.shape, joinedFaces, recipe.maxSize, recipe.throughWall, recipe.finer,
+                             recipe.faceSizes);
         thickness = walls.thickness;
         thinFaces = walls.thin;
-        for (int f : walls.thinFaces)
-            netgen::OCCGeometry::GetProperties(joinedFaces(f)).maxh =
-                thickness[f - 1] / (recipe.throughWall + 1) / recipe.finer;
+        for (const auto &[f, size] : walls.faceSize)
+            netgen::OCCGeometry::GetProperties(joinedFaces(f)).maxh = size;
         geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
         netgen::MeshingParameters parameters;
         parameters.maxh = recipe.maxSize / recipe.finer;
@@ -732,6 +751,12 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
                                                        : QString()))
                       << settings
                       << QString("geometry kernel: OpenCASCADE %1").arg(OCC_VERSION_COMPLETE);
+    if (!recipe.faceSizes.empty()) {
+        QStringList asked;
+        for (const auto &[f, size] : recipe.faceSizes)
+            asked << QString("face %1 at %2").arg(f).arg(QString::number(size / recipe.finer, 'g', 6));
+        series.provenance << "finer faces: " + asked.join(", ");
+    }
     if (!thinFaces.empty()) {
         const auto [thinnest, thickest] = std::minmax_element(thinFaces.begin(), thinFaces.end());
         auto n = [](double x) { return QString::number(x, 'g', 6); };

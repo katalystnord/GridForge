@@ -35,6 +35,14 @@ gf-study \- GridForge, the meshing and simulation workbench, without a window
 .RB [ \-\-pvd ]
 .RB [ \-o " " \fIDIR\fR]
 .br
+.B gf-study converge
+.I setup part
+.B \-\-size
+.I H
+.RB [ \-\-ratio " " \fIR\fR]
+.B \-o
+.I DIR
+.br
 .B gf-study mesh-worker
 .I part
 .B \-\-recipe
@@ -66,6 +74,15 @@ CalculiX results (job.frd) to one .vtkhdf for ParaView, the deck's named
 sets as blocks; or a Gmsh mesh (mesh.msh) likewise, its physical groups
 as the sets.
 .TP
+.B converge
+The set-up solved on three meshes, each finer than the last by
+\-\-ratio (default 1.5) in every size the recipe makes, in DIR/mesh-1 to
+mesh-3; then how far the largest displacement and the largest von Mises
+stress can be trusted against the mesh: converging (with its order, its
+value at zero element size and the grid convergence index of Celik et
+al. 2008), oscillating, or not converging (a sharp corner, or a load on
+an edge or a point). Also written to DIR/convergence.json.
+.TP
 .B mesh-worker
 What the window runs to mesh, in a process of its own, so that a crash in
 the mesher cannot close the window and Stop ends the meshing at once. The
@@ -87,6 +104,14 @@ geometry).
 Elements through a thin wall (default 2; 0: none added). A wall (a face
 at least four times as wide as the wall behind it is thick) is meshed at
 its thickness over N + 1, where that is finer than \-\-size.
+.TP
+.BI \-\-refine " GROUP=SIZE"
+A group of faces meshed finer, its largest element there (deck, solve,
+converge); repeatable.
+.TP
+.BI \-\-ratio " R"
+converge: how much finer each mesh is than the last (default 1.5; at
+least 1.3).
 .TP
 .BI \-o ", " \-\-out " DIR"
 Write into DIR (default: beside the input).

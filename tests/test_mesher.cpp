@@ -8,6 +8,7 @@
 #include "mesh/Mesher.h"
 #include "mesh/Surface.h"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QRegularExpression>
 
@@ -510,6 +511,31 @@ CASE(a_recipe_made_finer_divides_every_size_it_makes)
     // From study.json's parameters too.
     CHECK(recipeFrom(QJsonObject{{"maxSize", 3}, {"finer", 1.5}}).finer == 1.5);
     CHECK(recipeFrom(QJsonObject{{"maxSize", 3}}).finer == 1);
+}
+
+// A finer size on chosen faces (a group's, study.json's "refine"): the
+// face and the solid under it meshed at that size, the rest as before.
+// The box's x = 0 and x = 10 faces are alike, 20 x 30; one asked for 1.
+CASE(a_face_can_be_meshed_finer_than_the_rest)
+{
+    Recipe recipe{5, 1};
+    recipe.faceSizes = {{1, 1.0}};
+    QString error;
+    const ResultsSeries s = meshStep(QString(GF_FIXTURES) + "/step/box.step", recipe, &error);
+    CHECK(error.isEmpty());
+    const NamedSet *fine = setOf(s, "Face1", true), *plain = setOf(s, "Face2", true);
+    CHECK(fine && plain);
+    if (!fine || !plain)
+        return;
+    std::printf("  (face 1: %zu nodes, face 2: %zu)\n", fine->members.size(), plain->members.size());
+    // At 1, a 20 x 30 face holds some 600 + nodes; at 5, some 30.
+    CHECK(fine->members.size() > 400);
+    CHECK(plain->members.size() < 80);
+    CHECK(s.provenance.contains("finer faces: face 1 at 1"));
+    CHECK(misplacedCells(grid(s)) == 0);
+    // From the parameters, as the window and gf-study resolve them.
+    const Recipe read = recipeFrom(QJsonObject{{"maxSize", 5}, {"faceSizes", QJsonArray{QJsonArray{1, 1.0}, QJsonArray{3, 0.5}}}});
+    CHECK(read.faceSizes.size() == 2 && read.faceSizes.at(1) == 1.0 && read.faceSizes.at(3) == 0.5);
 }
 
 CASE(each_face_of_the_geometry_is_a_node_set_on_that_face)

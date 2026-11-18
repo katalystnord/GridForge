@@ -114,6 +114,13 @@ add_test(NAME a_mesh_convergence_check_says_how_far_a_result_can_be_trusted COMM
 # itself (Celik's iteration not checked against its paper). NOT held by
 # the CLI test: that the three meshes differ (the stand-in ccx replays one
 # result); the mesher's test holds finer, the README's run real ccx.
+# NEGATIVE CHECKS, 2026-11-18, a finer mesh on a group ("refine"): the
+# mesher's case red before faceSizes was applied (36 nodes on the face
+# against 38); meshParameters' case red against a stub (5); setFinerMesh's
+# red against a stub. Then the window handed the worker the raw
+# parameters: the walkthrough red (508 nodes, then 508). The CLI grep red
+# when asked for "at 9". NOT held: that a refined group's faces changing
+# remeshes a kept mesh (the keep-mesh rule compares resolved parameters).
 
 add_executable(test_mesh_run test_mesh_run.cpp)
 target_link_libraries(test_mesh_run PRIVATE gf_core)
@@ -530,6 +537,17 @@ set_tests_properties(cli_through_wall_not_a_whole_number_is_refused PROPERTIES W
 # and the verdict. The stand-in ccx replays the same results whatever the
 # mesh, so the values cannot move: "the same on all three meshes". What
 # real ccx gives is in examples/dogbone-bend/README.md.
+# gf-study --refine: a group of faces meshed finer, said in the mesh's
+# provenance; a group not there refused.
+add_test(NAME cli_meshes_a_group_finer_when_asked
+    COMMAND sh -c "\"$1\" deck \"$2/calculix/box-setup/tension.json\" \"$2/step/box.step\" --size 5 --refine Pulled=1 -o \"$3\" && grep -q '^\\*\\* finer faces: face 2 at 1$' \"$3/mesh.inp\""
+            refine $<TARGET_FILE:gf-study> ${CMAKE_CURRENT_SOURCE_DIR}/fixtures ${CMAKE_CURRENT_BINARY_DIR}/refine-out)
+add_test(NAME cli_refuses_to_refine_a_group_not_there
+    COMMAND gf-study deck ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --refine Nope=1 -o ${CMAKE_CURRENT_BINARY_DIR}/refine-no)
+set_tests_properties(cli_refuses_to_refine_a_group_not_there PROPERTIES
+    PASS_REGULAR_EXPRESSION "gf-study: the mesh's refine: no group \"Nope\"")
+
 add_test(NAME cli_checks_the_results_against_the_mesh
     COMMAND gf-study converge ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-setup/tension.json
             ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 10 --ratio 1.5

@@ -541,6 +541,50 @@ CASE(a_renamed_group_is_renamed_wherever_the_study_uses_it)
     CHECK(!u.setup.assign.count("Dogbone"));
 }
 
+// A finer mesh on a group's faces (study spec 2.1, the mesh's "refine"):
+// set, changed, taken out again; carried along by a rename; a delete
+// refused while the mesh uses the group.
+CASE(a_group_s_finer_mesh_is_set_on_the_mesh_step)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    auto refine = [&] {
+        const Study s = readStudy(folder, &error);
+        const std::vector<const StudyStep *> m = s.stepsOf("mesh");
+        return m.empty() ? QJsonObject() : m.front()->parameters["refine"].toObject();
+    };
+    CHECK(addFaceGroup(folder, "Fillet", {3}, &error));
+    CHECK(setFinerMesh(folder, "Fillet", 0.5, &error) && error.isEmpty());
+    CHECK(refine() == QJsonObject({{"Fillet", 0.5}}));
+    CHECK(setFinerMesh(folder, "Fillet", 0.8, &error));
+    CHECK(refine() == QJsonObject({{"Fillet", 0.8}}));
+    CHECK(renameGroup(folder, "Fillet", "Arc", &error));
+    CHECK(refine() == QJsonObject({{"Arc", 0.8}}));
+    CHECK(!deleteGroup(folder, "Arc", &error));
+    CHECK(error == "Arc is used by the mesh's finer size; take that out first");
+    // 0 takes it out, and an empty refine with it; then it can go.
+    CHECK(setFinerMesh(folder, "Arc", 0, &error));
+    const Study s = readStudy(folder, &error);
+    CHECK(!s.stepsOf("mesh").empty() && !s.stepsOf("mesh").front()->parameters.contains("refine"));
+    CHECK(deleteGroup(folder, "Arc", &error));
+    // Refused: a group of solids, one not there, a size below 0.
+    CHECK(!setFinerMesh(folder, "Dogbone", 0.5, &error) && error == "Dogbone is solids; a finer mesh is set on faces");
+    CHECK(!setFinerMesh(folder, "Nothing", 0.5, &error) && error == "there is no group named Nothing");
+    CHECK(!setFinerMesh(folder, "Fixed grip", -1, &error) && error == "a size is above 0 (0 takes it out)");
+}
+
+CASE(the_study_tree_says_which_groups_are_meshed_finer)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    CHECK(setFinerMesh(folder, "Pulled grip", 0.5, &error));
+    const QStringList got = lines(studyOutline(readStudy(folder, &error)));
+    CHECK(got.contains("Mesh | GridForge (Netgen), largest element 3 mm, quadratic, finer on Pulled grip"));
+    CHECK(got.contains("  Pulled grip | face 6, meshed finer: 0.5 mm"));
+}
+
 CASE(a_rename_or_delete_the_study_cannot_take_is_refused_and_the_file_kept)
 {
     QTemporaryDir dir;

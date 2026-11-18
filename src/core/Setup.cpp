@@ -318,4 +318,41 @@ Setup readSetup(const QJsonObject &setup, QString *error)
     }
 }
 
+QJsonObject meshParameters(const QJsonObject &parameters, const Setup &setup, QString *error)
+{
+    if (error)
+        error->clear();
+    if (!parameters.contains("refine"))
+        return parameters;
+    auto fail = [&](const QString &why) {
+        if (error)
+            *error = "the mesh's refine: " + why;
+        return QJsonObject();
+    };
+    std::map<int, double> sizes;
+    const QJsonObject refine = parameters["refine"].toObject();
+    for (auto it = refine.begin(); it != refine.end(); ++it) {
+        const Group *g = setup.group(it.key());
+        if (!g)
+            return fail(QString("no group \"%1\"").arg(it.key()));
+        if (g->faces.empty())
+            return fail(QString("group \"%1\" is solids; a size is set on faces").arg(it.key()));
+        const double size = it.value().toDouble();
+        if (!(size > 0))
+            return fail(QString("\"%1\" asks a size of %2; a size is above 0").arg(it.key(), it.value().toVariant().toString()));
+        for (int f : g->faces) {
+            auto [at, added] = sizes.emplace(f, size);
+            if (!added)
+                at->second = std::min(at->second, size);
+        }
+    }
+    QJsonObject out = parameters;
+    out.remove("refine");
+    QJsonArray faceSizes;
+    for (const auto &[f, size] : sizes)
+        faceSizes.append(QJsonArray{f, size});
+    out["faceSizes"] = faceSizes;
+    return out;
+}
+
 } // namespace gf::core

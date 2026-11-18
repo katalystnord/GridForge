@@ -86,6 +86,10 @@ bool addFaceGroup(const QString &folder, const QString &name, const std::vector<
 // already, or if no group has the old name.
 bool renameGroup(const QString &folder, const QString &from, const QString &to, QString *error);
 
+// A finer mesh on a group of faces: its largest element there, in the
+// GridForge mesh step's "refine" (study spec 2.1); 0 takes it out.
+bool setFinerMesh(const QString &folder, const QString &group, double size, QString *error);
+
 // Deletes a group nothing uses. False with *error (the file unchanged),
 // saying what uses it, if a support or load does.
 bool deleteGroup(const QString &folder, const QString &name, QString *error);

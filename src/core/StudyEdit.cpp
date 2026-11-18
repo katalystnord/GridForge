@@ -584,6 +584,29 @@ void eachUse(QJsonObject &setup, const QString &group,
 
 } // namespace
 
+// The GridForge mesh step's "refine" (study spec 2.1), each group in it
+// to `change` (which may rename or drop it), written back; an empty one
+// taken out.
+static void eachRefine(QJsonObject &root, const std::function<void(QJsonObject &refine)> &change)
+{
+    QJsonArray steps = root["steps"].toArray();
+    for (int i = 0; i < steps.size(); ++i) {
+        QJsonObject step = steps[i].toObject();
+        if (step["kind"].toString() != "mesh" || step["by"].toString() != "gridforge")
+            continue;
+        QJsonObject parameters = step["parameters"].toObject();
+        QJsonObject refine = parameters["refine"].toObject();
+        change(refine);
+        if (refine.isEmpty())
+            parameters.remove("refine");
+        else
+            parameters["refine"] = refine;
+        step["parameters"] = parameters;
+        steps[i] = step;
+    }
+    root["steps"] = steps;
+}
+
 bool renameGroup(const QString &folder, const QString &from, const QString &to, QString *error)
 {
     const QString named = to.trimmed();
@@ -613,6 +636,10 @@ bool renameGroup(const QString &folder, const QString &from, const QString &to, 
             }
             eachUse(setup, from, [&](const QString &, QJsonObject &item) { item["group"] = named; });
             root["setup"] = setup;
+            eachRefine(root, [&](QJsonObject &refine) {
+                if (refine.contains(from))
+                    refine[named] = refine.take(from);
+            });
             return root;
         },
         error);
@@ -635,9 +662,14 @@ bool deleteGroup(const QString &folder, const QString &name, QString *error)
                 return fail(QString("there is no group named %1").arg(name));
             QString usedBy = setup["assign"].toObject().contains(name) ? QString("the material assignment") : QString();
             QJsonObject probe = setup;
+            QJsonObject probeRoot = root;
             eachUse(probe, name, [&](const QString &where, QJsonObject &) {
                 if (usedBy.isEmpty())
                     usedBy = where;
+            });
+            eachRefine(probeRoot, [&](QJsonObject &refine) {
+                if (usedBy.isEmpty() && refine.contains(name))
+                    usedBy = "the mesh's finer size";
             });
             if (!usedBy.isEmpty())
                 return fail(QString("%1 is used by %2; take that out first").arg(name, usedBy));
@@ -835,6 +867,39 @@ QJsonObject itemEntry(const QJsonObject &setup, const QString &key)
     if (!s || !exists(setup, *s))
         return {};
     return listAt(setup, *s).at(s->index).toObject();
+}
+
+bool setFinerMesh(const QString &folder, const QString &group, double size, QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            QJsonObject root = study;
+            const QJsonObject g = root["setup"].toObject()["groups"].toObject()[group].toObject();
+            if (!root["setup"].toObject()["groups"].toObject().contains(group))
+                return fail(QString("there is no group named %1").arg(group));
+            if (!g.contains("faces"))
+                return fail(QString("%1 is solids; a finer mesh is set on faces").arg(group));
+            if (!(size >= 0))
+                return fail("a size is above 0 (0 takes it out)");
+            bool found = false;
+            eachRefine(root, [&](QJsonObject &refine) {
+                found = true;
+                if (size > 0)
+                    refine[group] = size;
+                else
+                    refine.remove(group);
+            });
+            if (!found)
+                return fail("the study has no GridForge mesh step");
+            return root;
+        },
+        error);
 }
 
 } // namespace gf::core
