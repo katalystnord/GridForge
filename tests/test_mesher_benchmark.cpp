@@ -258,12 +258,10 @@ int main(int argc, char *argv[])
         // The same mesh as the committed one, node for node. A change
         // meant (a new Netgen pin, a new recipe) writes the baseline again
         // (--baseline), and says so in its commit.
-        // Where GF_MESH_HASH_WARN is set (CI, 2026-11-18, David), a
-        // different mesh is a warning, not a failure: GitHub's machine
-        // meshes the bracket and the duct differently from the machine the
-        // baseline was written on, with the same Netgen and OpenCASCADE,
-        // and the cause is not found yet (docs/survey/netgen-review.md,
-        // item 6). Taken out of the workflow when it is.
+        // Where GF_MESH_HASH_WARN is set (CI), a different mesh is a note,
+        // not a failure: another processor rounds a little differently and
+        // meshes a little differently, which is not an error (David,
+        // 2026-11-18). The hash holds a mesh to itself on one machine.
         if (was.contains("mesh hash") && was["mesh hash"].toString() != meshHash(g)) {
             const QString why = QString("the mesh is not the committed one (%1 cells, the baseline %2): if that is "
                                         "meant, write the baseline again")

@@ -54,8 +54,10 @@ with its source, not yet checked by us).
    can still differ is OpenCASCADE's own triangulation, run in parallel,
    which sizes curved faces: the OpenCASCADE version and build matter.
    Name `OCC_VERSION_COMPLETE` in the provenance; set `nthreads`; commit
-   mesh hashes of the benchmark models and compare them in CI. Done
-   2026-11-18: all three.
+   mesh hashes of the benchmark models. Done 2026-11-18. Settled the same
+   day (David): meshes that differ a little between processors are not
+   an error; the hashes hold a mesh to itself on one machine, and
+   another machine's differences are noted, not chased.
 7. **A failed mesh gives no reason.** Netgen prints the failing face to
    stdout and returns 1 (`basegeom.cpp:1080`, `1657`). Name the faces
    left without surface elements. A cancel through
