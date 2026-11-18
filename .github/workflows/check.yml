@@ -29,7 +29,12 @@ jobs:
       matrix:
         variant: [plain, sanitized]
     steps:
+      # Our Netgen fork is a submodule (third_party/netgen), built below.
+      # Its own submodule (pybind11) is for Python, which it is built
+      # without, so not recursive.
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: No em-dashes
         run: tools/check-no-em-dashes.sh
@@ -49,6 +54,28 @@ jobs:
           packages: >-
             ninja-build cmake g++
             qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev xvfb
+            libyaml-cpp-dev zlib1g-dev
+            libocct-foundation-dev libocct-modeling-data-dev
+            libocct-modeling-algorithms-dev libocct-data-exchange-dev
+            libocct-ocaf-dev libocct-visualization-dev
+
+      # Netgen, built from the commit the submodule pins (tools/build-netgen.sh)
+      # and kept between runs under that commit: the build takes minutes, and
+      # the same commit always builds the same engine.
+      - name: Which Netgen
+        id: netgen
+        run: echo "commit=$(git -C third_party/netgen rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Netgen
+        id: netgen-cache
+        uses: actions/cache@v4
+        with:
+          path: build-netgen/install
+          key: netgen-26.04-${{ steps.netgen.outputs.commit }}
+
+      - name: Build Netgen
+        if: steps.netgen-cache.outputs.cache-hit != 'true'
+        run: tools/build-netgen.sh
 
       - name: Configure
         run: |
