@@ -7,6 +7,7 @@
 #include <QSaveFile>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <set>
 
@@ -31,6 +32,43 @@ std::optional<double> number(const QJsonValue &v)
 
 // The pieces of a key: "load:0:1" -> {"load", "0", "1"}.
 QStringList partsOf(const QString &key) { return key.split(':'); }
+
+// After its numbers are edited, a load keeps the direction it says it was
+// given in only while that still holds: along the same axis or line,
+// turned round if the numbers were; otherwise it is given by components.
+void keepDirection(QJsonObject &load, const QJsonObject &was, const QJsonObject &now)
+{
+    std::optional<Direction> d = parseDirection(load.value("direction").toString());
+    if (!d)
+        return;
+    auto part = [](const QJsonObject &o, int i) { return o[QString(QChar('x' + i))].toDouble(); };
+    bool holds = true;
+    if (d->from == Direction::From::Axis) {
+        const QString along(QChar('x' + d->axis));
+        for (int i = 0; i < 3; ++i)
+            holds = holds && (i == d->axis || part(now, i) == 0);
+        holds = holds && now.contains(along);
+        if (holds && part(now, d->axis) != 0)
+            d->reversed = part(now, d->axis) < 0;
+    } else {
+        double cross = 0, dot = 0, a = 0, b = 0;
+        for (int i = 0; i < 3; ++i) {
+            const int j = (i + 1) % 3, k = (i + 2) % 3;
+            const double c = part(was, j) * part(now, k) - part(was, k) * part(now, j);
+            cross += c * c;
+            dot += part(was, i) * part(now, i);
+            a += part(was, i) * part(was, i);
+            b += part(now, i) * part(now, i);
+        }
+        holds = b > 0 && std::sqrt(cross) <= 1e-9 * std::sqrt(a * b);
+        if (holds && dot < 0)
+            d->reversed = !d->reversed;
+    }
+    if (holds)
+        load["direction"] = directionText(*d);
+    else
+        load.remove("direction");
+}
 
 } // namespace
 
@@ -152,10 +190,12 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
             load = *changed;
         } else {
             const QString kind = load.contains("displacement") ? "displacement" : load.contains("force") ? "force" : "gravity";
-            const auto changed = apply(load[kind].toObject(), {"x", "y", "z"});
+            const QJsonObject was = load[kind].toObject();
+            const auto changed = apply(was, {"x", "y", "z"});
             if (!changed)
                 return {};
             load[kind] = *changed;
+            keepDirection(load, was, *changed);
         }
         loads[k] = load;
         step["loads"] = loads;
@@ -384,6 +424,194 @@ bool deleteGroup(const QString &folder, const QString &name, QString *error)
             return root;
         },
         error);
+}
+
+namespace {
+
+// Where an item lives in "setup": a list ("supports" or "loads") at the
+// start (step -1, supports only) or in a step, and its place in it.
+struct Slot {
+    int step = -1;
+    QString list;
+    int index = -1;
+};
+
+std::optional<Slot> slotOf(const QString &key)
+{
+    const QStringList p = partsOf(key);
+    if (p.value(0) == "support" && p.size() == 2)
+        return Slot{-1, "supports", p[1].toInt()};
+    if (p.value(0) == "support" && p.size() == 3)
+        return Slot{p[1].toInt(), "supports", p[2].toInt()};
+    if (p.value(0) == "load" && p.size() == 3)
+        return Slot{p[1].toInt(), "loads", p[2].toInt()};
+    return std::nullopt;
+}
+
+QString keyOf(const Slot &s)
+{
+    if (s.step < 0)
+        return QString("support:%1").arg(s.index);
+    return QString("%1:%2:%3").arg(s.list == "loads" ? "load" : "support").arg(s.step).arg(s.index);
+}
+
+QJsonArray listAt(const QJsonObject &setup, const Slot &s)
+{
+    if (s.step < 0)
+        return setup["supports"].toArray();
+    return setup["steps"].toArray().at(s.step).toObject()[s.list].toArray();
+}
+
+void setListAt(QJsonObject &setup, const Slot &s, const QJsonArray &list)
+{
+    if (s.step < 0) {
+        setup["supports"] = list;
+        return;
+    }
+    QJsonArray steps = setup["steps"].toArray();
+    QJsonObject step = steps[s.step].toObject();
+    if (list.isEmpty())
+        step.remove(s.list);
+    else
+        step[s.list] = list;
+    steps[s.step] = step;
+    setup["steps"] = steps;
+}
+
+bool exists(const QJsonObject &setup, const Slot &s)
+{
+    if (s.step >= setup["steps"].toArray().size())
+        return false;
+    return s.index >= 0 && s.index < listAt(setup, s).size();
+}
+
+// Which list of a place an entry goes in, or empty with *error.
+QString listFor(const QJsonObject &entry, int step, QString *error)
+{
+    const bool support = entry.contains("fixed") || entry.contains("symmetry");
+    if (step >= 0)
+        return support ? "supports" : "loads";
+    for (const char *kind : {"force", "pressure", "gravity"})
+        if (entry.contains(kind)) {
+            if (error)
+                *error = QString("a %1 is given in a step, not among the supports").arg(kind);
+            return {};
+        }
+    return "supports";
+}
+
+// The study with `change` made to its "setup".
+QJsonObject withSetup(const QJsonObject &study, const std::function<bool(QJsonObject &)> &change)
+{
+    QJsonObject root = study;
+    QJsonObject setup = root["setup"].toObject();
+    if (!change(setup))
+        return {};
+    root["setup"] = setup;
+    return root;
+}
+
+} // namespace
+
+QString addItem(const QString &folder, const QString &place, const QJsonObject &entry, QString *error)
+{
+    QString key;
+    const bool done = rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            return withSetup(study, [&](QJsonObject &setup) {
+                Slot s;
+                if (place.startsWith("step:")) {
+                    s.step = place.section(':', 1).toInt();
+                    if (s.step < 0 || s.step >= setup["steps"].toArray().size()) {
+                        if (e)
+                            *e = QString("there is no step %1").arg(s.step + 1);
+                        return false;
+                    }
+                } else if (place != "supports") {
+                    if (e)
+                        *e = "no place called " + place;
+                    return false;
+                }
+                s.list = listFor(entry, s.step, e);
+                if (s.list.isEmpty())
+                    return false;
+                QJsonArray list = listAt(setup, s);
+                s.index = list.size();
+                list.append(entry);
+                setListAt(setup, s, list);
+                key = keyOf(s);
+                return true;
+            });
+        },
+        error);
+    return done ? key : QString();
+}
+
+QString replaceItem(const QString &folder, const QString &key, const QJsonObject &entry, QString *error)
+{
+    QString now;
+    const bool done = rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            return withSetup(study, [&](QJsonObject &setup) {
+                const std::optional<Slot> s = slotOf(key);
+                if (!s || !exists(setup, *s)) {
+                    if (e)
+                        *e = "nothing at " + key;
+                    return false;
+                }
+                Slot to = *s;
+                to.list = listFor(entry, s->step, e);
+                if (to.list.isEmpty())
+                    return false;
+                QJsonArray list = listAt(setup, *s);
+                if (to.list == s->list) {
+                    list[s->index] = entry;
+                    setListAt(setup, *s, list);
+                } else {
+                    list.removeAt(s->index);
+                    setListAt(setup, *s, list);
+                    QJsonArray other = listAt(setup, to);
+                    to.index = other.size();
+                    other.append(entry);
+                    setListAt(setup, to, other);
+                }
+                now = keyOf(to);
+                return true;
+            });
+        },
+        error);
+    return done ? now : QString();
+}
+
+bool removeItem(const QString &folder, const QString &key, QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            return withSetup(study, [&](QJsonObject &setup) {
+                const std::optional<Slot> s = slotOf(key);
+                if (!s || !exists(setup, *s)) {
+                    if (e)
+                        *e = "nothing at " + key;
+                    return false;
+                }
+                QJsonArray list = listAt(setup, *s);
+                list.removeAt(s->index);
+                setListAt(setup, *s, list);
+                return true;
+            });
+        },
+        error);
+}
+
+QJsonObject itemEntry(const QJsonObject &setup, const QString &key)
+{
+    const std::optional<Slot> s = slotOf(key);
+    if (!s || !exists(setup, *s))
+        return {};
+    return listAt(setup, *s).at(s->index).toObject();
 }
 
 } // namespace gf::core

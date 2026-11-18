@@ -63,6 +63,37 @@ Movement movement(const QJsonValue &v, const QString &where)
     return m;
 }
 
+// How a displacement or force was given (study spec 4.6). One along an
+// axis is checked against its numbers here; a face's normal or an edge
+// needs the geometry, and is measured where the window makes it.
+Direction direction(const Load &load, const QJsonValue &v, const QString &where)
+{
+    if (load.kind != Load::Kind::Displacement && load.kind != Load::Kind::Force)
+        fault(where, "a direction is for a displacement or a force");
+    const std::optional<Direction> d = parseDirection(v.toString());
+    if (!d)
+        fault(where + ".direction",
+              QString("\"%1\" is not +x, -x, +y, -y, +z, -z, \"outward normal of face <n>\", \"inward normal of "
+                      "face <n>\", \"along edge <n>\" or \"against edge <n>\"")
+                  .arg(v.toString()));
+    if (d->from == Direction::From::Axis) {
+        const bool displacement = load.kind == Load::Kind::Displacement;
+        const Movement &m = displacement ? load.displacement : load.vector;
+        const QString what = displacement ? "displacement" : "force";
+        const std::optional<double> parts[3] = {m.x, m.y, m.z};
+        const QString says = directionText(*d);
+        for (int i = 0; i < 3; ++i)
+            if (i != d->axis && parts[i] && *parts[i] != 0)
+                fault(where, QString("says %1, but its %2 has %3 %4").arg(says, what, QChar('x' + i)).arg(*parts[i]));
+        const std::optional<double> along = parts[d->axis];
+        if (!along)
+            fault(where, QString("says %1, but its %2 gives no %3").arg(says, what, QChar('x' + d->axis)));
+        if (*along * (d->reversed ? -1 : 1) < 0)
+            fault(where, QString("says %1, but its %2's %3 is %4").arg(says, what, QChar('x' + d->axis)).arg(*along));
+    }
+    return *d;
+}
+
 void needGroup(const Setup &s, const QString &name, const QString &where)
 {
     if (!s.group(name))
@@ -221,6 +252,8 @@ Setup read(const QJsonObject &o)
                 load.kind = Load::Kind::Gravity;
                 load.vector = movement(l["gravity"], at + ".gravity");
             }
+            if (l.contains("direction"))
+                load.direction = direction(load, l["direction"], at);
             step.loads.push_back(load);
         }
         for (const QJsonValue &v : st["output"].toArray())

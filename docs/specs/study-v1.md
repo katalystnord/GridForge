@@ -256,6 +256,34 @@ Loads, in a step:
 A displacement given in a step is a load in the user's words and a
 `*BOUNDARY` in ccx's; the deck follows ccx, the set-up the user.
 
+**Where a direction came from** (added 2026-11-18, David). A displacement
+or a force may say how the user gave its direction in the window, so the
+window can show the same choice again and people can read it:
+
+| `"direction"` | means |
+|---|---|
+| `"+x"`, `"-x"`, ..., `"-z"` | along an axis |
+| `"outward normal of face 6"`, `"inward normal of face 6"` | the face's normal when the load was made, out of the solid or into it |
+| `"along edge 14"`, `"against edge 14"` | the edge's line when the load was made, from its first vertex to its last, or the other way |
+| absent | given by components |
+
+```json
+{"group": "Pulled grip", "displacement": {"z": 2}, "direction": "+z"}
+```
+
+The numbers stay the record; the solver never reads `"direction"`. A
+direction taken from the geometry does not follow the geometry when it
+changes (ANSYS's help says the same of its own; see
+`docs/survey/loads-and-supports.md`): it is measured once, and the
+numbers keep it. One along an axis is checked against the numbers when
+the study is read (`"+z"` with a force in x, or with a negative z, is
+refused); a face's or an edge's needs the geometry, and is measured where
+the window makes it. When the numbers are edited, the direction is kept
+while it still holds (the same line, turned round if the numbers were),
+and taken out otherwise. A movement along a direction off x, y and z needs
+a local system, which version 1 does not write: the window says so and
+asks for components.
+
 ### 4.7 What reaches the solve step
 
 The solve step's job folder (toolkits-v1, section 4) gets the mesh

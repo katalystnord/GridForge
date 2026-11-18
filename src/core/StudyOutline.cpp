@@ -2,6 +2,7 @@
 
 #include <QFileInfo>
 
+#include <cmath>
 #include <map>
 
 namespace gf::core {
@@ -32,6 +33,40 @@ QString components(const Movement &m)
     if (m.z)
         parts << "z " + number(*m.z);
     return parts.join(", ");
+}
+
+// A displacement or force as the user gave it: "2 mm along +z, others
+// free", "50 N, inward normal of face 6", or by components as typed.
+QString directed(const Movement &m, const std::optional<Direction> &d, const QString &unit, bool displacement)
+{
+    if (!d)
+        return components(m) + " " + unit;
+    const double x = m.x.value_or(0), y = m.y.value_or(0), z = m.z.value_or(0);
+    QString text = number(std::sqrt(x * x + y * y + z * z)) + " " + unit;
+    text += d->from == Direction::From::Normal ? ", " + directionText(*d)
+            : d->from == Direction::From::Edge ? " " + directionText(*d)
+                                               : " along " + directionText(*d);
+    if (!displacement)
+        return text;
+    // The other directions: free, held, or as given.
+    const int along = d->from == Direction::From::Axis ? d->axis
+                      : std::abs(x) >= std::abs(y) && std::abs(x) >= std::abs(z) ? 0
+                      : std::abs(y) >= std::abs(z) ? 1 : 2;
+    const std::optional<double> parts[3] = {m.x, m.y, m.z};
+    int held = 0, free = 0;
+    Movement others;
+    for (int i = 0; i < 3; ++i) {
+        if (i == along)
+            continue;
+        held += parts[i] && *parts[i] == 0;
+        free += !parts[i];
+        (i == 0 ? others.x : i == 1 ? others.y : others.z) = parts[i];
+    }
+    if (free == 2)
+        return text + ", others free";
+    if (held == 2)
+        return text + ", others held";
+    return text + ", " + components(others);
 }
 
 QString numbers(const char *one, const char *many, const std::vector<int> &n)
@@ -131,11 +166,11 @@ std::vector<OutlineItem> studyOutline(const Study &study)
             const QString key = QString("load:%1:%2").arg(i).arg(k);
             switch (l.kind) {
             case Load::Kind::Displacement:
-                item.children.push_back({"Displacement: " + l.group, components(l.displacement) + " " + u.length,
+                item.children.push_back({"Displacement: " + l.group, directed(l.displacement, l.direction, u.length, true),
                                          "load", key, {}});
                 break;
             case Load::Kind::Force:
-                item.children.push_back({"Force: " + l.group, components(l.vector) + " " + u.force, "load", key, {}});
+                item.children.push_back({"Force: " + l.group, directed(l.vector, l.direction, u.force, false), "load", key, {}});
                 break;
             case Load::Kind::Pressure:
                 item.children.push_back({"Pressure: " + l.group, number(l.pressure) + " " + u.stress, "load", key, {}});
@@ -204,11 +239,11 @@ StepTable stepTable(const Study &study)
             switch (l.kind) {
             case Load::Kind::Displacement:
                 title = "Displacement: " + l.group;
-                text = components(l.displacement) + " " + u.length;
+                text = directed(l.displacement, l.direction, u.length, true);
                 break;
             case Load::Kind::Force:
                 title = "Force: " + l.group;
-                text = components(l.vector) + " " + u.force;
+                text = directed(l.vector, l.direction, u.force, false);
                 break;
             case Load::Kind::Pressure:
                 title = "Pressure: " + l.group;

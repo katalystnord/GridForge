@@ -49,11 +49,25 @@ add_test(NAME toolkits_are_read_offered_and_refused COMMAND test_toolkits)
 add_executable(test_setup test_setup.cpp)
 target_link_libraries(test_setup PRIVATE gf_core)
 add_test(NAME the_setup_is_read_and_checked COMMAND test_setup)
+# NEGATIVE CHECK, 2026-11-18, a load's direction: the case red against a
+# stub; then an axis direction's sign, and its other components, not
+# checked: each red.
 # NEGATIVE CHECKS, 2026-11-17, set-up: the 5 cases written first, all red
 # against a stub (32 checks). Then each rule broken, the test run,
 # restored: a solid given two materials allowed; units defaulted when
 # missing; any direction name taken; a group of faces given a material;
 # y read as z; face 0 accepted: each red.
+
+# The window's support and load form, and the study.json entry it stands
+# for (study spec 4.6; docs/survey/loads-and-supports.md).
+add_executable(test_load_choice test_load_choice.cpp)
+target_link_libraries(test_load_choice PRIVATE gf_core)
+add_test(NAME a_support_or_load_is_chosen_as_in_the_precedents COMMAND test_load_choice)
+# NEGATIVE CHECKS, 2026-11-18, the load form: the 6 cases written first,
+# all red against stubs. Then each rule broken, the test run, restored: a
+# measured normal taken as on an axis only when exactly so; components of
+# nothing written; others held not read back; every direction held not
+# written as fixed: each red.
 
 # FreeCAD material cards in a study's units (fixtures/materials).
 add_executable(test_material_card test_material_card.cpp)
@@ -76,6 +90,11 @@ target_compile_definitions(test_study PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURC
 add_test(NAME a_study_is_read_and_checked COMMAND test_study)
 # NEGATIVE CHECK, 2026-11-17, addFaceGroup: both cases red against a stub
 # (6 checks).
+# NEGATIVE CHECKS, 2026-11-18, items from the form and directions: the 3
+# cases written first, red against stubs. Then each rule broken, the test
+# run, restored: a normal not turned round with its numbers; an axis kept
+# without its component (green at first: a case added, now red); a step's
+# fixed support put among its loads: each red.
 # NEGATIVE CHECKS, 2026-11-17, study and outline: the cases written first,
 # red against stubs. Then: a link's output not checked; a plastic step not
 # shown with large displacements: each red.

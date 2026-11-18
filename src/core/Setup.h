@@ -10,6 +10,8 @@
 // steps with loads: a given displacement, a total force or a pressure on
 // a group of faces, gravity on the solids (all, or a group's).
 
+#include "core/Direction.h"
+
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -60,6 +62,7 @@ struct Load {
     Movement displacement;  // Displacement
     Movement vector;        // Force: the total, N; Gravity: the acceleration
     double pressure = 0;    // Pressure: normal, positive inward
+    std::optional<Direction> direction;  // Displacement, Force: how it was given, if not by components
 };
 
 // A step's increments (ccx's *STATIC data line): the first, the step's

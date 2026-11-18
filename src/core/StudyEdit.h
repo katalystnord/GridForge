@@ -58,4 +58,22 @@ bool renameGroup(const QString &folder, const QString &from, const QString &to, 
 // saying what uses it, if a support or load does.
 bool deleteGroup(const QString &folder, const QString &name, QString *error);
 
+// A support or load as core::entryOf writes it, added to <folder>/study.json
+// at `place`: "supports" (from the start, in every step) or "step:<i>" (a
+// fixed or symmetry support among the step's supports, anything else among
+// its loads). Its key ("support:2", "support:0:1", "load:0:3"), or empty
+// with *error (and the file unchanged) if the study cannot take it.
+QString addItem(const QString &folder, const QString &place, const QJsonObject &entry, QString *error);
+
+// The item at `key` replaced by `entry`, in its place: the same list, or
+// the step's other one if the entry belongs there. Its key now, or empty.
+QString replaceItem(const QString &folder, const QString &key, const QJsonObject &entry, QString *error);
+
+// The item at `key` taken out.
+bool removeItem(const QString &folder, const QString &key, QString *error);
+
+// The entry at `key` in a study's "setup", as study.json holds it; empty
+// if there is none.
+QJsonObject itemEntry(const QJsonObject &setup, const QString &key);
+
 } // namespace gf::core

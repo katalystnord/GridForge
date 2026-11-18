@@ -465,6 +465,115 @@ CASE(a_folder_without_a_study_is_said)
     CHECK(error == "no study.json in " + dir.path());
 }
 
+CASE(a_support_or_load_from_the_form_is_added_replaced_and_removed)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    // Bending: a move along z in the step Pull, a support from the start.
+    const QJsonObject bend{{"group", "Pulled grip"}, {"displacement", QJsonObject{{"z", 2}}}, {"direction", "+z"}};
+    CHECK(addItem(folder, "step:0", bend, &error) == "load:0:1" && error.isEmpty());
+    CHECK(addItem(folder, "supports", QJsonObject{{"group", "Fixed grip"}, {"symmetry", true}}, &error) == "support:1");
+    CHECK(addItem(folder, "step:0", QJsonObject{{"group", "Fixed grip"}, {"fixed", true}}, &error) == "support:0:0");
+    Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty() && s.setup.steps[0].loads.size() == 2 && s.setup.supports.size() == 2);
+    if (s.setup.steps[0].loads.size() != 2 || s.setup.steps[0].supports.size() != 1)
+        return;
+    CHECK(s.setup.steps[0].loads[1].displacement.z == 2.0 && s.setup.steps[0].loads[1].direction);
+    CHECK(s.setup.steps[0].supports.size() == 1 && s.setup.steps[0].supports[0].fixed);
+    CHECK(itemEntry(s.setupJson, "load:0:1") == bend);
+
+    // Replaced by a force: the same place.
+    const QJsonObject push{{"group", "Pulled grip"}, {"force", QJsonObject{{"z", 50}}}, {"direction", "+z"}};
+    CHECK(replaceItem(folder, "load:0:1", push, &error) == "load:0:1");
+    s = readStudy(folder, &error);
+    CHECK(s.setup.steps[0].loads.size() == 2);
+    if (s.setup.steps[0].loads.size() != 2)
+        return;
+    CHECK(s.setup.steps[0].loads[1].kind == Load::Kind::Force && s.setup.steps[0].loads[1].vector.z == 50.0);
+    // A step's displacement replaced by a fixed support moves to the step's supports.
+    CHECK(replaceItem(folder, "load:0:1", QJsonObject{{"group", "Pulled grip"}, {"fixed", true}}, &error)
+          == "support:0:1");
+    CHECK(removeItem(folder, "support:0:1", &error) && removeItem(folder, "support:0:0", &error));
+    CHECK(removeItem(folder, "support:1", &error));
+    s = readStudy(folder, &error);
+    CHECK(s.setup.steps[0].loads.size() == 1 && s.setup.steps[0].supports.empty() && s.setup.supports.size() == 1);
+
+    // Refused, the file kept.
+    QFile f(QDir(folder).filePath("study.json"));
+    CHECK(f.open(QIODevice::ReadOnly));
+    const QByteArray before = f.readAll();
+    f.close();
+    CHECK(addItem(folder, "supports", push, &error).isEmpty());
+    CHECK(error == "a force is given in a step, not among the supports");
+    CHECK(addItem(folder, "step:3", bend, &error).isEmpty() && error == "there is no step 4");
+    CHECK(addItem(folder, "step:0", QJsonObject{{"group", "Ghost"}, {"fixed", true}}, &error).isEmpty());
+    CHECK(error == "setup.steps[0].supports[0]: no group \"Ghost\"");
+    CHECK(!removeItem(folder, "load:0:5", &error) && error == "nothing at load:0:5");
+    CHECK(f.open(QIODevice::ReadOnly));
+    CHECK(f.readAll() == before);
+}
+
+CASE(an_edited_number_keeps_the_direction_only_while_it_still_holds)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    const QJsonObject push{{"group", "Pulled grip"}, {"force", QJsonObject{{"z", 50}}}, {"direction", "+z"}};
+    CHECK(addItem(folder, "step:0", push, &error) == "load:0:1");
+    auto entry = [&] { return itemEntry(readStudy(folder, &error).setupJson, "load:0:1"); };
+    // A larger force, the same way: still +z.
+    CHECK(editStudy(folder, "load:0:1", {{"z", 80.0}}, &error) && entry()["direction"] == "+z");
+    // Turned round: -z.
+    CHECK(editStudy(folder, "load:0:1", {{"z", -80.0}}, &error) && entry()["direction"] == "-z");
+    // Given a second component: no longer along an axis, so given by components.
+    CHECK(editStudy(folder, "load:0:1", {{"x", 10.0}}, &error) && !entry().contains("direction"));
+    // A movement along +z whose z is taken out (freed) is no longer along z.
+    const QJsonObject bend{{"group", "Pulled grip"}, {"displacement", QJsonObject{{"x", 0}, {"z", 2}}}, {"direction", "+z"}};
+    CHECK(replaceItem(folder, "load:0:1", bend, &error) == "load:0:1");
+    CHECK(editStudy(folder, "load:0:1", {{"z", std::nullopt}}, &error) && !entry().contains("direction"));
+    // A face's normal survives a change of size, not of direction.
+    const QJsonObject normal{{"group", "Pulled grip"}, {"force", QJsonObject{{"x", 3}, {"z", 4}}},
+                             {"direction", "outward normal of face 6"}};
+    CHECK(replaceItem(folder, "load:0:1", normal, &error) == "load:0:1");
+    CHECK(editStudy(folder, "load:0:1", {{"x", -6.0}, {"z", -8.0}}, &error));
+    CHECK(entry()["direction"] == "inward normal of face 6");
+    CHECK(editStudy(folder, "load:0:1", {{"x", 1.0}}, &error) && !entry().contains("direction"));
+}
+
+CASE(a_load_given_in_a_direction_reads_in_words)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error;
+    for (const QJsonObject &e :
+         {QJsonObject{{"group", "Pulled grip"}, {"displacement", QJsonObject{{"z", 2}}}, {"direction", "+z"}},
+          QJsonObject{{"group", "Pulled grip"}, {"displacement", QJsonObject{{"x", 0}, {"y", 0}, {"z", -2}}}, {"direction", "-z"}},
+          QJsonObject{{"group", "Pulled grip"}, {"force", QJsonObject{{"x", 30}, {"z", 40}}}, {"direction", "inward normal of face 6"}},
+          QJsonObject{{"group", "Fixed grip"}, {"force", QJsonObject{{"y", 50}}}, {"direction", "along edge 14"}}})
+        CHECK(!addItem(folder, "step:0", e, &error).isEmpty());
+    const Study s = readStudy(folder, &error);
+    const std::vector<OutlineItem> tree = studyOutline(s);
+    const OutlineItem *pull = nullptr;
+    for (const OutlineItem &i : tree)
+        if (i.kind == "steps" && !i.children.empty())
+            pull = &i.children[0];
+    CHECK(pull && pull->children.size() == 5);
+    if (!pull || pull->children.size() != 5)
+        return;
+    CHECK(pull->children[0].detail == "x 1.5, y 0, z 0 mm");  // as typed: components
+    CHECK(pull->children[1].detail == "2 mm along +z, others free");
+    CHECK(pull->children[2].detail == "2 mm along -z, others held");
+    CHECK(pull->children[3].detail == "50 N, inward normal of face 6");
+    CHECK(pull->children[4].detail == "50 N along edge 14");
+    // The steps table says the same.
+    const StepTable t = stepTable(s);
+    bool found = false;
+    for (const StepTable::Row &r : t.rows)
+        found = found || (r.title == "Force: Fixed grip" && r.cells[0].text == "50 N along edge 14");
+    CHECK(found);
+}
+
 int main()
 {
     for (auto &[name, run] : cases()) {

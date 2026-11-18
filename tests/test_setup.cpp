@@ -251,6 +251,38 @@ CASE(a_solid_given_two_materials_is_refused)
     CHECK(error == "assign: solid 1 is in \"Also steel\" and \"Steel part\", both given a material");
 }
 
+CASE(a_loads_direction_is_read_and_checked_against_its_numbers)
+{
+    QJsonObject o = json(example);
+    QJsonArray steps = o["steps"].toArray();
+    QJsonObject st = steps[0].toObject();
+    st["loads"] = QJsonDocument::fromJson(R"([
+        {"group": "Pulled", "displacement": {"x": 0, "z": 2}, "direction": "+z"},
+        {"group": "Pulled", "force": {"y": -50}, "direction": "-y"},
+        {"group": "Pulled", "force": {"x": 3, "z": 4}, "direction": "outward normal of face 2"}])").array();
+    steps[0] = st;
+    o["steps"] = steps;
+    QString error;
+    const Setup s = readSetup(o, &error);
+    CHECK(error.isEmpty());
+    if (s.steps.empty() || s.steps[0].loads.size() != 3)
+        return;
+    const auto &l = s.steps[0].loads;
+    CHECK(l[0].direction && l[0].direction->from == Direction::From::Axis && l[0].direction->axis == 2);
+    CHECK(l[1].direction && l[1].direction->reversed);
+    CHECK(l[2].direction && l[2].direction->from == Direction::From::Normal && l[2].direction->number == 2);
+
+    const QString at = "steps[0].loads[0]";
+    CHECK(errorWith(at + ".direction", "\"sideways\"")
+          == at + ".direction: \"sideways\" is not +x, -x, +y, -y, +z, -z, \"outward normal of face <n>\", "
+                  "\"inward normal of face <n>\", \"along edge <n>\" or \"against edge <n>\"");
+    // The numbers must say what the direction says.
+    CHECK(errorWith(at + ".direction", "\"-x\"") == at + ": says -x, but its displacement's x is 0.01");
+    CHECK(errorWith(at + ".direction", "\"+y\"") == at + ": says +y, but its displacement has x 0.01");
+    CHECK(errorWith(at, R"({"group": "Pulled", "pressure": 5, "direction": "+x"})")
+          == at + ": a direction is for a displacement or a force");
+}
+
 int main()
 {
     for (auto &[name, run] : cases()) {
