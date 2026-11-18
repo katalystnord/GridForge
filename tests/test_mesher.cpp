@@ -411,6 +411,14 @@ CASE(the_provenance_names_the_engine_the_recipe_and_the_source)
     CHECK(s.provenance.contains("mesher: " + engine()));
     CHECK(s.provenance.contains("source: box.step"));
     CHECK(s.provenance.contains("recipe: largest element 3, order 2"));
+    // Every Netgen setting the mesh depends on, as it was used: set by
+    // GridForge, not left to Netgen's defaults, which may move between
+    // versions (docs/survey/netgen-review.md, item 4).
+    CHECK(s.provenance.contains("settings: grading 0.3, curvature safety 2, segments per edge 1, smallest element 0, "
+                                "close edges off, surface optimisation smcmSmcmSmcm x3, volume optimisation "
+                                "cmdDmustm x3, 4 threads"));
+    // The geometry kernel, whose own triangulation sizes curved faces.
+    CHECK(all.contains(QRegularExpression("geometry kernel: OpenCASCADE \\d+\\.\\d+\\.\\d+")));
     CHECK(all.contains(QRegularExpression("model: \\d+ quadratic tetrahedra, \\d+ nodes")));
     CHECK(s.provenance.contains("node order: Netgen's, put into VTK's by GridForge"));
     CHECK(s.provenance.contains("sets: 1 solid, as an element set and a node set; 6 faces, as node sets"));

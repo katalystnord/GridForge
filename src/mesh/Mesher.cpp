@@ -22,6 +22,7 @@
 #include <BRepGProp.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <STEPControl_Reader.hxx>
+#include <Standard_Version.hxx>
 #include <GProp_GProps.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
@@ -173,6 +174,7 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     auto mesh = std::make_shared<netgen::Mesh>();
     int fileSolids = 0;
     Joined joined;
+    QString settings;
     try {
         // Read with OpenCASCADE's own STEP reader, every root of the file
         // as one shape. Netgen's LoadOCC_STEP keeps only the first root,
@@ -198,6 +200,33 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
         netgen::MeshingParameters parameters;
         parameters.maxh = recipe.maxSize;
+        // Every other setting the mesh depends on, given here rather than
+        // left to Netgen's defaults, which may move between versions; the
+        // values are those defaults at the pinned commit (meshtype.hpp).
+        parameters.grading = 0.3;
+        parameters.curvaturesafety = 2;
+        parameters.segmentsperedge = 1;
+        parameters.minh = 0;
+        parameters.closeedgefac = std::nullopt;
+        parameters.optimize2d = "smcmSmcmSmcm";
+        parameters.optsteps2d = 3;
+        parameters.optimize3d = "cmdDmustm";
+        parameters.optsteps3d = 3;
+        parameters.parallel_meshing = true;
+        parameters.nthreads = 4;
+        // Said as used, for the provenance.
+        settings = QString("settings: grading %1, curvature safety %2, segments per edge %3, smallest element %4, "
+                           "close edges %5, surface optimisation %6 x%7, volume optimisation %8 x%9, %10 threads")
+                       .arg(parameters.grading)
+                       .arg(parameters.curvaturesafety)
+                       .arg(parameters.segmentsperedge)
+                       .arg(parameters.minh)
+                       .arg(parameters.closeedgefac ? QString::number(*parameters.closeedgefac) : QString("off"))
+                       .arg(QString::fromStdString(parameters.optimize2d))
+                       .arg(parameters.optsteps2d)
+                       .arg(QString::fromStdString(parameters.optimize3d))
+                       .arg(parameters.optsteps3d)
+                       .arg(parameters.parallel_meshing ? parameters.nthreads : 1);
         mesh->SetGeometry(geometry);
         if (geometry->GenerateMesh(mesh, parameters) != 0)
             return fail("Netgen could not mesh " + file);
@@ -378,7 +407,8 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     series.provenance << "mesher: " + engine()
                       << "source: " + file
                       << QString("recipe: largest element %1, order %2").arg(recipe.maxSize).arg(recipe.order)
-                      ;
+                      << settings
+                      << QString("geometry kernel: OpenCASCADE %1").arg(OCC_VERSION_COMPLETE);
     if (fileSolids > 1)
         series.provenance << QString("joined: %1, sharing %2")
                                  .arg(plural(fileSolids, "solid", "solids"),

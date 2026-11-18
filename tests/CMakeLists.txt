@@ -616,6 +616,9 @@ endif()
 # NEGATIVE CHECK, 2026-11-18, every root of a STEP file: read through
 # Netgen's LoadOCC_STEP (first root only), tworoots.step gave one solid,
 # red; the committed meshes stay line for line the same after the change.
+# NEGATIVE CHECK, 2026-11-18, the mesh's settings and kernel in its
+# provenance: before they were written, the provenance case red at both;
+# the committed meshes then differed at the new header lines only.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

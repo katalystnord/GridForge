@@ -32,7 +32,10 @@ with its source, not yet checked by us).
    4854 of 4862 tetrahedra have no interior node. For bending this is the
    case a tet mesh gets wrong. A wall thickness pass of ours, fed back as
    per-face maxh or `meshsize_points`.
-4. **Every sizing parameter on a hidden default.** We set only `maxh`:
+4. **Every sizing parameter on a hidden default.** Done 2026-11-18 for
+   the provenance: each is now set by GridForge and named with the mesh,
+   with OpenCASCADE's version. Making them choosable in study.json is a
+   spec addition, still to be proposed. The review's words: We set only `maxh`:
    `grading` 0.3, `curvaturesafety` 2, `optsteps3d` 3, `nthreads` 4 and
    others run as Netgen defaults (`meshtype.hpp:1804-1909`). State each in
    the recipe and the provenance. Local size per solid, face, edge and
