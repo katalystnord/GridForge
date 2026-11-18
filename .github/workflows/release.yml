@@ -1,0 +1,65 @@
+name: release
+
+# The AppImage and the .deb packages, built on GitHub from a version tag
+# (or by hand, from Actions), checked, and kept as this run's artifacts.
+# It makes no GitHub release: publishing is David's (tools/appimage and
+# tools/deb have the steps, and what goes beside them on the page).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  NEEDRESTART_MODE: a
+
+jobs:
+  packages:
+    name: AppImage and .deb
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Install dependencies
+        uses: ./.github/actions/apt-deps
+        timeout-minutes: 60
+        with:
+          cache-key: apt-gridforge-release-26.04
+          need-vtk-qt: 'true'
+          packages: >-
+            ninja-build cmake g++ gfortran
+            qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev
+            qt6-svg-plugins qt6-qpa-plugins
+            libyaml-cpp-dev zlib1g-dev
+            libocct-foundation-dev libocct-modeling-data-dev
+            libocct-modeling-algorithms-dev libocct-data-exchange-dev
+            libocct-ocaf-dev libocct-visualization-dev
+            libarpack2-dev liblapack-dev libblas-dev
+            debhelper devscripts lintian
+
+      - name: AppImage
+        run: tools/appimage/make-appimage.sh dist
+
+      - name: The AppImage solves with the ccx it carries
+        run: tools/appimage/smoke-test.sh dist/GridForge-*-x86_64.AppImage
+
+      - name: .deb packages
+        run: tools/deb/make-deb.sh dist/deb
+
+      - name: ccx's source, for the release page
+        run: cp build-ccx/downloads/ccx_2.23.src.tar.bz2 build-ccx/downloads/spooles.2.2.tgz dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gridforge-packages
+          path: |
+            dist/*.AppImage
+            dist/*.tar.*
+            dist/*.tgz
+            dist/deb/
+            build-deb/lintian.log
+          if-no-files-found: error
