@@ -9,6 +9,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QTemporaryDir>
 
 #include <cstdio>
 #include <functional>
@@ -71,6 +72,22 @@ CASE(the_shipped_calculix_and_openfoam_manifests_are_read)
     CHECK(of && of->notices.size() == 2
           && of->notices[0].startsWith("This offering is not approved or endorsed by OpenCFD"));
     CHECK(of && of->stages.size() == 2);
+}
+
+CASE(the_shipped_toolkits_are_found_beside_the_program_first)
+{
+    // Installed (the AppImage): <bin>/../share/gridforge/toolkits, and only
+    // that: the source tree a build was made from is on the building machine
+    // alone, and a toolkit there would replace the installed one of its
+    // name (found running the AppImage, 2026-11-18). Else the source tree.
+    QTemporaryDir dir;
+    QDir(dir.path()).mkpath("usr/bin");
+    QDir(dir.path()).mkpath("usr/share/gridforge/toolkits");
+    QDir(dir.path()).mkpath("source/toolkits");
+    const QString bin = dir.filePath("usr/bin"), source = dir.filePath("source/toolkits");
+    CHECK((shippedToolkitFolders(bin, source) == QStringList{QDir::cleanPath(dir.filePath("usr/share/gridforge/toolkits"))}));
+    CHECK((shippedToolkitFolders(dir.filePath("elsewhere"), source) == QStringList{source}));
+    CHECK(shippedToolkitFolders(dir.filePath("elsewhere"), dir.filePath("gone")).isEmpty());
 }
 
 CASE(a_toolkit_is_offered_only_for_what_it_declares)

@@ -272,7 +272,7 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     // The solve toolkit, by its manifest; this program's own folder is
     // searched for its command first (the shipped adapters sit beside it).
     qputenv("PATH", (QCoreApplication::applicationDirPath() + ":" + qEnvironmentVariable("PATH")).toLocal8Bit());
-    const gf::core::ToolkitSet toolkits = gf::core::findToolkits({GF_SHIPPED_TOOLKITS});
+    const gf::core::ToolkitSet toolkits = gf::core::findToolkits(gf::core::shippedToolkitFolders(QCoreApplication::applicationDirPath(), GF_SHIPPED_TOOLKITS));
     QString why;
     const gf::core::Toolkit *toolkit = gf::core::readyToolkit(toolkits, "solve", "structural.static", &why);
     if (!toolkit) {

@@ -691,6 +691,14 @@ set_tests_properties(groups_the_freecad_macro_wrote_are_read PROPERTIES
 # 601). FreeCADCmd keeps neither prints nor exit codes, so the verdict is
 # a file the runner reads.
 
+# NEGATIVE CHECKS, 2026-11-18, the AppImage's layout: the shipped toolkits
+# found beside the program, red against a stub and red with both folders
+# (the source tree's calculix replaced the installed one: found running
+# the AppImage); the adapter finding ccx beside itself, red before.
+# tools/appimage/smoke-test.sh (not in ctest: it needs the AppImage built)
+# failed first on ccx's licence not carried, then on that toolkit; both
+# fixed, it solves the box with the ccx it carries.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

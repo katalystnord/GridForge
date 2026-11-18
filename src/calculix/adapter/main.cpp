@@ -11,7 +11,8 @@
 // mesh's sets) and results.json (who solved them, how far to trust them).
 // ccx's own files stay in work/ (tenet 10).
 //
-// ccx is the program GF_CCX names, else "ccx" on PATH. Exit codes: 0
+// ccx is the program GF_CCX names, else the ccx beside this adapter (the
+// AppImage ships them so), else "ccx" on PATH. Exit codes: 0
 // solved; 1 ccx failed; 2 the job could not be started; 3 cancelled.
 //
 // Cancelling (the application sends SIGTERM): ccx is stopped (SIGTERM,
@@ -109,10 +110,14 @@ int main(int argc, char *argv[])
     say({{"type", "file"}, {"path", "work/job.inp"}, {"role", "deck"}});
 
     // ccx.
+    // Where GF_CCX names it; else the ccx beside this adapter, as the
+    // AppImage ships them (David, 2026-11-18: ccx bundled); else on PATH.
+    const QString beside = QDir(QCoreApplication::applicationDirPath()).filePath("ccx");
     const QString named = qEnvironmentVariable("GF_CCX", "ccx");
-    const QString ccx = QFileInfo(named).isAbsolute() || named.contains('/')
+    const QString ccx = qEnvironmentVariableIsSet("GF_CCX") && (QFileInfo(named).isAbsolute() || named.contains('/'))
                             ? (QFileInfo(named).isExecutable() ? QFileInfo(named).absoluteFilePath() : QString())
-                            : QStandardPaths::findExecutable(named);
+                        : !qEnvironmentVariableIsSet("GF_CCX") && QFileInfo(beside).isExecutable() ? beside
+                                                                                                  : QStandardPaths::findExecutable(named);
     if (ccx.isEmpty())
         return refuse("ccx not found: " + named, 2);
     for (const char *old : {"job.sta", "job.cvg", "job.frd", "job.dat"})

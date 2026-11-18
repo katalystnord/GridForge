@@ -242,4 +242,15 @@ QStringList commandFor(const Toolkit &t, const QString &jobFolder)
     return argv;
 }
 
+QStringList shippedToolkitFolders(const QString &programDir, const QString &compiled)
+{
+    QStringList out;
+    const QString installed = QDir::cleanPath(programDir + "/../share/gridforge/toolkits");
+    if (QFileInfo(installed).isDir())
+        out << installed;
+    else if (QFileInfo(compiled).isDir())
+        out << compiled;
+    return out;
+}
+
 } // namespace gf::core

@@ -41,7 +41,11 @@ LGPL-2.1-or-later. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 CalculiX, Gmsh and OpenFOAM are separate programs under their own
 licences (GPL); GridForge runs them and reads and writes their files,
-and does not include their code.
+and does not include their code. The AppImage carries a ccx (CalculiX
+2.23, GPL-2.0-only) as a separate program beside the CalculiX toolkit, so
+it solves out of the box; its source is offered on each release page
+beside the AppImage. NOTICE lists it, and the libraries it brings
+(SPOOLES, ARPACK, LAPACK, BLAS and the GCC runtime).
 
 ---
 

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GridForge
+Comment=Open simulation set-up between FreeCAD and ParaView
+Exec=GridForge %f
+Icon=gridforge
+Terminal=false
+Categories=Science;Engineering;

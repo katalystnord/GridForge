@@ -994,7 +994,7 @@ void MainWindow::run()
     const QString here = QCoreApplication::applicationDirPath();
     if (!qEnvironmentVariable("PATH").startsWith(here + ":"))
         qputenv("PATH", (here + ":" + qEnvironmentVariable("PATH")).toLocal8Bit());
-    const core::ToolkitSet toolkits = core::findToolkits({GF_SHIPPED_TOOLKITS});
+    const core::ToolkitSet toolkits = core::findToolkits(core::shippedToolkitFolders(QCoreApplication::applicationDirPath(), GF_SHIPPED_TOOLKITS));
     QString why;
     const core::Toolkit *toolkit = core::readyToolkit(toolkits, "solve", step.parameters["kind"].toString("structural.static"), &why);
     if (!toolkit) {
@@ -1759,7 +1759,7 @@ bool MainWindow::showResults(const QString &resultsFile)
         const std::vector<const core::StudyStep *> solves = m_study.stepsOf("solve");
         if (!solves.empty()) {
             m_solveStep = solves.front()->id;
-            const core::ToolkitSet toolkits = core::findToolkits({GF_SHIPPED_TOOLKITS});
+            const core::ToolkitSet toolkits = core::findToolkits(core::shippedToolkitFolders(QCoreApplication::applicationDirPath(), GF_SHIPPED_TOOLKITS));
             const core::Toolkit *t = toolkits.find(solves.front()->by);
             m_toolkitName = t ? t->name : solves.front()->by;
             setJobState(tr("solved (run %1)").arg(run));

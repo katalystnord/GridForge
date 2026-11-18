@@ -122,3 +122,6 @@ target_link_libraries(gf-study PRIVATE gf_core gf_calculix gf_gmsh gf_mesh)
 # install layout; their adapters (gf-calculix) sit beside gf-study.
 target_compile_definitions(gf-study PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_DIR}/toolkits")
 add_dependencies(gf-study gf-calculix)
+
+install(TARGETS GridForge gf-study RUNTIME DESTINATION bin)
+install(TARGETS gf-calculix RUNTIME DESTINATION share/gridforge/toolkits/calculix)

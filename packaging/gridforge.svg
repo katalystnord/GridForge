@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- GridForge's mark (a placeholder until David chooses one): a
+       tetrahedral mesh in ember (226, 92, 29) on the view's graphite. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#666a6e"/>
+      <stop offset="1" stop-color="#2e3033"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="40" fill="url(#g)"/>
+  <g fill="none" stroke="#e25c1d" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M128 40 L216 196 L40 196 Z"/>
+    <path d="M128 40 L128 150 M40 196 L128 150 L216 196"/>
+    <path d="M84 118 L172 118 M84 118 L128 150 L172 118" stroke-width="6" opacity="0.7"/>
+  </g>
+</svg>

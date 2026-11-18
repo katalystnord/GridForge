@@ -21,6 +21,26 @@ exception. https://dev.opencascade.org/
 
 yaml-cpp, Jesse Beder and contributors, MIT. https://github.com/jbeder/yaml-cpp
 
+Shipped in the AppImage, beside the CalculiX toolkit's adapter, and run as
+a separate program (never linked into GridForge):
+
+CalculiX CrunchiX (ccx) 2.23, Guido Dhondt, GPL-2.0-only. Its licence
+text ships with it (share/doc/ccx/gpl-2.0.txt); its source,
+ccx_2.23.src.tar.bz2 from http://www.dhondt.de/, is offered on each
+release page beside the AppImage (tools/appimage/README.md).
+http://www.calculix.de/
+
+Built into that ccx or carried with it:
+SPOOLES 2.2, Cleve Ashcraft, Roger Grimes, Jim Pierce and others, public
+domain. https://www.netlib.org/linalg/spooles/
+ARPACK (arpack-ng), BSD-3-Clause. https://github.com/opencollab/arpack-ng
+LAPACK and the reference BLAS, BSD-3-Clause. https://www.netlib.org/lapack/
+OpenBLAS, BSD-3-Clause. https://www.openblas.net/
+libgfortran and libgomp, the Free Software Foundation, GPL-3.0 with the
+GCC Runtime Library Exception. https://gcc.gnu.org/
+oneTBB (used by Open CASCADE Technology), Intel, Apache-2.0.
+https://github.com/uxlfoundation/oneTBB
+
 Icons from ParaView (https://gitlab.kitware.com/paraview/paraview,
 Qt/Components/Resources/Icons and Qt/Widgets/Resources/Icons, commit
 134c57f96c8bc6da32becbbb217001e3df7e8c61), in resources/icons/paraview:

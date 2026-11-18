@@ -65,6 +65,26 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GF_NETGEN_STAMP
 # YAML. What a card means is read by GridForge (core/MaterialCard).
 find_package(yaml-cpp REQUIRED)
 
+# Installed as the AppImage lays it out (tools/appimage): the programs in
+# bin, each shipped toolkit in share/gridforge/toolkits/<id> with its
+# adapter (found there first: core::shippedToolkitFolders), and ccx beside
+# the CalculiX adapter when GF_BUNDLE_CCX names the folder tools/build-ccx.sh
+# installed it into (David, 2026-11-18: the AppImage bundles ccx).
+set(GF_BUNDLE_CCX "" CACHE PATH "A ccx to ship with the CalculiX toolkit (tools/build-ccx.sh's build-ccx/install)")
+install(FILES LICENSE NOTICE README.md DESTINATION share/doc/gridforge)
+install(FILES packaging/gridforge.desktop DESTINATION share/applications)
+install(FILES packaging/gridforge.svg DESTINATION share/icons/hicolor/scalable/apps)
+install(FILES toolkits/calculix/toolkit.json DESTINATION share/gridforge/toolkits/calculix)
+if(GF_BUNDLE_CCX)
+    install(PROGRAMS ${GF_BUNDLE_CCX}/bin/ccx DESTINATION share/gridforge/toolkits/calculix)
+    install(DIRECTORY ${GF_BUNDLE_CCX}/share/doc/ccx DESTINATION share/doc)
+endif()
+
+# Installed programs keep the paths they were linked with (Netgen's
+# build-netgen/install/lib among them), so they run where installed and the
+# AppImage's packager finds every library; it rewrites them for the AppImage.
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 enable_testing()
 
 add_subdirectory(src)

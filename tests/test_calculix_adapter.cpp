@@ -339,6 +339,28 @@ CASE(no_ccx_is_said_before_anything_runs)
     CHECK(error && (*error)["text"].toString() == "ccx not found: /no/such/ccx");
 }
 
+CASE(the_ccx_beside_the_adapter_is_found_without_being_named)
+{
+    // The AppImage's toolkit folder: the adapter and ccx side by side, no
+    // GF_CCX, no ccx on PATH (David, 2026-11-18: ccx is bundled).
+    QTemporaryDir dir, kit;
+    makeJob(dir.path());
+    CHECK(QFile::copy(GF_ADAPTER, kit.filePath("gf-calculix")) && QFile::copy(fake, kit.filePath("ccx")));
+    for (const char *f : {"gf-calculix", "ccx"})
+        QFile(kit.filePath(f)).setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    QProcess p;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.remove("GF_CCX");
+    env.insert("PATH", "/usr/bin:/bin");
+    env.insert("FAKE_CCX_FROM", fixtures + "/calculix/box-setup");
+    p.setProcessEnvironment(env);
+    p.start(kit.filePath("gf-calculix"), {dir.path()});
+    p.waitForFinished(60000);
+    CHECK(p.exitStatus() == QProcess::NormalExit && p.exitCode() == 0);
+    CHECK(QFile::exists(dir.filePath("results/results.vtkhdf")));
+    CHECK(QString(p.readAllStandardOutput()).contains(kit.filePath("ccx")));  // said which ran
+}
+
 CASE(a_folder_that_is_not_a_job_is_refused)
 {
     QTemporaryDir dir;
