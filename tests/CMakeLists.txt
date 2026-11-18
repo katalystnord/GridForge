@@ -437,6 +437,15 @@ add_test(NAME the_mesher_holds_the_benchmark COMMAND test_mesher_benchmark)
 # Netgen 6.2.2608 numbers: the same cells for the four single solids
 # (6292, 13304, 55862, 29140) and the same curved volume errors; the two
 # parts, now joined, 7877 cells and outside -0.05 % (straight facets).
+# NEGATIVE CHECKS, 2026-11-18, thin walls: before measureWalls, the plate
+# case red (no "face thickness"); with face sizes alone, red at 2514 of
+# 2568 tetrahedra spanning the plate; with points at half the thickness,
+# red at 2653 of 2689 (Netgen spans 2h); at a third, 420 of 12003. Without
+# the width rule, the 10 mm box at 5 was made finer: red. recipeFrom, the
+# field and its check, and --through-wall each red before their code.
+# The benchmark baseline written again for it: thinwall 55862 to 665268
+# cells (worst mean ratio 0.276 to 0.404), dogbone 6292 to 24184, bracket
+# 13304 to 33283, duct 29140 to 34839; twoparts the same.
 # NEGATIVE CHECK, 2026-11-18, the mesh hash: one character of the
 # dogbone's committed hash changed, red ("the mesh is not the committed
 # one"); two runs here gave the same five hashes.
@@ -451,6 +460,24 @@ set_tests_properties(cli_meshes_a_step_with_its_solids_and_faces_as_sets PROPERT
 add_test(NAME cli_mesh_without_a_size_is_refused
     COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step)
 set_tests_properties(cli_mesh_without_a_size_is_refused PROPERTIES WILL_FAIL TRUE)
+
+# gf-study mesh --through-wall: the thin wall's faces made finer by
+# default, said; 0 leaves them to Netgen alone; a number it cannot be,
+# refused.
+add_test(NAME cli_makes_a_thin_wall_finer_and_says_so
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/plate.step --size 5
+            -o ${CMAKE_CURRENT_BINARY_DIR}/thin-out)
+set_tests_properties(cli_makes_a_thin_wall_finer_and_says_so PROPERTIES
+    PASS_REGULAR_EXPRESSION "recipe: largest element 5, order 1, 2 elements through a wall\n[^\n]*\n[^\n]*\n  thin walls: 2 faces 1\.5 thick, sized 0\.5 for 2 elements through")
+add_test(NAME cli_through_wall_0_leaves_a_thin_wall_alone
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/plate.step --size 5 --through-wall 0
+            -o ${CMAKE_CURRENT_BINARY_DIR}/thin-off)
+set_tests_properties(cli_through_wall_0_leaves_a_thin_wall_alone PROPERTIES
+    PASS_REGULAR_EXPRESSION "recipe: largest element 5, order 1, no elements added through thin walls"
+    FAIL_REGULAR_EXPRESSION "thin walls:")
+add_test(NAME cli_through_wall_not_a_whole_number_is_refused
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --through-wall 1.5)
+set_tests_properties(cli_through_wall_not_a_whole_number_is_refused PROPERTIES WILL_FAIL TRUE)
 
 # gf-study solve: the job written, the CalculiX toolkit found by its
 # manifest and run (with the stand-in ccx), its progress shown.

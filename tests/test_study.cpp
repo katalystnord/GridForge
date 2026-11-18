@@ -315,9 +315,12 @@ CASE(what_can_be_edited_is_offered_with_its_value_and_unit)
     QString error;
     const Study s = readStudy(dogbone, &error);
     auto fields = editableFields(s, "mesh:mesh");
-    CHECK(fields.size() == 2 && fields[0].name == "maxSize" && fields[0].label == "Largest element"
+    CHECK(fields.size() == 3 && fields[0].name == "maxSize" && fields[0].label == "Largest element"
           && fields[0].unit == "mm" && fields[0].value == 3.0);
-    CHECK(fields.size() == 2 && fields[1].name == "order" && fields[1].value == 2.0);
+    CHECK(fields.size() == 3 && fields[1].name == "order" && fields[1].value == 2.0);
+    // Not given in the study: blank, saying the default.
+    CHECK(fields.size() == 3 && fields[2].name == "throughWall" && fields[2].label == "Elements through a wall"
+          && !fields[2].value && fields[2].hint == "2");
     fields = editableFields(s, "load:0:0");  // Displacement: Pulled grip, x 1.5, y 0, z 0
     CHECK(fields.size() == 3 && fields[0].name == "x" && fields[0].value == 1.5 && fields[0].unit == "mm");
     CHECK(fields.size() == 3 && fields[2].name == "z" && fields[2].value == 0.0);
@@ -340,6 +343,8 @@ CASE(an_edit_is_written_to_the_study_and_read_back)
     CHECK(s.setup.steps[0].loads[0].displacement.z == 0.0);
     CHECK(editStudy(folder, "mesh:mesh", {{"maxSize", 2.5}}, &error));
     CHECK(readStudy(folder, &error).step("mesh")->parameters["maxSize"].toDouble() == 2.5);
+    CHECK(editStudy(folder, "mesh:mesh", {{"throughWall", 3.0}}, &error));
+    CHECK(readStudy(folder, &error).step("mesh")->parameters["throughWall"].toInt() == 3);
     CHECK(editStudy(folder, "material:Measured steel", {{"YoungsModulus", 205000.0}}, &error));
     s = readStudy(folder, &error);
     CHECK(s.setup.material("Measured steel")->values.at("YoungsModulus") == 205000);
@@ -358,6 +363,10 @@ CASE(an_edit_the_study_cannot_take_is_refused_and_the_file_kept)
     CHECK(error == "the largest element must be above 0");
     CHECK(!editStudy(folder, "mesh:mesh", {{"order", 3.0}}, &error));
     CHECK(error == "the order is 1 or 2");
+    CHECK(!editStudy(folder, "mesh:mesh", {{"throughWall", -1.0}}, &error));
+    CHECK(error == "the elements through a wall are a whole number, 0 or more (0: none added)");
+    CHECK(!editStudy(folder, "mesh:mesh", {{"throughWall", 1.5}}, &error));
+    CHECK(error == "the elements through a wall are a whole number, 0 or more (0: none added)");
     CHECK(!editStudy(folder, "load:0:9", {{"x", 1.0}}, &error));
     CHECK(error == "nothing to edit at load:0:9");
     CHECK(!editStudy(folder, "load:0:0", {{"w", 1.0}}, &error));

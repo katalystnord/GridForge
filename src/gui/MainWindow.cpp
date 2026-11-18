@@ -749,7 +749,7 @@ void MainWindow::startMeshing()
         return;
     }
     const QString file = QDir(m_study.folder).filePath(input->file);
-    const mesh::Recipe recipe{step.parameters["maxSize"].toDouble(), step.parameters["order"].toInt(1)};
+    const mesh::Recipe recipe = mesh::recipeFrom(step.parameters);
     const core::Setup setup = m_study.setup;
     const int opening = m_opening;
     say(tr("Meshing %1...").arg(input->file));

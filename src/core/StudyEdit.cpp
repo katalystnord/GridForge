@@ -86,6 +86,7 @@ std::vector<EditableField> editableFields(const Study &study, const QString &key
         if (s && s->kind == "mesh" && s->by == "gridforge") {
             out.push_back({"maxSize", "Largest element", u.length, number(s->parameters["maxSize"]), {}});
             out.push_back({"order", "Order (1 or 2)", {}, number(s->parameters["order"]), "1"});
+            out.push_back({"throughWall", "Elements through a wall", {}, number(s->parameters["throughWall"]), "2"});
         }
     } else if (p.value(0) == "load" && p.size() == 3) {
         const int i = p[1].toInt(), k = p[2].toInt();
@@ -158,7 +159,7 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
             QJsonObject s = steps[i].toObject();
             if (s["id"].toString() != p.value(1) || s["kind"].toString() != "mesh")
                 continue;
-            const auto params = apply(s["parameters"].toObject(), {"maxSize", "order"});
+            const auto params = apply(s["parameters"].toObject(), {"maxSize", "order", "throughWall"});
             if (!params)
                 return {};
             if (!((*params)["maxSize"].toDouble() > 0))
@@ -166,6 +167,11 @@ QJsonObject withEdit(const QJsonObject &study, const QString &key, const Edit &e
             const int order = (*params)["order"].toInt(1);
             if (order != 1 && order != 2)
                 return fail("the order is 1 or 2");
+            if (params->contains("throughWall")) {
+                const double n = (*params)["throughWall"].toDouble(-1);
+                if (n < 0 || n != std::floor(n))
+                    return fail("the elements through a wall are a whole number, 0 or more (0: none added)");
+            }
             s["parameters"] = *params;
             steps[i] = s;
             root["steps"] = steps;

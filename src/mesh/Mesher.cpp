@@ -19,7 +19,16 @@
 #include <BOPAlgo_Builder.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <BRep_Tool.hxx>
+#include <Bnd_Box.hxx>
+#include <Poly_Triangulation.hxx>
 #include <BRepGProp.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRepTools.hxx>
+#include <IntCurvesFace_ShapeIntersector.hxx>
+#include <gp_Lin.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <STEPControl_Reader.hxx>
 #include <Standard_Version.hxx>
@@ -147,6 +156,116 @@ static const char *surfaceKind(GeomAbs_SurfaceType t)
     }
 }
 
+// The walls of a shape: how thick the wall behind each face is, and, for
+// the thin ones, points across the face where the mesh is to be finer.
+struct Walls {
+    std::vector<double> thickness;  // per face of the map, 0 where no line met another face
+    std::vector<std::pair<gp_Pnt, double>> finer;  // a point and its largest element
+    std::vector<double> thin;  // the thin faces' thicknesses, for the provenance
+    std::vector<int> thinFaces;  // and their numbers in the map
+};
+
+// How thick the wall behind each face is: from points across the face, a
+// line into the solid along the face's inward normal, to the first other
+// face it meets; the shortest such. For a thin wall, the distance to the
+// face opposite; for the rim of a wall, its height. The points are the
+// centres of a coarse triangulation of the face, so a narrow face (a rim
+// around a hole) is sampled as well as a wide one; the triangulation is
+// taken off again after, so Netgen's own sizing of curved faces starts
+// from the shape as it was.
+//
+// A face whose wall is thinner than throughWall + 1 largest elements gets
+// points across it, no further apart than its thickness over throughWall
+// + 1, each asking for that size there. Not over throughWall: a
+// tetrahedron of edge t / 2 still spans a wall t thick, and Netgen makes
+// it (a plate 1.5 mm thick meshed at 0.75 throughout: 5 interior nodes; at
+// 0.5, 1028; measured 2026-11-18). Netgen takes a face's own size only
+// along its edges (occgenmesh.cpp, "elements per edge"): in the middle of
+// a plate 1.5 mm thick, 5 mm from an edge, the size grew back past the
+// thickness, and one tetrahedron spanned it (seen 2026-11-18).
+static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOfShape &faces, double maxSize,
+                          int throughWall)
+{
+    Walls out;
+    out.thickness.assign(faces.Extent(), 0);
+    Bnd_Box box;
+    BRepBndLib::Add(shape, box);
+    const double size = std::sqrt(box.SquareExtent());
+    BRepMesh_IncrementalMesh coarse(shape, 0.01 * size, false, 0.5, false);
+    IntCurvesFace_ShapeIntersector cast;
+    cast.Load(shape, 1e-7);
+    for (int f = 1; f <= faces.Extent(); ++f) {
+        const TopoDS_Face face = TopoDS::Face(faces(f));
+        TopLoc_Location where;
+        const Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, where);
+        if (tri.IsNull() || !tri->HasUVNodes())
+            continue;
+        BRepAdaptor_Surface surface(face);
+        double nearest = 0;
+        for (int t = 1; t <= tri->NbTriangles(); ++t) {
+            int a, b, c;
+            tri->Triangle(t).Get(a, b, c);
+            const gp_XY uv = (tri->UVNode(a).XY() + tri->UVNode(b).XY() + tri->UVNode(c).XY()) / 3;
+            BRepLProp_SLProps props(surface, uv.X(), uv.Y(), 1, 1e-9);
+            if (!props.IsNormalDefined())
+                continue;
+            gp_Dir inward = props.Normal();
+            if (face.Orientation() != TopAbs_REVERSED)
+                inward.Reverse();
+            // From a hair inside the face, so the face itself is not met.
+            const gp_Pnt at = props.Value().Translated(gp_Vec(inward) * 1e-6);
+            cast.Perform(gp_Lin(at, inward), 0, 1e30);
+            if (!cast.IsDone())
+                continue;
+            for (int k = 1; k <= cast.NbPnt(); ++k) {
+                const double d = cast.WParameter(k) + 1e-6;
+                if (cast.WParameter(k) > 1e-9 && (nearest == 0 || d < nearest))
+                    nearest = d;
+            }
+        }
+        out.thickness[f - 1] = nearest;
+        const double h = nearest / (throughWall + 1);
+        // A wall: at least four times as wide (the root of the face's
+        // area) as it is thick. Not a part merely small for the element
+        // size (a 10 mm box at 5: its sides are 24 mm wide), nor the
+        // narrow side of a plate (20 x 1.5 mm, 10 from the side opposite).
+        // Four is a judgement, not a measurement: where plate theory
+        // starts to hold, a span of a few thicknesses.
+        GProp_GProps area;
+        BRepGProp::SurfaceProperties(face, area);
+        if (throughWall <= 0 || nearest <= 0 || h >= maxSize || 4 * nearest > std::sqrt(area.Mass()))
+            continue;
+        out.thin.push_back(nearest);
+        out.thinFaces.push_back(f);
+        // Each triangle cut into k x k, k from its longest side, the
+        // points put on the face's own surface through their parameters.
+        for (int t = 1; t <= tri->NbTriangles(); ++t) {
+            int a, b, c;
+            tri->Triangle(t).Get(a, b, c);
+            const gp_Pnt pa = tri->Node(a), pb = tri->Node(b), pc = tri->Node(c);
+            const double longest = std::max({pa.Distance(pb), pb.Distance(pc), pc.Distance(pa)});
+            const int k = std::max(1, static_cast<int>(std::ceil(longest / h)));
+            const gp_XY ua = tri->UVNode(a).XY(), ub = tri->UVNode(b).XY(), uc = tri->UVNode(c).XY();
+            for (int i = 0; i <= k; ++i)
+                for (int j = 0; i + j <= k; ++j) {
+                    const gp_XY uv = ua + (ub - ua) * (double(i) / k) + (uc - ua) * (double(j) / k);
+                    out.finer.push_back({surface.Value(uv.X(), uv.Y()), h});
+                }
+        }
+    }
+    BRepTools::Clean(shape);
+    return out;
+}
+
+Recipe recipeFrom(const QJsonObject &parameters)
+{
+    Recipe r;
+    r.maxSize = parameters["maxSize"].toDouble();
+    r.order = parameters["order"].toInt(r.order);
+    r.throughWall = parameters["throughWall"].toInt(r.throughWall);
+    return r;
+}
+
 gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, QString *error)
 {
     auto fail = [&](const QString &why) {
@@ -175,6 +294,9 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
     int fileSolids = 0;
     Joined joined;
     QString settings;
+    TopTools_IndexedMapOfShape joinedFaces;
+    std::vector<double> thickness, thinFaces;
+    Walls walls;
     try {
         // Read with OpenCASCADE's own STEP reader, every root of the file
         // as one shape. Netgen's LoadOCC_STEP keeps only the first root,
@@ -197,6 +319,17 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         joined = join(shape, file);
         if (!joined.error.isEmpty())
             return fail(joined.error);
+        // Thin walls: a face whose wall is thinner than throughWall
+        // largest elements is given its thickness over throughWall as its
+        // largest element, through Netgen's own shape properties (as its
+        // Python face.maxh), read when the geometry is built and passed on
+        // to the face's edges. Under the mutex: the properties are global.
+        TopExp::MapShapes(joined.shape, TopAbs_FACE, joinedFaces);
+        walls = measureWalls(joined.shape, joinedFaces, recipe.maxSize, recipe.throughWall);
+        thickness = walls.thickness;
+        thinFaces = walls.thin;
+        for (int f : walls.thinFaces)
+            netgen::OCCGeometry::GetProperties(joinedFaces(f)).maxh = thickness[f - 1] / (recipe.throughWall + 1);
         geometry = std::make_shared<netgen::OCCGeometry>(joined.shape);
         netgen::MeshingParameters parameters;
         parameters.maxh = recipe.maxSize;
@@ -214,6 +347,9 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         parameters.optsteps3d = 3;
         parameters.parallel_meshing = true;
         parameters.nthreads = 4;
+        for (const auto &[p, h] : walls.finer)
+            parameters.meshsize_points.Append(netgen::MeshingParameters::MeshSizePoint(
+                netgen::Point<3>(p.X(), p.Y(), p.Z()), h));
         // Said as used, for the provenance.
         settings = QString("settings: grading %1, curvature safety %2, segments per edge %3, smallest element %4, "
                            "close edges %5, surface optimisation %6 x%7, volume optimisation %8 x%9, %10 threads")
@@ -379,6 +515,14 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
         const double centre[3] = {c.X(), c.Y(), c.Z()};
         faceCentre->InsertNextTypedTuple(centre);
     }
+    // Each face's wall thickness, as measured for the thin walls.
+    vtkNew<vtkDoubleArray> faceThickness;
+    faceThickness->SetName("face thickness");
+    for (int f = 1; f <= faces; ++f) {
+        const int at = joinedFaces.FindIndex(geometry->fmap(f));
+        faceThickness->InsertNextValue(at >= 1 ? thickness[at - 1] : 0);
+    }
+    grid->GetFieldData()->AddArray(faceThickness);
     grid->GetFieldData()->AddArray(faceKind);
     grid->GetFieldData()->AddArray(faceArea);
     grid->GetFieldData()->AddArray(faceCentre);
@@ -406,9 +550,25 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
 
     series.provenance << "mesher: " + engine()
                       << "source: " + file
-                      << QString("recipe: largest element %1, order %2").arg(recipe.maxSize).arg(recipe.order)
+                      << QString("recipe: largest element %1, order %2, %3")
+                             .arg(recipe.maxSize)
+                             .arg(recipe.order)
+                             .arg(recipe.throughWall > 0 ? QString("%1 elements through a wall").arg(recipe.throughWall)
+                                                         : QString("no elements added through thin walls"))
                       << settings
                       << QString("geometry kernel: OpenCASCADE %1").arg(OCC_VERSION_COMPLETE);
+    if (!thinFaces.empty()) {
+        const auto [thinnest, thickest] = std::minmax_element(thinFaces.begin(), thinFaces.end());
+        auto n = [](double x) { return QString::number(x, 'g', 6); };
+        // A range as written: equal to six figures, one number.
+        auto range = [&](double a, double b) { return n(a) == n(b) ? n(a) : n(a) + " to " + n(b); };
+        series.provenance << QString("thin walls: %1 %2 thick, sized %3 for %4 elements through")
+                                 .arg(plural(static_cast<int>(thinFaces.size()), "face", "faces"),
+                                      range(*thinnest, *thickest),
+                                      range(*thinnest / (recipe.throughWall + 1),
+                                            *thickest / (recipe.throughWall + 1)))
+                                 .arg(recipe.throughWall);
+    }
     if (fileSolids > 1)
         series.provenance << QString("joined: %1, sharing %2")
                                  .arg(plural(fileSolids, "solid", "solids"),

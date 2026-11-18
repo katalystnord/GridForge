@@ -135,11 +135,30 @@ int convertMesh(const QString &input, const QString &outDir, bool pvd)
     return reportQuality(quality, series.points.front().grid, written) ? 0 : 1;
 }
 
-int mesh(const QString &input, const QString &size, const QString &order, const QString &outDir,
-         bool pvd, bool inp)
+// --through-wall onto a recipe: elements through a thin wall, a whole
+// number, 0 or more; the recipe's default when not given.
+bool throughWallOnto(gf::mesh::Recipe &recipe, const QString &throughWall)
+{
+    if (throughWall.isEmpty())
+        return true;
+    bool ok = false;
+    const int n = throughWall.toInt(&ok);
+    if (!ok || n < 0) {
+        std::fprintf(stderr, "gf-study: --through-wall is a whole number, 0 or more (0: none added), not %s\n",
+                     qPrintable(throughWall));
+        return false;
+    }
+    recipe.throughWall = n;
+    return true;
+}
+
+int mesh(const QString &input, const QString &size, const QString &order, const QString &throughWall,
+         const QString &outDir, bool pvd, bool inp)
 {
     bool sizeOk = false, orderOk = false;
-    const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    if (!throughWallOnto(recipe, throughWall))
+        return 1;
     if (!sizeOk) {
         std::fprintf(stderr, "gf-study: mesh needs --size, the largest element edge\n");
         return 1;
@@ -183,6 +202,7 @@ int mesh(const QString &input, const QString &size, const QString &order, const 
 // The set-up read and filled from its cards, and the part meshed with its
 // groups as sets: what both deck and solve start from.
 bool prepare(const QString &setupFile, const QString &part, const QString &size, const QString &order,
+             const QString &throughWall,
              gf::core::Setup *setup, QJsonObject *setupJson, gf::core::ResultsSeries *mesh)
 {
     QFile f(setupFile);
@@ -207,7 +227,9 @@ bool prepare(const QString &setupFile, const QString &part, const QString &size,
         return false;
     }
     bool sizeOk = false, orderOk = false;
-    const gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    gf::mesh::Recipe recipe{size.toDouble(&sizeOk), order.isEmpty() ? 1 : order.toInt(&orderOk)};
+    if (!throughWallOnto(recipe, throughWall))
+        return false;
     if (!sizeOk || (!order.isEmpty() && !orderOk)) {
         std::fprintf(stderr, "gf-study: --size is needed, and --order is 1 or 2\n");
         return false;
@@ -226,7 +248,7 @@ volatile std::sig_atomic_t interrupted = 0;
 extern "C" void onInterrupt(int) { interrupted = 1; }
 
 int solve(const QString &setupFile, const QString &part, const QString &size, const QString &order,
-          const QString &jobDir)
+          const QString &throughWall, const QString &jobDir)
 {
     if (jobDir.isEmpty()) {
         std::fprintf(stderr, "gf-study: solve needs -o JOB, the job folder to write\n");
@@ -235,7 +257,7 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
     gf::core::Setup setup;
     QJsonObject setupJson;
     gf::core::ResultsSeries mesh;
-    if (!prepare(setupFile, part, size, order, &setup, &setupJson, &mesh))
+    if (!prepare(setupFile, part, size, order, throughWall, &setup, &setupJson, &mesh))
         return 1;
     QString error;
     if (!gf::core::writeSolveJob(jobDir, "structural.static", setup, setupJson,
@@ -319,12 +341,12 @@ int solve(const QString &setupFile, const QString &part, const QString &size, co
 }
 
 int deck(const QString &setupFile, const QString &part, const QString &size, const QString &order,
-         const QString &outDir)
+         const QString &throughWall, const QString &outDir)
 {
     gf::core::Setup setup;
     QJsonObject setupJson;
     gf::core::ResultsSeries mesh;
-    if (!prepare(setupFile, part, size, order, &setup, &setupJson, &mesh))
+    if (!prepare(setupFile, part, size, order, throughWall, &setup, &setupJson, &mesh))
         return 1;
     QString error;
     const QString text = error.isEmpty() ? gf::calculix::analysisInp(setup, mesh, "mesh.inp", &error) : QString();
@@ -446,6 +468,11 @@ int main(int argc, char *argv[])
     parser.addOption(inpOpt);
     parser.addOption(sizeOpt);
     parser.addOption(orderOpt);
+    const QCommandLineOption wallOpt("through-wall", "mesh: elements through a thin wall (default 2; 0: none "
+                                                     "added). A face whose wall is thinner than this many "
+                                                     "largest elements is made finer.",
+                                     "N");
+    parser.addOption(wallOpt);
     parser.addPositionalArgument("command", "convert or mesh");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
@@ -466,11 +493,13 @@ int main(int argc, char *argv[])
         return convertMesh(args[1], parser.value(outOpt), parser.isSet(pvdOpt));
     }
     if (args.size() == 3 && args[0] == "solve")
-        return solve(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt));
+        return solve(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
+                     parser.value(outOpt));
     if (args.size() == 3 && args[0] == "deck")
-        return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt));
+        return deck(args[1], args[2], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt),
+                    parser.value(outOpt));
     if (args.size() == 2 && args[0] == "mesh")
-        return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(outOpt),
+        return mesh(args[1], parser.value(sizeOpt), parser.value(orderOpt), parser.value(wallOpt), parser.value(outOpt),
                     parser.isSet(pvdOpt), parser.isSet(inpOpt));
     if (args.size() == 2 && args[0] == "convert")
         return convert(args[1], parser.value(outOpt), parser.value(deckOpt),

@@ -1,7 +1,7 @@
 ** written by GridForge 0.0.1 (build fd39ede2282a-dirty)
 ** mesher: Netgen 6.2.2608-104-g7420b2f9 (github.com/katalystnord/netgen at 7420b2f995f7b4a584c16022b576b9074b274b03)
 ** source: box.step
-** recipe: largest element 5, order 2
+** recipe: largest element 5, order 2, 2 elements through a wall
 ** settings: grading 0.3, curvature safety 2, segments per edge 1, smallest element 0, close edges off, surface optimisation smcmSmcmSmcm x3, volume optimisation cmdDmustm x3, 4 threads
 ** geometry kernel: OpenCASCADE 7.9.2
 ** model: 229 quadratic tetrahedra, 508 nodes

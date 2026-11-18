@@ -332,7 +332,9 @@ private slots:
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         QTreeWidgetItem *mesh = findItem(tree, "Mesh");
         QVERIFY(mesh);
-        QCOMPARE(mesh->text(1), QString("1624 tetrahedra, 3575 nodes; ready for a solver"));
+        // The dogbone at 3 mm, its 4 mm thickness given 2 elements through
+        // (sized 1.33): 24108, not 1624 (2026-11-18).
+        QCOMPARE(mesh->text(1), QString("24108 tetrahedra, 39186 nodes; ready for a solver"));
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
         vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
         // The mesh, its element edges over it, and the supports and loads.

@@ -26,7 +26,11 @@ with its source, not yet checked by us).
    reader, BOPAlgo (our join) or BRepMesh would end the window.
    **Reported**: follows from the types; no file that triggers it yet, so
    no failing test yet.
-3. **Thin walls get one element through the thickness.** Netgen's OCC
+3. **Thin walls get one element through the thickness.** Done
+   2026-11-18: `throughWall` in the mesh recipe (study spec 2.1), default
+   2. Learned on the way: Netgen takes a face's size along its edges only,
+   and at half a wall's thickness still spans it with one tetrahedron, so
+   points across the face ask for a third. The review's words: Netgen's OCC
    sizing has no face to face proximity; `closeedgefac` is off by
    default (`meshtype.hpp:1844`). Reported: on a 1.5 mm wall at maxh 5,
    4854 of 4862 tetrahedra have no interior node. For bending this is the

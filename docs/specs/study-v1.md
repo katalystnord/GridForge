@@ -65,6 +65,21 @@ read-mostly node view shows it.
 (The set-up the solve needs, its materials, steps, loads and supports by
 set name, is section 4; how it reaches the step is part of that.)
 
+A GridForge mesh step's parameters (added 2026-11-18):
+
+| parameter | meaning | default |
+|---|---|---|
+| `maxSize` | the largest element edge, in the geometry's lengths; above 0 | none: required |
+| `order` | 1, straight edges; 2, a middle node on every edge, on the geometry | 1 |
+| `throughWall` | elements through a thin wall, a whole number; 0 leaves walls to Netgen alone | 2 |
+
+A thin wall is a face at least four times as wide (the root of its area)
+as the wall behind it is thick, measured from the face along its inward
+normal to the face opposite. Such a face, and the solid behind it, is
+meshed at its thickness over `throughWall` + 1: at half the thickness, a
+tetrahedron still spans the wall (measured on a 1.5 mm plate). The mesh's
+provenance names every face made finer.
+
 ### 2.2 Out of date, and running again
 
 After a step runs, its **run record** (`steps/<id>/runs/<n>/run.json`) keeps a

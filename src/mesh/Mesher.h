@@ -21,6 +21,7 @@
 
 #include "core/ResultsSeries.h"
 
+#include <QJsonObject>
 #include <QString>
 
 namespace gf::mesh {
@@ -28,7 +29,16 @@ namespace gf::mesh {
 struct Recipe {
     double maxSize = 0;  // the largest element edge, in the geometry's units; must be > 0
     int order = 1;       // 1: straight edges; 2: a middle node on every edge, on the geometry
+    // Elements through a thin wall: a face whose wall, measured to the
+    // face opposite it, would get fewer is made finer, to its thickness
+    // over this + 1 (at t / 2 a tetrahedron still spans a wall t thick).
+    // 0: as Netgen alone.
+    int throughWall = 2;
 };
+
+// A mesh step's parameters as study.json keeps them ("maxSize", "order",
+// "throughWall"), what is not given left at its default.
+Recipe recipeFrom(const QJsonObject &parameters);
 
 // The engine as it will be named in the provenance: "Netgen v6.2.2608-...
 // (github.com/katalystnord/netgen at 7420b2f9...)".

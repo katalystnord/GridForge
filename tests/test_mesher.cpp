@@ -7,6 +7,7 @@
 #include "CellChecks.h"
 #include "mesh/Mesher.h"
 
+#include <QJsonObject>
 #include <QRegularExpression>
 
 #include <vtkFieldData.h>
@@ -266,6 +267,85 @@ CASE(every_root_of_a_step_file_is_meshed)
     CHECK(b[0] >= 20 - 1e-12);
 }
 
+// How many tetrahedra have every corner on the outer surface: in a thin
+// wall, those span the whole thickness alone.
+std::pair<vtkIdType, vtkIdType> allOnSurface(vtkUnstructuredGrid *g)
+{
+    std::map<std::array<vtkIdType, 3>, int> faces;
+    const int corner[4][3] = {{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
+    vtkNew<vtkIdList> ids;
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
+        g->GetCellPoints(c, ids);
+        for (const auto &f : corner) {
+            std::array<vtkIdType, 3> k{ids->GetId(f[0]), ids->GetId(f[1]), ids->GetId(f[2])};
+            std::sort(k.begin(), k.end());
+            ++faces[k];
+        }
+    }
+    std::set<vtkIdType> outer;
+    for (const auto &[k, n] : faces)
+        if (n == 1)
+            outer.insert(k.begin(), k.end());
+    vtkIdType all = 0;
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
+        g->GetCellPoints(c, ids);
+        all += outer.count(ids->GetId(0)) && outer.count(ids->GetId(1)) && outer.count(ids->GetId(2))
+               && outer.count(ids->GetId(3));
+    }
+    return {all, g->GetNumberOfCells()};
+}
+
+CASE(a_thin_wall_gets_elements_through_its_thickness)
+{
+    // A plate 1.5 mm thick (plate.step). At a largest element of 5 mm,
+    // Netgen alone puts one tetrahedron through the thickness almost
+    // everywhere (on the benchmark's open box, 4854 of 4862 with every
+    // corner on the surface, measured 2026-11-18): a wall that bends badly.
+    QString error;
+    const QString plate = QString(GF_FIXTURES) + "/step/plate.step";
+    const ResultsSeries alone = meshStep(plate, Recipe{5, 1, 0}, &error);
+    CHECK(error.isEmpty() && grid(alone));
+    if (!grid(alone))
+        return;
+    const auto [was, wasOf] = allOnSurface(grid(alone));
+    CHECK(was > 0.9 * wasOf);
+    CHECK(!alone.provenance.join('\n').contains("thin walls:"));
+    // With two elements through a wall (the recipe's default): the top and
+    // bottom measured 1.5 mm apart, the sides 20 and 10 (along x, along
+    // y), and the top and bottom made finer.
+    const ResultsSeries s = meshStep(plate, Recipe{5, 1}, &error);
+    CHECK(error.isEmpty() && grid(s));
+    if (!grid(s))
+        return;
+    vtkDataArray *t = grid(s)->GetFieldData()->GetArray("face thickness");
+    CHECK(t && t->GetNumberOfTuples() == 6);
+    std::multiset<long> measured;
+    for (vtkIdType f = 0; t && f < t->GetNumberOfTuples(); ++f) {
+        const double d = t->GetComponent(f, 0);
+        measured.insert(std::lround(d * 10));
+        CHECK(std::abs(d * 10 - std::lround(d * 10)) < 1e-5);
+    }
+    CHECK((measured == std::multiset<long>{15, 15, 100, 100, 200, 200}));
+    CHECK(s.provenance.contains("thin walls: 2 faces 1.5 thick, sized 0.5 for 2 elements through"));
+    const auto [now, nowOf] = allOnSurface(grid(s));
+    std::printf("  (plate: %lld of %lld through alone, %lld of %lld now)\n", static_cast<long long>(was),
+                static_cast<long long>(wasOf), static_cast<long long>(now), static_cast<long long>(nowOf));
+    CHECK(now < 0.25 * nowOf);
+    // A box thick for its size (10 mm at 5): nothing made finer.
+    const ResultsSeries box = mesh("box.step", 5, 2);
+    CHECK(!box.provenance.join('\n').contains("thin walls:"));
+}
+
+CASE(a_mesh_steps_parameters_are_its_recipe)
+{
+    // As study.json keeps them (study spec 2.1): what is not given, the
+    // default.
+    Recipe r = recipeFrom(QJsonObject{{"maxSize", 3}, {"order", 2}});
+    CHECK(r.maxSize == 3 && r.order == 2 && r.throughWall == 2);
+    r = recipeFrom(QJsonObject{{"maxSize", 3}, {"throughWall", 0}});
+    CHECK(r.maxSize == 3 && r.order == 1 && r.throughWall == 0);
+}
+
 CASE(touching_solids_share_their_nodes_where_they_touch)
 {
     // The two boxes touch at x = 10: one face, meshed once, its nodes
@@ -410,7 +490,7 @@ CASE(the_provenance_names_the_engine_the_recipe_and_the_source)
     CHECK(engine().contains("github.com/katalystnord/netgen at "));
     CHECK(s.provenance.contains("mesher: " + engine()));
     CHECK(s.provenance.contains("source: box.step"));
-    CHECK(s.provenance.contains("recipe: largest element 3, order 2"));
+    CHECK(s.provenance.contains("recipe: largest element 3, order 2, 2 elements through a wall"));
     // Every Netgen setting the mesh depends on, as it was used: set by
     // GridForge, not left to Netgen's defaults, which may move between
     // versions (docs/survey/netgen-review.md, item 4).
