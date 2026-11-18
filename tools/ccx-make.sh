@@ -23,8 +23,8 @@ make -C "$spooles" lib CC=gcc OPTLEVEL="-O2 -std=gnu89 -fcommon -w" >"$spooles/b
     exit 1
 }
 make -C "$src" -j"$jobs" CC=gcc FC=gfortran \
-    CFLAGS="-Wall -O2 -I $spooles -DARCH=\"Linux\" -DSPOOLES -DARPACK -DMATRIXSTORAGE -DNETWORKOUT -std=gnu17 -Wno-error=return-mismatch -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w" \
-    FFLAGS='-Wall -O2 -cpp -fallow-argument-mismatch -w' \
+    CFLAGS="-Wall -O2 -g -I $spooles -DARCH=\"Linux\" -DSPOOLES -DARPACK -DMATRIXSTORAGE -DNETWORKOUT -std=gnu17 -Wno-error=return-mismatch -Wno-error=incompatible-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -w" \
+    FFLAGS='-Wall -O2 -g -cpp -fallow-argument-mismatch -w' \
     LIBS="$spooles/spooles.a -larpack -llapack -lblas -lpthread -lm -lc" \
     >"$src/build.log" 2>&1 || {
     grep -i -m20 'error' "$src/build.log" >&2
