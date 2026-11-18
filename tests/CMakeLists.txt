@@ -446,6 +446,11 @@ add_test(NAME the_mesher_holds_the_benchmark COMMAND test_mesher_benchmark)
 # The benchmark baseline written again for it: thinwall 55862 to 665268
 # cells (worst mean ratio 0.276 to 0.404), dogbone 6292 to 24184, bracket
 # 13304 to 33283, duct 29140 to 34839; twoparts the same.
+# 2026-11-18, the maths: with glibc's FMA routines hidden
+# (GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA,-FMA4), four of the five
+# benchmark meshes moved here (the cells the same, the nodes not); the
+# flat-walled one did not. The benchmark now runs itself again with those
+# plain routines on every machine, and its hashes are written under them.
 # NEGATIVE CHECK, 2026-11-18, the mesh hash: one character of the
 # dogbone's committed hash changed, red ("the mesh is not the committed
 # one"); two runs here gave the same five hashes.

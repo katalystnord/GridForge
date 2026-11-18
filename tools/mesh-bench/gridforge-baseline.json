@@ -3,46 +3,46 @@
     "mesher": "Netgen 6.2.2608-104-g7420b2f9 (github.com/katalystnord/netgen at 7420b2f995f7b4a584c16022b576b9074b274b03)",
     "models": {
         "bracket": {
-            "average mean ratio": 0.8501572766972177,
+            "average mean ratio": 0.8501572766972166,
             "cells": 33283,
-            "mesh hash": "ec42334fd3c26a2570409ae1a9178b4330d3722c883193cd6ddf9acb8daaac02",
+            "mesh hash": "e397b1867518881637e38e554f59571257a7a3908701c1a93869440460a6ebb9",
             "min dihedral": 14.665326018499968,
             "min mean ratio": 0.4181821778472516,
             "nodes": 54652,
             "order": 2,
-            "outside error": 0.0008379535524665194,
-            "seconds": 2.794,
+            "outside error": 0.0008379535524662973,
+            "seconds": 2.339,
             "size": 3,
             "solver ready": true,
-            "volume error": 6.338546981732307e-06
+            "volume error": 6.338546975070969e-06
         },
         "dogbone": {
-            "average mean ratio": 0.866494247281167,
+            "average mean ratio": 0.8664942472811679,
             "cells": 24184,
-            "mesh hash": "5c48b4c465e360a2bd82b9c751a091f842b6eb820f40fa00283594a01d479d8c",
-            "min dihedral": 21.58334486977199,
-            "min mean ratio": 0.5431029388017781,
+            "mesh hash": "b54b864eec7179db113b10e0f350359e34f07cfb3a270fe08abcf577cd49e4c5",
+            "min dihedral": 21.583344869774606,
+            "min mean ratio": 0.5431029388017925,
             "nodes": 39273,
             "order": 2,
-            "outside error": 0.00012025082708122525,
-            "seconds": 1.964,
+            "outside error": 0.00012025082708078116,
+            "seconds": 1.568,
             "size": 2,
             "solver ready": true,
-            "volume error": 4.848091705866864e-09
+            "volume error": 4.848091483822259e-09
         },
         "duct": {
-            "average mean ratio": 0.8583817548186452,
+            "average mean ratio": 0.8583817548186449,
             "cells": 34839,
-            "mesh hash": "2491fd272b3f0fa1643a23cabc96f0aec3fa8d376cce6de7eb412f9a30adeb0a",
-            "min dihedral": 18.379958990339134,
-            "min mean ratio": 0.48499464684531424,
+            "mesh hash": "933143b65672f5e468b6865f1ddbfc20178f37e6e9cb9d9ae590d17672f6a6ed",
+            "min dihedral": 18.37995899033939,
+            "min mean ratio": 0.48499464684531335,
             "nodes": 56129,
             "order": 2,
-            "outside error": -0.0014335319510636602,
-            "seconds": 2.546,
+            "outside error": -0.001433531951063216,
+            "seconds": 2.594,
             "size": 2,
             "solver ready": true,
-            "volume error": -8.735079315425054e-07
+            "volume error": -8.735079245481003e-07
         },
         "thinwall": {
             "average mean ratio": 0.8056011890986697,
@@ -53,24 +53,24 @@
             "nodes": 1200716,
             "order": 2,
             "outside error": -2.6423307986078726e-14,
-            "seconds": 103.795,
+            "seconds": 90.282,
             "size": 1.5,
             "solver ready": true,
             "volume error": 1.6653345369377348e-14
         },
         "twoparts": {
-            "average mean ratio": 0.8717950731122899,
+            "average mean ratio": 0.8717950731122898,
             "cells": 7877,
-            "mesh hash": "fe3c2dc90058e2e5cebf47437ca06a1db90447d5d4f060f2810a41b252ce3810",
-            "min dihedral": 20.79767133930332,
-            "min mean ratio": 0.548497808364555,
+            "mesh hash": "96857bd861898d5a3fbf25c7aef7751b9655cb982a3ca3df8247296c381b065e",
+            "min dihedral": 20.79767133930318,
+            "min mean ratio": 0.5484978083645526,
             "nodes": 12733,
             "order": 2,
-            "outside error": -0.0005366523037341198,
-            "seconds": 0.523,
+            "outside error": -0.0005366523037336757,
+            "seconds": 0.572,
             "size": 3,
             "solver ready": true,
-            "volume error": -1.513622025384187e-06
+            "volume error": -1.5136220243849863e-06
         }
     },
     "version": "1.0"

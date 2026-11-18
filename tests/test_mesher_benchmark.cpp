@@ -25,6 +25,8 @@
 #include <QSaveFile>
 
 #include <vtkCellType.h>
+
+#include <unistd.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkNew.h>
 #include <vtkIdList.h>
@@ -33,6 +35,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
@@ -167,6 +170,19 @@ void fail(const QString &model, const QString &why)
 
 int main(int argc, char *argv[])
 {
+    // The same maths routines on every machine. glibc picks its sin, exp,
+    // pow, ... by the processor (FMA with AVX2, FMA4, or plain), and with
+    // FMA hidden here four of the five meshes moved (2026-11-18), as
+    // GitHub's machine's do. Run again with the plain routines, so the
+    // hashes compare across machines (docs/survey/netgen-review.md, item 6).
+    const char *plain = "glibc.cpu.hwcaps=-AVX2,-FMA,-FMA4";
+    if (qEnvironmentVariable("GLIBC_TUNABLES") != plain) {
+        setenv("GLIBC_TUNABLES", plain, 1);
+        execv("/proc/self/exe", argv);
+        std::printf("could not run again with %s\n", plain);
+        return 1;
+    }
+    std::printf("maths: %s\n", plain);
     const QString bench = GF_BENCH;
     const QJsonObject models = readJson(bench + "/models/models.json");
     const QJsonObject baseline = readJson(bench + "/gridforge-baseline.json")["models"].toObject();
