@@ -5,6 +5,7 @@
         "bracket": {
             "average mean ratio": 0.8639944337811005,
             "cells": 13304,
+            "mesh hash": "b41472c909dcca2e86c0f54b880c1a5a040f6e0e4a0c89b6cea648f5335bf8fe",
             "min dihedral": 17.081333535474045,
             "min mean ratio": 0.44526055524122476,
             "nodes": 22945,
@@ -18,6 +19,7 @@
         "dogbone": {
             "average mean ratio": 0.8823837485535847,
             "cells": 6292,
+            "mesh hash": "80bdbbff414b9bb541f59d920207badb017a8ea6896e16fdc5cf2a75428533aa",
             "min dihedral": 26.98983231316342,
             "min mean ratio": 0.6174325952594092,
             "nodes": 11714,
@@ -31,6 +33,7 @@
         "duct": {
             "average mean ratio": 0.8562692433194584,
             "cells": 29140,
+            "mesh hash": "8654248c7253e8afb68c0ffebdf9e141b2528fada29feaffc1f470a5c57356de",
             "min dihedral": 17.5434683378096,
             "min mean ratio": 0.45937886810693235,
             "nodes": 47041,
@@ -44,6 +47,7 @@
         "thinwall": {
             "average mean ratio": 0.889963342684435,
             "cells": 55862,
+            "mesh hash": "61c677b7d9143234569b04ad6667f4d35852feef36caf58a17c825c8b9257dbf",
             "min dihedral": 8.203621204910235,
             "min mean ratio": 0.27573588843932345,
             "nodes": 112330,
@@ -57,6 +61,7 @@
         "twoparts": {
             "average mean ratio": 0.8717950731122899,
             "cells": 7877,
+            "mesh hash": "fe3c2dc90058e2e5cebf47437ca06a1db90447d5d4f060f2810a41b252ce3810",
             "min dihedral": 20.79767133930332,
             "min mean ratio": 0.548497808364555,
             "nodes": 12733,

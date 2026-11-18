@@ -16,6 +16,7 @@
 #include "mesh/Mesher.h"
 #include "mesh/Quality.h"
 
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
@@ -24,6 +25,9 @@
 #include <QSaveFile>
 
 #include <vtkCellType.h>
+#include <vtkUnstructuredGrid.h>
+#include <vtkNew.h>
+#include <vtkIdList.h>
 
 #include <algorithm>
 #include <array>
@@ -124,6 +128,34 @@ QJsonObject readJson(const QString &path)
     return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject{};
 }
 
+// The mesh itself, as one SHA-256: each node to 12 significant figures,
+// then each cell's type and nodes. The same geometry and recipe must give
+// the same mesh on every machine (tenet 10); 12 figures are far finer
+// than any measure here and spare the last bit of a different libm.
+QString meshHash(vtkUnstructuredGrid *g)
+{
+    QCryptographicHash h(QCryptographicHash::Sha256);
+    char line[128];
+    for (vtkIdType p = 0; p < g->GetNumberOfPoints(); ++p) {
+        double x[3];
+        g->GetPoint(p, x);
+        const int n = std::snprintf(line, sizeof line, "%.12g %.12g %.12g\n", x[0], x[1], x[2]);
+        h.addData(QByteArrayView(line, n));
+    }
+    vtkNew<vtkIdList> ids;
+    for (vtkIdType c = 0; c < g->GetNumberOfCells(); ++c) {
+        g->GetCellPoints(c, ids);
+        int n = std::snprintf(line, sizeof line, "%d", g->GetCellType(c));
+        h.addData(QByteArrayView(line, n));
+        for (vtkIdType k = 0; k < ids->GetNumberOfIds(); ++k) {
+            n = std::snprintf(line, sizeof line, " %lld", static_cast<long long>(ids->GetId(k)));
+            h.addData(QByteArrayView(line, n));
+        }
+        h.addData(QByteArrayView("\n", 1));
+    }
+    return QString::fromLatin1(h.result().toHex());
+}
+
 int failures = 0;
 void fail(const QString &model, const QString &why)
 {
@@ -180,6 +212,7 @@ int main(int argc, char *argv[])
                                     {"average mean ratio", q.averageMeanRatio},
                                     {"min dihedral", q.minDihedral},
                                     {"solver ready", q.solverReady()},
+                                    {"mesh hash", meshHash(g)},
                                     {"seconds", seconds}};
 
         // What a mesh must be, whatever the baseline.
@@ -206,6 +239,14 @@ int main(int argc, char *argv[])
             fail(name, QString("volume error %1, was %2").arg(volumeError).arg(was["volume error"].toDouble()));
         if (std::abs(outsideError) > 2 * std::abs(was["outside error"].toDouble()) + 1e-6)
             fail(name, QString("outside error %1, was %2").arg(outsideError).arg(was["outside error"].toDouble()));
+        // The same mesh as the committed one, node for node. A change
+        // meant (a new Netgen pin, a new recipe) writes the baseline again
+        // (--baseline), and says so in its commit.
+        if (was.contains("mesh hash") && was["mesh hash"].toString() != meshHash(g))
+            fail(name, QString("the mesh is not the committed one (%1 cells, the baseline %2): if that is meant, "
+                               "write the baseline again")
+                           .arg(g->GetNumberOfCells())
+                           .arg(was["cells"].toInteger()));
         if (g->GetNumberOfCells() != was["cells"].toInteger())
             std::printf("  (%s: %lld cells, the baseline has %lld: the mesh changed)\n", qPrintable(name),
                         static_cast<long long>(g->GetNumberOfCells()),

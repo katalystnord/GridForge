@@ -437,6 +437,9 @@ add_test(NAME the_mesher_holds_the_benchmark COMMAND test_mesher_benchmark)
 # Netgen 6.2.2608 numbers: the same cells for the four single solids
 # (6292, 13304, 55862, 29140) and the same curved volume errors; the two
 # parts, now joined, 7877 cells and outside -0.05 % (straight facets).
+# NEGATIVE CHECK, 2026-11-18, the mesh hash: one character of the
+# dogbone's committed hash changed, red ("the mesh is not the committed
+# one"); two runs here gave the same five hashes.
 
 # gf-study mesh: a STEP in, one .vtkhdf out with its solids and faces as
 # sets, said on the terminal.
