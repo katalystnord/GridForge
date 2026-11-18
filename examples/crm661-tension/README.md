@@ -46,13 +46,30 @@ sharply at Rp0.2, the metal gradually. From 3 % on, the prediction runs
 checked are Poisson's ratio (given, not measured) and the hardening
 curve's 20 points, linear between.
 
+## A second test, predicted (2026-11-18)
+
+TENSTAND's file 01 is another round test piece of "Nimonic" (its file
+says no more; S0 78.461 mm2, within 0.10 % of file 06's, the same Lc
+and Le; TenSense finds Rp0.2 310 MPa and Rm 764 MPa, against 308 and
+761 for file 06). The same solve, from file 06's analysis, set beside
+file 01's measurement (`compare-01.csv`):
+
+    predicted against measured, at 52 strains from 0.315 % to 31.5 %:
+    at most 0.687 % apart (under, at 1.73 %), 0.214 % on average
+
+This one is a prediction: nothing of file 01 went into the model. Not
+checked: that file 01 is CRM 661 itself, and the same batch. The model's
+section is file 06's, 0.10 % larger than file 01's, and not corrected
+for.
+
 ## What this shows, and what it does not
 
 It shows the chain holds: TenSense's analysis, its exports, GridForge's
 mesh, set-up, deck and results, and ccx's large-strain plasticity give
 back the force the test piece carried, from yield to the maximum force,
-to within half a percent. It is a **calibration check**, not a
-validation: the material model was fitted to this same test, so
-agreement is what a correct chain must give. A prediction of a different
-test (another shape, or bending) from this material is the next step.
+to within half a percent. Against file 06 it is a **calibration check**,
+not a validation: the material model was fitted to that same test, so
+agreement is what a correct chain must give. Against file 01 it is a
+prediction of a second test of the same kind; one of another shape (a
+notched piece, or bending) from this material is the step after.
 Necking (after the maximum force) is not modelled.

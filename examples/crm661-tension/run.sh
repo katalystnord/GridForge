@@ -15,9 +15,14 @@ mkdir -p data inputs
 if [ ! -f data/06.txt ]; then
     curl -sSL -o data/tenstand.zip "$url"
     echo "$sha  data/tenstand.zip" | sha256sum -c -
-    unzip -qjo data/tenstand.zip '*06.txt' -d data
+    unzip -qjo data/tenstand.zip '*06.txt' '*01.txt' -d data
 fi
 "$ts" --profile iso-6892-1-2019 --vtp inputs/06.vtp --freecad inputs/CRM661 data/06.txt
 "$gf" solve pull.json bar.step --size 2 --order 2 -o job
 "$gf" compare job/results/results.vtkhdf inputs/06.vtp --force-on "Pulled end" \
     --gauge "5,-1,1;55,-1,1" --times 4 -o compare.csv
+# A second test, predicted from the first's analysis: TENSTAND file 01
+# ("Nimonic", the same test piece within 0.1 % of its area).
+"$ts" --profile iso-6892-1-2019 --vtp inputs/01.vtp data/01.txt
+"$gf" compare job/results/results.vtkhdf inputs/01.vtp --force-on "Pulled end" \
+    --gauge "5,-1,1;55,-1,1" --times 4 -o compare-01.csv
