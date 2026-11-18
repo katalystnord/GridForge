@@ -439,12 +439,15 @@ int main(int argc, char *argv[])
                                      "ParaView, the deck's named sets as blocks\n"
                                      "  convert mesh.msh  a Gmsh mesh likewise, its physical "
                                      "groups as the sets\n"
-                                     "  mesh part.step    the STEP's solids meshed with "
+                                     "  mesh part.step    the part's solids meshed with "
                                      "tetrahedra, each solid and face as a set\n"
                                      "  deck setup.json part.step   a CalculiX job from a set-up: "
                                      "mesh.inp and the deck around it\n"
                                      "  solve setup.json part.step -o JOB   the set-up solved by "
-                                     "its toolkit, results in JOB/results");
+                                     "its toolkit, results in JOB/results\n\n"
+                                     "A part is a STEP file or a .brep (as FreeCAD's exportBrep "
+                                     "writes it, in mm). A set-up is a study.json, or a file "
+                                     "holding its \"setup\".");
     parser.addHelpOption();
     const QCommandLineOption versionOpt("version", "Print the version and build.");
     const QCommandLineOption outOpt({"o", "out"},
@@ -469,11 +472,12 @@ int main(int argc, char *argv[])
     parser.addOption(sizeOpt);
     parser.addOption(orderOpt);
     const QCommandLineOption wallOpt("through-wall", "mesh: elements through a thin wall (default 2; 0: none "
-                                                     "added). A face whose wall is thinner than this many "
-                                                     "largest elements is made finer.",
+                                                     "added). A wall (a face at least four times as wide as "
+                                                     "the wall behind it is thick) is meshed at its thickness "
+                                                     "over N + 1, where that is finer than --size.",
                                      "N");
     parser.addOption(wallOpt);
-    parser.addPositionalArgument("command", "convert or mesh");
+    parser.addPositionalArgument("command", "convert, mesh, deck or solve");
     parser.addPositionalArgument("file", "The input file.");
     parser.process(app);
 

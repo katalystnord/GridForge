@@ -6,3 +6,5 @@ usr/share/applications/gridforge.desktop
 usr/share/icons/hicolor/scalable/apps/gridforge.svg
 usr/share/doc/gridforge/NOTICE
 usr/share/doc/gridforge/README.md
+usr/share/man/man1/GridForge.1
+usr/share/man/man1/gf-study.1

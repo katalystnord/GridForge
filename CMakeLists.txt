@@ -76,6 +76,7 @@ set(GF_BUNDLE_CCX "" CACHE PATH "A ccx to ship with the CalculiX toolkit (tools/
 install(FILES LICENSE NOTICE README.md DESTINATION share/doc/gridforge)
 install(FILES packaging/gridforge.desktop DESTINATION share/applications)
 install(FILES packaging/gridforge.svg DESTINATION share/icons/hicolor/scalable/apps)
+install(FILES packaging/man/GridForge.1 packaging/man/gf-study.1 DESTINATION share/man/man1)
 install(FILES toolkits/calculix/toolkit.json DESTINATION lib/gridforge/toolkits/calculix)
 if(GF_BUNDLE_CCX)
     install(PROGRAMS ${GF_BUNDLE_CCX}/bin/ccx DESTINATION lib/gridforge/toolkits/calculix)

@@ -1,0 +1,34 @@
+.TH GRIDFORGE 1 "November 2026" "GridForge 0.0.1" "User Commands"
+.SH NAME
+GridForge \- meshing and simulation workbench
+.SH SYNOPSIS
+.B GridForge
+.RI [ STUDY ]
+.br
+.B GridForge
+.B \-\-version
+.SH DESCRIPTION
+GridForge takes a part's geometry, meshes it, sets up its materials,
+loads and supports, solves it through an installable toolkit (CalculiX
+first), and shows how it responds. Results leave as files for ParaView.
+.PP
+The banner at the top of the window always says the next step.
+.SH ARGUMENTS
+.TP
+.I STUDY
+A study folder (one holding a study.json) to open.
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the version and the build, and exit.
+.SH FILES
+.TP
+.I study.json
+A study: its geometry, mesh recipe, solve and set-up.
+.TP
+.I <part>.brep, <part>.groups.json
+A part from FreeCAD with its named groups, as GridForge's FreeCAD macro
+writes them (File, New Study from Geometry; then Study, Add Groups From
+FreeCAD).
+.SH SEE ALSO
+.BR gf-study (1)

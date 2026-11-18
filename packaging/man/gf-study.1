@@ -1,0 +1,101 @@
+.TH GF-STUDY 1 "November 2026" "GridForge 0.0.1" "User Commands"
+.SH NAME
+gf-study \- GridForge, the meshing and simulation workbench, without a window
+.SH SYNOPSIS
+.B gf-study mesh
+.I part
+.B \-\-size
+.I H
+.RB [ \-\-order " " \fIN\fR]
+.RB [ \-\-through\-wall " " \fIN\fR]
+.RB [ \-o " " \fIDIR\fR]
+.RB [ \-\-pvd ]
+.RB [ \-\-inp ]
+.br
+.B gf-study deck
+.I setup part
+.B \-\-size
+.I H
+.RB [ \-\-order " " \fIN\fR]
+.RB [ \-\-through\-wall " " \fIN\fR]
+.RB [ \-o " " \fIDIR\fR]
+.br
+.B gf-study solve
+.I setup part
+.B \-\-size
+.I H
+.RB [ \-\-order " " \fIN\fR]
+.RB [ \-\-through\-wall " " \fIN\fR]
+.B \-o
+.I JOB
+.br
+.B gf-study convert
+.IR job.frd | mesh.msh
+.RB [ \-\-deck " " \fIFILE\fR]
+.RB [ \-\-pvd ]
+.RB [ \-o " " \fIDIR\fR]
+.SH DESCRIPTION
+The same work as the GridForge window, from the command line.
+.PP
+A
+.I part
+is a STEP file or a .brep (as FreeCAD's exportBrep writes it, in mm). A
+.I setup
+is a study.json, or a file holding its "setup".
+.SH COMMANDS
+.TP
+.B mesh
+The part's solids meshed with tetrahedra, each solid and face as a set,
+written as one .vtkhdf for ParaView, with a report of the mesh's quality.
+.TP
+.B deck
+A CalculiX job from a set-up: mesh.inp and the deck around it.
+.TP
+.B solve
+The set-up solved by its toolkit, the results in JOB/results.
+.TP
+.B convert
+CalculiX results (job.frd) to one .vtkhdf for ParaView, the deck's named
+sets as blocks; or a Gmsh mesh (mesh.msh) likewise, its physical groups
+as the sets.
+.SH OPTIONS
+.TP
+.BI \-\-size " H"
+The largest element edge, in the geometry's units.
+.TP
+.BI \-\-order " N"
+1 (straight edges, the default) or 2 (a middle node on each edge, on the
+geometry).
+.TP
+.BI \-\-through\-wall " N"
+Elements through a thin wall (default 2; 0: none added). A wall (a face
+at least four times as wide as the wall behind it is thick) is meshed at
+its thickness over N + 1, where that is finer than \-\-size.
+.TP
+.BI \-o ", " \-\-out " DIR"
+Write into DIR (default: beside the input).
+.TP
+.BI \-\-deck " FILE"
+Read the named sets from FILE (default: job.inp beside the results, if
+there is one).
+.TP
+.B \-\-pvd
+Write a .vtu series and its .pvd instead (no sets).
+.TP
+.B \-\-inp
+mesh: also write the mesh and its sets as <name>.inp, for a CalculiX deck
+to *INCLUDE.
+.TP
+.B \-\-version
+Print the version and the build.
+.SH ENVIRONMENT
+.TP
+.B GF_CCX
+The ccx to solve with; else the one beside the CalculiX toolkit's
+adapter, else ccx on PATH.
+.TP
+.B GF_MESH_TRACE
+When set, a fingerprint after each of the mesher's stages, on standard
+error.
+.SH SEE ALSO
+.BR GridForge (1)
