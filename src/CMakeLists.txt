@@ -88,6 +88,7 @@ target_compile_definitions(gf_mesh PRIVATE OCCGEOMETRY  # Netgen's OCC interface
 # --- gf_gui: the window -------------------------------------------------------
 add_library(gf_gui STATIC
     gui/MainWindow.cpp
+    gui/LoadForm.cpp
     gui/ResultsFile.cpp
     gui/NextStep.cpp
     gui/Style.cpp

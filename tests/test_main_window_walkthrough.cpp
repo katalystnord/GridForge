@@ -38,6 +38,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVTKOpenGLNativeWidget.h>
 
@@ -319,7 +320,7 @@ private slots:
         }
     }
 
-    void a_load_is_edited_in_properties_and_applied_to_the_study()
+    void a_load_is_edited_in_its_form_and_applied_to_the_study()
     {
         MainWindow w;
         w.show();
@@ -330,13 +331,17 @@ private slots:
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         tree->setCurrentItem(findItem(tree, "Displacement: Pulled"));
         auto *props = w.findChild<QWidget *>("properties");
-        auto *x = props->findChild<QLineEdit *>("edit:x");
-        auto *apply = props->findChild<QPushButton *>("apply");
-        QVERIFY(x && apply);
-        QCOMPARE(x->text(), QString("0.01"));
+        // The study's x 0.01 is shown as the choice it is: a move along +x.
+        auto *move = props->findChild<QToolButton *>("kind:move");
+        auto *x = props->findChild<QToolButton *>("dir:x");
+        auto *size = props->findChild<QLineEdit *>("magnitude");
+        auto *apply = props->findChild<QPushButton *>("applyLoad");
+        QVERIFY(move && x && size && apply);
+        QVERIFY(move->isChecked() && x->isChecked());
+        QCOMPARE(size->text(), QString("0.01"));
         QVERIFY(!apply->isEnabled());
-        x->selectAll();
-        QTest::keyClicks(x, "0.02");
+        size->selectAll();
+        QTest::keyClicks(size, "0.02");
         QVERIFY(apply->isEnabled());
         QCOMPARE(apply->palette().color(QPalette::Button), gf::gui::ember);  // lit, as ParaView's
         QTest::mouseClick(apply, Qt::LeftButton);
@@ -344,12 +349,118 @@ private slots:
         // and the mesh kept (a load does not change it).
         QFile f(QDir(study).filePath("study.json"));
         QVERIFY(f.open(QIODevice::ReadOnly));
-        QVERIFY(QString::fromUtf8(f.readAll()).contains("\"x\": 0.02"));
-        QCOMPARE(findItem(tree, "Displacement: Pulled")->text(1), QString("x 0.02 mm"));
+        const QString written = QString::fromUtf8(f.readAll());
+        QVERIFY(written.contains("\"x\": 0.02") && written.contains("\"direction\": \"+x\""));
+        QCOMPARE(findItem(tree, "Displacement: Pulled")->text(1), QString("0.02 mm along +x, others free"));
         QCOMPARE(tree->currentItem()->text(0), QString("Displacement: Pulled"));
         QVERIFY(!w.meshing());
         QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
-        QCOMPARE(w.findChild<QWidget *>("properties")->findChild<QLineEdit *>("edit:x")->text(), QString("0.02"));
+        QCOMPARE(w.findChild<QWidget *>("properties")->findChild<QLineEdit *>("magnitude")->text(), QString("0.02"));
+    }
+
+    void bending_a_grip_is_a_pick_a_move_along_z_and_a_size()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QVERIFY(w.openStudy(folder));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        auto *props = w.findChild<QWidget *>("properties");
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        // Face 2 (x = 10) is the study's group Pulled already: offered.
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 10, 10, 15));
+        QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));
+        QCOMPARE(props->findChild<QLineEdit *>("groupName")->placeholderText(), QString("Pulled"));
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:move"), Qt::LeftButton);
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:z"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QLabel *>("direction")->text(), QString("+z"));
+        QTest::keyClicks(props->findChild<QLineEdit *>("magnitude"), "2");
+        QCOMPARE(props->findChild<QComboBox *>("place")->currentText(), QString("In step Pull"));
+        if (!screenshot.isEmpty()) {
+            QTest::qWait(100);
+            w.grab().save(screenshot.chopped(4) + "-bend.png");
+            props->grab().save(screenshot.chopped(4) + "-bend-form.png");  // the whole form, scrolled or not
+        }
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        QString error;
+        gf::core::Study s = gf::core::readStudy(folder, &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(int(s.setup.steps[0].loads.size()), 2);
+        QCOMPARE(gf::core::itemEntry(s.setupJson, "load:0:1"),
+                 QJsonObject({{"group", "Pulled"}, {"displacement", QJsonObject{{"z", 2}}}, {"direction", "+z"}}));
+        QVERIFY(tree->currentItem());
+        QCOMPARE(tree->currentItem()->data(0, Qt::UserRole).toString(), QString("load:0:1"));
+        QCOMPARE(tree->currentItem()->text(1), QString("2 mm along +z, others free"));
+        QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
+        // The same axis clicked again turns it round (as Altair Inspire's).
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:z"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QLabel *>("direction")->text(), QString("-z"));
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        s = gf::core::readStudy(folder, &error);
+        QCOMPARE(gf::core::itemEntry(s.setupJson, "load:0:1")["direction"].toString(), QString("-z"));
+        QCOMPARE(tree->currentItem()->text(1), QString("2 mm along -z, others free"));
+        // Flip does the same.
+        QTest::mouseClick(props->findChild<QToolButton *>("flip"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QLabel *>("direction")->text(), QString("+z"));
+        // Deleted: gone from the study and the tree.
+        QTest::mouseClick(props->findChild<QPushButton *>("removeLoad"), Qt::LeftButton);
+        s = gf::core::readStudy(folder, &error);
+        QCOMPARE(int(s.setup.steps[0].loads.size()), 1);
+        QVERIFY(w.findChild<QAction *>("run")->isEnabled());
+    }
+
+    void a_force_along_a_faces_normal_and_a_support_from_the_start()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        const QString folder = boxStudy(dir);
+        QVERIFY(w.openStudy(folder));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+        auto *props = w.findChild<QWidget *>("properties");
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 10, 10, 15));
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:force"), Qt::LeftButton);
+        QTest::mouseClick(props->findChild<QToolButton *>("dir:normal"), Qt::LeftButton);
+        // Measured on the mesh: face 2 is x = 10, so out of the box is +x.
+        QCOMPARE(props->findChild<QLabel *>("direction")->text(), QString("outward normal of face 2: x 1, y 0, z 0"));
+        QTest::keyClicks(props->findChild<QLineEdit *>("magnitude"), "50");
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        QString error;
+        gf::core::Study s = gf::core::readStudy(folder, &error);
+        QCOMPARE(gf::core::itemEntry(s.setupJson, "load:0:1"),
+                 QJsonObject({{"group", "Pulled"}, {"force", QJsonObject{{"x", 50}}},
+                              {"direction", "outward normal of face 2"}}));
+        // The top (z = 30), a new group, fixed from the start.
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(nullptr);
+        QTest::mouseClick(view, Qt::LeftButton, {}, onScreen(w, 5, 10, 30));
+        const QString top = propertyValue(props, "Picked");  // "face <n>"
+        QVERIFY2(top.startsWith("face "), qPrintable(top));
+        const QString name = "Face " + top.mid(5);
+        QCOMPARE(props->findChild<QLineEdit *>("groupName")->placeholderText(), name);
+        // A load goes in a step; changing one's mind to a support brings it
+        // back to the start.
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:move"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QComboBox *>("place")->currentText(), QString("In step Pull"));
+        QTest::mouseClick(props->findChild<QToolButton *>("kind:fixed"), Qt::LeftButton);
+        QCOMPARE(props->findChild<QComboBox *>("place")->currentText(), QString("From the start, in every step"));
+        QTest::mouseClick(props->findChild<QPushButton *>("applyLoad"), Qt::LeftButton);
+        s = gf::core::readStudy(folder, &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(s.setup.group(name) && s.setup.group(name)->faces == std::vector<int>({top.mid(5).toInt()}));
+        QCOMPARE(gf::core::itemEntry(s.setupJson, "support:3"), QJsonObject({{"group", name}, {"fixed", true}}));
+        QCOMPARE(tree->currentItem()->text(0), "Fixed: " + name);
+        // The kept mesh has the new group's set, for the deck.
+        bool hasSet = false;
+        for (const gf::core::NamedSet &n : w.mesh().sets)
+            hasSet = hasSet || (n.name == name && n.nodes && !n.members.empty());
+        QVERIFY(hasSet);
+        QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
     }
 
     void the_mesh_size_edited_remeshes_and_nonsense_is_refused()

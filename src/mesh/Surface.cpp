@@ -2,11 +2,15 @@
 
 #include <vtkCellArray.h>
 #include <vtkCellData.h>
+#include <vtkDataArray.h>
+#include <vtkIdList.h>
 #include <vtkIntArray.h>
+#include <vtkNew.h>
 #include <vtkUnstructuredGrid.h>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <map>
 #include <set>
 #include <vector>
@@ -146,6 +150,114 @@ vtkSmartPointer<vtkPolyData> outerEdges(const gf::core::ResultsSeries &mesh)
         }
     out->SetLines(lines);
     return out;
+}
+
+namespace {
+
+// Each triangle of the faces asked for: its face, its area-weighted normal
+// (half the cross product, out of the solid) and its centroid.
+struct Piece {
+    int face;
+    std::array<double, 3> normal, centroid;
+    double area;
+};
+
+std::vector<Piece> piecesOf(vtkPolyData *surface, const std::vector<int> &faces)
+{
+    std::vector<Piece> out;
+    vtkDataArray *face = surface->GetCellData()->GetArray("face");
+    if (!face)
+        return out;
+    vtkNew<vtkIdList> ids;
+    for (vtkIdType c = 0; c < surface->GetNumberOfCells(); ++c) {
+        const int f = int(face->GetComponent(c, 0));
+        if (std::find(faces.begin(), faces.end(), f) == faces.end())
+            continue;
+        surface->GetCellPoints(c, ids);
+        double a[3], b[3], d[3];
+        surface->GetPoint(ids->GetId(0), a);
+        surface->GetPoint(ids->GetId(1), b);
+        surface->GetPoint(ids->GetId(2), d);
+        const double u[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, v[3] = {d[0] - a[0], d[1] - a[1], d[2] - a[2]};
+        const std::array<double, 3> n = {0.5 * (u[1] * v[2] - u[2] * v[1]), 0.5 * (u[2] * v[0] - u[0] * v[2]),
+                                         0.5 * (u[0] * v[1] - u[1] * v[0])};
+        out.push_back({f, n, {(a[0] + b[0] + d[0]) / 3, (a[1] + b[1] + d[1]) / 3, (a[2] + b[2] + d[2]) / 3},
+                       std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2])});
+    }
+    return out;
+}
+
+std::array<double, 3> unit(const std::array<double, 3> &v)
+{
+    const double l = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return l > 0 ? std::array<double, 3>{v[0] / l, v[1] / l, v[2] / l} : v;
+}
+
+double dot(const std::array<double, 3> &a, const std::array<double, 3> &b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+} // namespace
+
+std::optional<std::array<double, 3>> outwardNormal(vtkPolyData *surface, const std::vector<int> &faces,
+                                                   QString *problem)
+{
+    auto fail = [&](const QString &why) {
+        if (problem)
+            *problem = why;
+        return std::nullopt;
+    };
+    // A face is flat when every triangle on it faces as the whole face does;
+    // a millionth of a radian's leeway for rounding in the mesh's points.
+    constexpr double flat = 1 - 1e-6;
+    const std::vector<Piece> pieces = piecesOf(surface, faces);
+    std::array<double, 3> total{}, first{};
+    int firstFace = 0;
+    for (int f : faces) {
+        std::array<double, 3> sum{};
+        bool any = false;
+        for (const Piece &p : pieces)
+            if (p.face == f) {
+                any = true;
+                for (int k = 0; k < 3; ++k)
+                    sum[k] += p.normal[k];
+            }
+        if (!any)
+            return fail(QString("face %1 is not on the surface").arg(f));
+        const std::array<double, 3> n = unit(sum);
+        for (const Piece &p : pieces)
+            if (p.face == f && p.area > 0 && dot(unit(p.normal), n) < flat)
+                return fail(QString("face %1 is curved, so it has no one normal").arg(f));
+        if (firstFace == 0) {
+            first = n;
+            firstFace = f;
+        } else if (dot(first, n) < flat) {
+            return fail(QString("faces %1 and %2 do not face the same way").arg(std::min(firstFace, f)).arg(std::max(firstFace, f)));
+        }
+        for (int k = 0; k < 3; ++k)
+            total[k] += sum[k];
+    }
+    if (firstFace == 0)
+        return fail("no faces");
+    if (problem)
+        problem->clear();
+    return unit(total);
+}
+
+std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &faces)
+{
+    std::array<double, 3> c{};
+    double area = 0;
+    for (const Piece &p : piecesOf(surface, faces)) {
+        for (int k = 0; k < 3; ++k)
+            c[k] += p.area * p.centroid[k];
+        area += p.area;
+    }
+    if (area > 0)
+        for (double &x : c)
+            x /= area;
+    return c;
 }
 
 } // namespace gf::mesh

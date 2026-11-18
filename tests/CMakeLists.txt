@@ -373,6 +373,10 @@ add_test(NAME the_outer_surface_knows_its_geometry_faces COMMAND test_outer_surf
 # NEGATIVE CHECK, 2026-11-17: red against a stub returning an empty surface
 # (8 checks). The flat-face check at first compared coordinates exactly;
 # loosened to 1e-9 mm before the first run, not after a failure.
+# NEGATIVE CHECKS, 2026-11-18, normals and centres: the 2 cases red against
+# stubs. Then curved faces not refused; faces facing apart not refused;
+# the centre not weighted by area: each red. The dogbone's 4 curved and 10
+# flat faces are counted from its STEP file (CYLINDRICAL_SURFACE, PLANE).
 
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE gf_mesh)
@@ -561,6 +565,13 @@ endif()
 # study case red. The mesh case went red once the run cases were added
 # (meshing() said done before the window had taken the mesh in); meshing()
 # now stays true until it has.
+# NEGATIVE CHECKS, 2026-11-18, the support and load form: the 3 cases
+# written first, red (no form). Then each rule broken, the test run,
+# restored: an axis clicked again not turned round; the group the faces
+# already are not offered (2 cases red); the normal not measured on the
+# mesh; Apply lit before anything changed: each red. A support's place not
+# following its kind stayed green (no case chose a load first): the case
+# now chooses Move, then Fixed, and is red without the rule.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

@@ -187,6 +187,63 @@ CASE(the_element_edges_on_the_surface_are_drawn_once_each)
     }
 }
 
+CASE(a_flat_faces_outward_normal_and_centre_are_measured)
+{
+    // The box (10 x 20 x 30 at the origin): every face's outward normal is
+    // an axis, out of the box, and its centre the middle of that side.
+    const ResultsSeries m = mesh("box.step", 2);
+    vtkSmartPointer<vtkPolyData> s = outerSurface(m);
+    const double size[3] = {10, 20, 30};
+    std::map<std::pair<int, int>, int> seen;  // (axis, sign) -> face
+    for (int f = 1; f <= 6; ++f) {
+        QString problem;
+        const auto n = outwardNormal(s, {f}, &problem);
+        CHECK(n && problem.isEmpty());
+        if (!n)
+            continue;
+        int axis = -1;
+        for (int k = 0; k < 3; ++k)
+            if (std::abs(std::abs((*n)[k]) - 1) < 1e-12)
+                axis = k;
+        CHECK(axis >= 0);
+        if (axis < 0)
+            continue;
+        const int sign = (*n)[axis] > 0 ? 1 : -1;
+        seen[{axis, sign}] = f;
+        const auto c = centreOf(s, {f});
+        for (int k = 0; k < 3; ++k) {
+            const double known = k == axis ? (sign > 0 ? size[k] : 0) : size[k] / 2;
+            CHECK(std::abs(c[k] - known) < 1e-9);
+        }
+    }
+    CHECK(seen.size() == 6);
+    // Two faces: one normal only if they face the same way.
+    QString problem;
+    const int plusX = seen[{0, 1}], minusX = seen[{0, -1}], plusY = seen[{1, 1}];
+    CHECK(!outwardNormal(s, {plusX, minusX}, &problem));
+    CHECK(problem == QString("faces %1 and %2 do not face the same way").arg(std::min(plusX, minusX)).arg(std::max(plusX, minusX)));
+    CHECK(!outwardNormal(s, {plusX, plusY}, &problem));
+    CHECK(!outwardNormal(s, {99}, &problem) && problem == "face 99 is not on the surface");
+}
+
+CASE(a_curved_face_has_no_one_normal)
+{
+    // The dogbone's R30 arcs are cylinders: refused by name; its flat
+    // faces measured.
+    const ResultsSeries m = mesh("dogbone.step", 2);
+    vtkSmartPointer<vtkPolyData> s = outerSurface(m);
+    int curved = 0, flat = 0;
+    for (int f = 1; f <= 14; ++f) {
+        QString problem;
+        if (outwardNormal(s, {f}, &problem))
+            ++flat;
+        else if (problem == QString("face %1 is curved, so it has no one normal").arg(f))
+            ++curved;
+    }
+    std::printf("  (dogbone: %d flat, %d curved)\n", flat, curved);
+    CHECK(curved == 4 && flat == 10);  // dogbone.step: 14 ADVANCED_FACEs, 4 on CYLINDRICAL_SURFACEs, 10 on PLANEs
+}
+
 int main()
 {
     for (auto &[name, run] : cases()) {

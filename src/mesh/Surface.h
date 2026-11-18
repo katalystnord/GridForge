@@ -9,8 +9,14 @@
 
 #include "core/ResultsSeries.h"
 
+#include <QString>
+
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
+
+#include <array>
+#include <optional>
+#include <vector>
 
 namespace gf::mesh {
 
@@ -26,5 +32,15 @@ vtkSmartPointer<vtkPolyData> outerSurface(const gf::core::ResultsSeries &mesh);
 // elements as they are, not the four triangles a quadratic face is drawn
 // with.
 vtkSmartPointer<vtkPolyData> outerEdges(const gf::core::ResultsSeries &mesh);
+
+// The outward normal of geometry faces, measured on outerSurface's
+// triangles (area weighted): for a load along a face's normal. None, with
+// *problem saying why, if a face is not on the surface, is curved, or the
+// faces do not all face the same way.
+std::optional<std::array<double, 3>> outwardNormal(vtkPolyData *surface, const std::vector<int> &faces,
+                                                   QString *problem);
+
+// The centre of geometry faces (area weighted), where their loads are drawn.
+std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &faces);
 
 } // namespace gf::mesh

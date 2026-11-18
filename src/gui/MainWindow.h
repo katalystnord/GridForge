@@ -22,6 +22,7 @@
 #include "core/Study.h"
 
 #include <QFutureWatcher>
+#include <QJsonObject>
 #include <QMainWindow>
 #include <QPoint>
 
@@ -49,6 +50,8 @@ class vtkPolyData;
 class vtkStaticCellLocator;
 
 namespace gf::gui {
+
+class LoadForm;
 
 // What meshing on another thread hands back: the mesh, or why not, and
 // which opening of a study it was for.
@@ -130,6 +133,12 @@ private:
     void lightFaces(const std::vector<int> &faces);
     void showPicked();
     void makeGroup();
+    // The group the faces are already, or a free name for a new one ("Face 6").
+    QString groupFor(const std::vector<int> &faces) const;
+    // The support and load form: for the picked faces (no key), or for the
+    // item at `key` as study.json holds it.
+    void showLoadForm(const QString &key, const QJsonObject &entry);
+    void applyLoad(LoadForm *form, const QString &key);
     void showGroupEditing(const QString &group);
     void showDeck(const QString &path, int run);
     void fillSteps();

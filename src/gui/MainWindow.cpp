@@ -1,8 +1,10 @@
 #include "gui/MainWindow.h"
+#include "gui/LoadForm.h"
 #include "gui/Style.h"
 
 #include "core/ApplicationInfo.h"
 #include "core/Job.h"
+#include "core/LoadChoice.h"
 #include "core/MaterialCard.h"
 #include "core/StudyEdit.h"
 #include "mesh/Surface.h"
@@ -638,6 +640,11 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
         showGroupEditing(m_editKey.mid(6));
         return;
     }
+    const QJsonObject entry = core::itemEntry(m_study.setupJson, m_editKey);
+    if (!entry.isEmpty() && !entry.contains("gravity")) {
+        showLoadForm(m_editKey, entry);
+        return;
+    }
     const std::vector<core::EditableField> fields = core::editableFields(m_study, m_editKey);
     if (fields.empty())
         return;
@@ -1142,17 +1149,18 @@ void MainWindow::showPicked()
     m_propertyForm->addRow(tr("Picked"), picked);
     auto *name = new QLineEdit(m_properties);
     name->setObjectName(QStringLiteral("groupName"));
-    name->setPlaceholderText(tr("a name for the group"));
+    // The group these faces are already, or a name for a new one: used
+    // when the field is left empty.
+    name->setPlaceholderText(groupFor(m_picked));
+    name->setToolTip(tr("Left empty: %1").arg(name->placeholderText()));
     m_propertyForm->addRow(tr("Group"), name);
     auto *buttons = new QWidget(m_properties);
     auto *row = new QHBoxLayout(buttons);
     row->setContentsMargins(0, 6, 0, 6);
     auto *make = new QPushButton(icon("pqApply"), tr("Make group"), buttons);
     make->setObjectName(QStringLiteral("makeGroup"));
-    QPalette lit = make->palette();
-    lit.setColor(QPalette::Button, ember);
-    lit.setColor(QPalette::ButtonText, Qt::white);
-    make->setPalette(lit);
+    // Plain: the form below is where the faces usually go, and its Apply
+    // is the one lit.
     row->addWidget(make);
     row->addStretch();
     m_propertyForm->addRow(buttons);  // as Apply: its own width, on the left
@@ -1163,6 +1171,126 @@ void MainWindow::showPicked()
     m_propertyForm->addRow(hint);
     connect(make, &QPushButton::clicked, this, &MainWindow::makeGroup);
     connect(name, &QLineEdit::returnPressed, this, &MainWindow::makeGroup);
+    showLoadForm({}, {});
+}
+
+QString MainWindow::groupFor(const std::vector<int> &faces) const
+{
+    std::vector<int> sorted = faces;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+    for (const core::Group &g : m_study.setup.groups) {
+        std::vector<int> own = g.faces;
+        std::sort(own.begin(), own.end());
+        if (own == sorted && g.solids.empty())
+            return g.name;
+    }
+    QString name = facesText(sorted);
+    name[0] = name[0].toUpper();
+    for (int n = 2; m_study.setup.group(name); ++n)
+        name = QString("%1 (%2)").arg(facesText(sorted)).arg(n).replace(0, 1, facesText(sorted)[0].toUpper());
+    return name;
+}
+
+void MainWindow::showLoadForm(const QString &key, const QJsonObject &entry)
+{
+    // The faces it acts on: the picked ones, or its group's.
+    std::vector<int> faces = m_picked;
+    if (!key.isEmpty()) {
+        const core::Group *g = m_study.setup.group(entry["group"].toString());
+        faces = g ? g->faces : std::vector<int>{};
+        lightFaces(faces);
+    }
+    std::sort(faces.begin(), faces.end());
+    LoadForm::Context context;
+    const bool metres = m_study.setup.units == core::Units::MetreNewtonSecond;
+    context.length = metres ? "m" : "mm";
+    context.stress = metres ? "Pa" : "MPa";
+    for (const core::AnalysisStep &st : m_study.setup.steps)
+        context.steps << st.name;
+    context.firstFace = faces.empty() ? 0 : faces.front();
+    vtkSmartPointer<vtkPolyData> surface = m_surface;
+    context.normal = [surface, faces](QString *problem) -> std::optional<core::Vec3> {
+        if (!surface || faces.empty()) {
+            if (problem)
+                *problem = faces.empty() ? QString("no faces") : QString("the mesh is not made yet");
+            return std::nullopt;
+        }
+        const auto n = mesh::outwardNormal(surface, faces, problem);
+        if (!n)
+            return std::nullopt;
+        return core::Vec3{(*n)[0], (*n)[1], (*n)[2]};
+    };
+    context.editing = !key.isEmpty();
+    // Where it is, or where a new one goes: the step chosen in the Steps
+    // dock, else the first.
+    QString place = QString("step:%1").arg(std::max(0, m_steps ? m_steps->currentColumn() : 0));
+    if (key.startsWith("support:"))
+        place = key.count(':') == 1 ? QString("supports") : "step:" + key.section(':', 1, 1);
+    else if (key.startsWith("load:"))
+        place = "step:" + key.section(':', 1, 1);
+    const core::LoadChoice start = core::choiceOf(entry, key.startsWith("support:"));
+    auto *form = new LoadForm(context, start, place, m_properties);
+    m_propertyForm->addRow(form);
+    connect(form, &LoadForm::applyClicked, this, [this, form, key] { applyLoad(form, key); });
+    connect(form, &LoadForm::removeClicked, this, [this, key] {
+        const QString title = m_tree->currentItem() ? m_tree->currentItem()->text(0) : key;
+        QString error;
+        if (!core::removeItem(m_study.folder, key, &error)) {
+            say(tr("Cannot delete: %1").arg(error), Tone::Problem);
+            return;
+        }
+        say(tr("Deleted from study.json: %1").arg(title), Tone::Done);
+        openStudy(m_study.folder);
+    });
+}
+
+void MainWindow::applyLoad(LoadForm *form, const QString &key)
+{
+    const QString problem = form->problem();
+    if (!problem.isEmpty()) {
+        say(tr("Cannot apply: %1").arg(problem), Tone::Problem);
+        return;
+    }
+    core::LoadChoice choice = form->choice();
+    QString error, made;
+    if (key.isEmpty()) {
+        // New, on the picked faces: their group, made first if need be.
+        auto *name = m_properties->findChild<QLineEdit *>(QStringLiteral("groupName"));
+        choice.group = name && !name->text().trimmed().isEmpty() ? name->text().trimmed() : groupFor(m_picked);
+    }
+    const QJsonObject entry = core::entryOf(choice, &error);
+    if (entry.isEmpty()) {
+        say(tr("Cannot apply: %1").arg(error), Tone::Problem);
+        return;
+    }
+    if (key.isEmpty() && !m_study.setup.group(choice.group)) {
+        if (!core::addFaceGroup(m_study.folder, choice.group, m_picked, &error)) {
+            say(tr("Cannot make the group: %1").arg(error), Tone::Problem);
+            return;
+        }
+        made = choice.group;
+    } else if (key.isEmpty() && groupFor(m_picked) != choice.group) {
+        say(tr("Cannot apply: there is a group named %1 already, of other faces").arg(choice.group), Tone::Problem);
+        return;
+    }
+    const QString now = key.isEmpty() ? core::addItem(m_study.folder, form->place(), entry, &error)
+                                      : core::replaceItem(m_study.folder, key, entry, &error);
+    if (now.isEmpty()) {
+        if (!made.isEmpty())
+            core::deleteGroup(m_study.folder, made, nullptr);  // as it was
+        say(tr("Cannot apply: %1").arg(error), Tone::Problem);
+        return;
+    }
+    openStudy(m_study.folder);
+    for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+        if ((*it)->data(0, Qt::UserRole).toString() == now) {
+            m_tree->setCurrentItem(*it);
+            say(tr("%1 in study.json: %2, %3")
+                    .arg(key.isEmpty() ? tr("Added") : tr("Applied"), (*it)->text(0), (*it)->text(1)),
+                Tone::Done);
+            break;
+        }
 }
 
 void MainWindow::fillSteps()
