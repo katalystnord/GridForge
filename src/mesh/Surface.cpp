@@ -245,6 +245,15 @@ std::optional<std::array<double, 3>> outwardNormal(vtkPolyData *surface, const s
     return unit(total);
 }
 
+std::array<double, 3> meanNormal(vtkPolyData *surface, const std::vector<int> &faces)
+{
+    std::array<double, 3> sum{};
+    for (const Piece &p : piecesOf(surface, faces))
+        for (int k = 0; k < 3; ++k)
+            sum[k] += p.normal[k];
+    return unit(sum);
+}
+
 std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &faces)
 {
     std::array<double, 3> c{};

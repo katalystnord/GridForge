@@ -142,6 +142,9 @@ private:
     void showGroupEditing(const QString &group);
     void showDeck(const QString &path, int run);
     void fillSteps();
+    // The supports and loads that hold in the step chosen in the toolbar,
+    // drawn on the model; the selected item's in ember.
+    void refreshMarkers();
 
     gf::core::Study m_study;
     gf::core::ResultsSeries m_mesh;
@@ -160,6 +163,7 @@ private:
     vtkActor *m_meshActor = nullptr;     // owned by the renderer while shown
     vtkActor *m_edgesActor = nullptr;    // the mesh's element edges, drawn over it
     vtkActor *m_resultsActor = nullptr;
+    vtkActor *m_markersActor = nullptr;  // the supports' and loads' arrows and cones
     vtkScalarBarActor *m_scalarBar = nullptr;
     vtkSmartPointer<vtkPolyData> m_surface;  // the mesh's outside, each triangle with its geometry face
     vtkSmartPointer<vtkPolyData> m_drawn;    // the same triangles as drawn, three points each

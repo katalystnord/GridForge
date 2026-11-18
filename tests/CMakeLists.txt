@@ -378,6 +378,16 @@ add_test(NAME the_outer_surface_knows_its_geometry_faces COMMAND test_outer_surf
 # the centre not weighted by area: each red. The dogbone's 4 curved and 10
 # flat faces are counted from its STEP file (CYLINDRICAL_SURFACE, PLANE).
 
+# What the window draws for a step's supports and loads.
+add_executable(test_markers test_markers.cpp)
+target_link_libraries(test_markers PRIVATE gf_gui)
+target_compile_definitions(test_markers PRIVATE GF_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_test(NAME supports_and_loads_are_drawn_where_and_how_they_act COMMAND test_markers)
+# NEGATIVE CHECKS, 2026-11-18, markers: the 2 cases red against a stub.
+# Then each rule broken, the test run, restored: cones not into the solid;
+# arrows always out of the faces; a pressure drawn outward; a fixed support
+# drawn with one cone: each red.
+
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE gf_mesh)
 target_compile_definitions(test_mesh_quality PRIVATE
@@ -572,6 +582,12 @@ endif()
 # mesh; Apply lit before anything changed: each red. A support's place not
 # following its kind stayed green (no case chose a load first): the case
 # now chooses Move, then Fixed, and is red without the rule.
+# NEGATIVE CHECKS, 2026-11-18, markers in the view: the selected item not
+# lit; a force into the faces drawn from them; the markers left out of the
+# model's layer: each red. Seen on the way: a force's first colour, red
+# (220, 60, 60), passed the ember test, as it would pass a user's eye; now
+# yellow, as Abaqus/CAE's. The face-colour cases now look at face 2 off its
+# centre, where its pull's arrow starts.
 set_tests_properties(the_window_is_walked_through PROPERTIES TIMEOUT 300
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;QT_QPA_PLATFORM=xcb;WAYLAND_DISPLAY=;GF_WALKTHROUGH_XVFB=1")
 

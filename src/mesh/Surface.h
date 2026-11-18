@@ -40,6 +40,10 @@ vtkSmartPointer<vtkPolyData> outerEdges(const gf::core::ResultsSeries &mesh);
 std::optional<std::array<double, 3>> outwardNormal(vtkPolyData *surface, const std::vector<int> &faces,
                                                    QString *problem);
 
+// The faces' normals averaged by area, curved or not: which way they face
+// as a whole, for drawing. Zero if they cancel or are not on the surface.
+std::array<double, 3> meanNormal(vtkPolyData *surface, const std::vector<int> &faces);
+
 // The centre of geometry faces (area weighted), where their loads are drawn.
 std::array<double, 3> centreOf(vtkPolyData *surface, const std::vector<int> &faces);
 

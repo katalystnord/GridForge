@@ -47,7 +47,9 @@
 #include <vtkRenderer.h>
 #include <vtkRendererCollection.h>
 
+#include <cmath>
 #include <cstdio>
+#include <functional>
 #include <cstdlib>
 #include <unistd.h>
 #include <vector>
@@ -162,6 +164,24 @@ bool paleAt(MainWindow &w, const QPoint &at)
         }
     return pale > 81 / 2;
 }
+
+// How many pixels of a 9 x 9 patch around a point pass `is`: for markers,
+// a few pixels wide where a mesh face is many.
+int pixelsNear(MainWindow &w, const QPoint &at, const std::function<bool(const QColor &)> &is)
+{
+    auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
+    const QImage image = view->grabFramebuffer();
+    const double k = view->devicePixelRatioF();
+    int n = 0;
+    for (int dx = -4; dx <= 4; ++dx)
+        for (int dy = -4; dy <= 4; ++dy)
+            n += is(image.pixelColor(int(at.x() * k) + dx, int(at.y() * k) + dy)) ? 1 : 0;
+    return n;
+}
+
+// A move's violet (160, 110, 230), however lit: blue over red over green.
+bool violet(const QColor &c) { return c.blue() > c.red() + 30 && c.red() > c.green() + 20; }
+bool emberish(const QColor &c) { return c.red() > 1.6 * c.green() + 8 && c.red() > 2.5 * c.blue() + 8; }
 
 } // namespace
 
@@ -310,7 +330,8 @@ private slots:
         QCOMPARE(mesh->text(1), QString("1624 tetrahedra, 3575 nodes; ready for a solver"));
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
         vtkRenderer *r = view->renderWindow()->GetRenderers()->GetFirstRenderer();
-        QCOMPARE(r->GetActors()->GetNumberOfItems(), 2);  // the mesh, and its element edges over it
+        // The mesh, its element edges over it, and the supports and loads.
+        QCOMPARE(r->GetActors()->GetNumberOfItems(), 3);
         QVERIFY(w.findChild<QLabel *>("information")->text().startsWith("ready for a solver"));
         if (!screenshot.isEmpty()) {
             w.resize(1500, 950);
@@ -461,6 +482,45 @@ private slots:
             hasSet = hasSet || (n.name == name && n.nodes && !n.members.empty());
         QVERIFY(hasSet);
         QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
+    }
+
+    void supports_and_loads_are_drawn_on_the_model_and_the_selected_one_lit()
+    {
+        MainWindow w;
+        w.resize(1400, 900);
+        w.show();
+        QTemporaryDir dir;
+        QVERIFY(w.openStudy(boxStudy(dir)));
+        QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
+        // The pull (x 0.01 on face 2, x = 10): an arrow out of the face
+        // along +x, 0.15 of the model's diagonal long (the box's is 37.4
+        // mm), in a move's violet; its head near the far end.
+        const double length = 0.15 * std::sqrt(10.0 * 10 + 20 * 20 + 30 * 30);
+        const QPoint head = onScreen(w, 10 + 0.8 * length, 10, 15), beyond = onScreen(w, 10 + 1.6 * length, 10, 15);
+        QVERIFY2(pixelsNear(w, head, violet) >= 4, qPrintable(QString::number(pixelsNear(w, head, violet))));
+        QCOMPARE(pixelsNear(w, beyond, violet), 0);
+        if (!screenshot.isEmpty()) {
+            QTest::qWait(100);
+            w.grab().save(screenshot.chopped(4) + "-markers.png");
+        }
+        // Selected in the tree: lit in ember, the others not.
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        tree->setCurrentItem(findItem(tree, "Displacement: Pulled"));
+        QVERIFY(pixelsNear(w, head, emberish) >= 4);
+        QCOMPARE(pixelsNear(w, head, violet), 0);
+        // A force pushing into the face: its tip on the face, the arrow
+        // outside the box (from x = 10 + length to 10).
+        QString error;
+        QVERIFY(!gf::core::addItem(w.study().folder, "step:0",
+                                   QJsonObject{{"group", "Pulled"}, {"force", QJsonObject{{"x", -50}}}}, &error).isEmpty());
+        QVERIFY(w.openStudy(w.study().folder));
+        const QPoint tail = onScreen(w, 10 + 0.3 * length, 10, 15);
+        // A force's yellow (235, 200, 40), however lit: red and green well
+        // over blue, near each other (not ember's orange).
+        auto yellow = [](const QColor &c) {
+            return c.red() > c.blue() + 60 && c.green() > c.blue() + 50 && c.green() > 0.7 * c.red();
+        };
+        QVERIFY2(pixelsNear(w, tail, yellow) >= 2, qPrintable(QString::number(pixelsNear(w, tail, yellow))));
     }
 
     void the_mesh_size_edited_remeshes_and_nonsense_is_refused()
@@ -678,7 +738,8 @@ private slots:
         auto *props = w.findChild<QWidget *>("properties");
         // The box is 10 x 20 x 30 mm; seen from +x +y +z, its face x = 10
         // (face 2, the study's "Pulled") and its top z = 30 are in view.
-        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        // Face 2 is looked at off its centre, where its pull's arrow starts.
+        const QPoint side = onScreen(w, 10, 5, 22), top = onScreen(w, 5, 10, 30);
         QVERIFY(!emberAt(w, side));
         QTest::mouseClick(view, Qt::LeftButton, {}, side);
         QCOMPARE(propertyValue(props, "Picked"), QString("face 2"));
@@ -733,7 +794,7 @@ private slots:
         QVERIFY(w.openStudy(boxStudy(dir)));
         QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
-        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        const QPoint side = onScreen(w, 10, 5, 22), top = onScreen(w, 5, 10, 30);  // off face 2's centre, where its arrow starts
         QVERIFY(!paleAt(w, side));
         QTest::mouseMove(view, side);
         QTRY_VERIFY(paleAt(w, side));
@@ -798,7 +859,7 @@ private slots:
         QVERIFY(w.openStudy(boxStudy(dir)));
         QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
         auto *view = w.findChild<QVTKOpenGLNativeWidget *>("view");
-        const QPoint side = onScreen(w, 10, 10, 15);
+        const QPoint side = onScreen(w, 10, 5, 22);  // off face 2's centre, where its arrow starts
         const QPoint top = onScreen(w, 5, 10, 30);
         QTest::mousePress(view, Qt::LeftButton, {}, side);
         QTest::mouseMove(view, top);
@@ -818,7 +879,7 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(w.openStudy(boxStudy(dir)));
         QTRY_VERIFY_WITH_TIMEOUT(w.findChild<QAction *>("run")->isEnabled(), 60000);
-        const QPoint side = onScreen(w, 10, 10, 15), top = onScreen(w, 5, 10, 30);
+        const QPoint side = onScreen(w, 10, 5, 22), top = onScreen(w, 5, 10, 30);  // off face 2's centre, where its arrow starts
         auto *tree = w.findChild<QTreeWidget *>("studyTree");
         tree->setCurrentItem(findItem(tree, "Pulled"));
         QVERIFY(emberAt(w, side));

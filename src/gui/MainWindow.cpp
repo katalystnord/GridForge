@@ -1,5 +1,6 @@
 #include "gui/MainWindow.h"
 #include "gui/LoadForm.h"
+#include "gui/Markers.h"
 #include "gui/Style.h"
 
 #include "core/ApplicationInfo.h"
@@ -55,6 +56,11 @@
 
 #include <QVTKOpenGLNativeWidget.h>
 #include <vtkActor.h>
+#include <vtkAppendPolyData.h>
+#include <vtkArrowSource.h>
+#include <vtkConeSource.h>
+#include <vtkTransform.h>
+#include <vtkTransformPolyDataFilter.h>
 #include <vtkCamera.h>
 #include <vtkDataSetSurfaceFilter.h>
 #include <vtkGenericOpenGLRenderWindow.h>
@@ -247,8 +253,17 @@ void MainWindow::buildDocks()
     m_tree->setColumnCount(2);
     m_tree->setHeaderHidden(true);
     m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    connect(m_tree, &QTreeWidget::currentItemChanged, this,
-            [this](QTreeWidgetItem *now, QTreeWidgetItem *) { showProperties(now); });
+    connect(m_tree, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *now, QTreeWidgetItem *) {
+        showProperties(now);
+        // A step's support or load shown in its step, lit in ember.
+        const QString key = now ? now->data(0, Qt::UserRole).toString() : QString();
+        const QStringList parts = key.split(':');
+        if ((parts.value(0) == "load" || parts.value(0) == "support") && parts.size() == 3 && m_step
+            && parts[1].toInt() < m_step->count() && parts[1].toInt() != m_step->currentIndex())
+            m_step->setCurrentIndex(parts[1].toInt());  // redraws
+        else
+            refreshMarkers();
+    });
 
     m_properties = new QWidget(this);
     m_properties->setObjectName(QStringLiteral("properties"));
@@ -425,7 +440,12 @@ void MainWindow::buildActions()
     m_step = new QComboBox(this);
     m_step->setObjectName(QStringLiteral("stepChooser"));
     m_step->setMinimumContentsLength(16);
+    m_step->setToolTip(tr("The step whose supports and loads are drawn on the model"));
     stepBar->addWidget(m_step);
+    connect(m_step, &QComboBox::currentIndexChanged, this, [this] {
+        if (m_renderer)
+            refreshMarkers();
+    });
 
     QToolBar *results = addToolBar(tr("Results"));
     results->setObjectName(QStringLiteral("resultsToolbar"));
@@ -573,6 +593,7 @@ bool MainWindow::openStudy(const QString &path)
             item->setText(1, detail);
             item->setToolTip(1, detail);
         }
+        refreshMarkers();
         showLayer(m_layouts->currentIndex());
     } else {
         startMeshing();
@@ -792,6 +813,7 @@ void MainWindow::onMeshed()
     edges->PickableOff();
     m_edgesActor = edges;
     edges->Register(nullptr);
+    refreshMarkers();
     showLayer(m_layouts->currentIndex());
     setCamera(-1, -1, -1, 0, 0, 1);
 
@@ -1590,7 +1612,108 @@ void MainWindow::showLayer(int layout)
     } else if (m_meshActor) {
         m_renderer->AddActor(m_meshActor);
         m_renderer->AddActor(m_edgesActor);
+        if (m_markersActor)
+            m_renderer->AddActor(m_markersActor);
     }
+    m_view->renderWindow()->Render();
+}
+
+void MainWindow::refreshMarkers()
+{
+    if (m_markersActor) {
+        m_renderer->RemoveActor(m_markersActor);
+        m_markersActor->Delete();
+        m_markersActor = nullptr;
+    }
+    const std::vector<Marker> markers = markersFor(m_study, m_step ? m_step->currentIndex() : 0, m_surface);
+    if (markers.empty()) {
+        m_view->renderWindow()->Render();
+        return;
+    }
+    // One size for all, a part of the model's (not scaled by the load).
+    double b[6];
+    m_surface->GetBounds(b);
+    const double length = 0.15 * std::sqrt((b[1] - b[0]) * (b[1] - b[0]) + (b[3] - b[2]) * (b[3] - b[2])
+                                           + (b[5] - b[4]) * (b[5] - b[4]));
+    // Coloured by kind (ANSYS, PrePoMax), each far from ember, which is
+    // selection's alone: supports blue, moves violet, forces yellow (as
+    // Abaqus/CAE's), pressures magenta.
+    auto colourOf = [](const QString &role) -> std::array<unsigned char, 3> {
+        if (role == "support")
+            return {70, 130, 220};
+        if (role == "move")
+            return {160, 110, 230};
+        if (role == "force")
+            return {235, 200, 40};
+        return {210, 70, 170};  // pressure
+    };
+    const QString selected = selectedKey();
+    vtkNew<vtkAppendPolyData> all;
+    for (const Marker &m : markers) {
+        vtkSmartPointer<vtkPolyDataAlgorithm> source;
+        // Both sources lie along +x; placed, turned onto the direction, sized.
+        double start[3];
+        double scale = length;
+        if (m.shape == Marker::Shape::Arrow) {
+            vtkNew<vtkArrowSource> arrow;
+            arrow->SetTipResolution(16);
+            arrow->SetShaftResolution(12);
+            arrow->SetShaftRadius(0.05);  // bolder than VTK's 0.03, to read at a glance
+            arrow->SetTipRadius(0.13);
+            arrow->SetTipLength(0.3);
+            source = arrow;
+            for (int k = 0; k < 3; ++k)
+                start[k] = m.outward ? m.at[k] : m.at[k] - length * m.direction[k];
+        } else {
+            vtkNew<vtkConeSource> cone;
+            cone->SetResolution(16);
+            cone->SetHeight(0.3);
+            cone->SetRadius(0.1);
+            cone->SetCenter(-0.15, 0, 0);  // its tip at the origin
+            source = cone;
+            for (int k = 0; k < 3; ++k)
+                start[k] = m.at[k];
+        }
+        vtkNew<vtkTransform> place;
+        place->Translate(start);
+        // Turned from +x onto the direction, about their cross product.
+        const double d[3] = {m.direction[0], m.direction[1], m.direction[2]};
+        const double cross[3] = {0, -d[2], d[1]};
+        const double sine = std::sqrt(cross[1] * cross[1] + cross[2] * cross[2]);
+        const double angle = std::atan2(sine, d[0]) * 180 / 3.14159265358979323846;
+        if (sine > 1e-12)
+            place->RotateWXYZ(angle, cross[0], cross[1], cross[2]);
+        else if (d[0] < 0)
+            place->RotateWXYZ(180, 0, 0, 1);
+        place->Scale(scale, scale, scale);
+        vtkNew<vtkTransformPolyDataFilter> placed;
+        placed->SetInputConnection(source->GetOutputPort());
+        placed->SetTransform(place);
+        placed->Update();
+        auto piece = vtkSmartPointer<vtkPolyData>::New();
+        piece->DeepCopy(placed->GetOutput());
+        vtkNew<vtkUnsignedCharArray> colours;
+        colours->SetName("colour");
+        colours->SetNumberOfComponents(3);
+        const std::array<unsigned char, 3> c =
+            m.key == selected ? std::array<unsigned char, 3>{226, 92, 29} : colourOf(m.role);
+        for (vtkIdType i = 0; i < piece->GetNumberOfPoints(); ++i)
+            colours->InsertNextTypedTuple(c.data());
+        piece->GetPointData()->SetScalars(colours);
+        all->AddInputData(piece);
+    }
+    all->Update();
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputConnection(all->GetOutputPort());
+    mapper->SetScalarModeToUsePointData();
+    mapper->SetColorModeToDirectScalars();
+    vtkNew<vtkActor> actor;
+    actor->SetMapper(mapper);
+    actor->PickableOff();  // a click goes through to the face under it
+    m_markersActor = actor;
+    actor->Register(nullptr);
+    if (m_layouts->currentIndex() == 0)
+        m_renderer->AddActor(actor);
     m_view->renderWindow()->Render();
 }
 
