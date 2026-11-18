@@ -30,6 +30,10 @@ the bar commercial meshers set, the open meshers, other kinds of meshes,
 and a benchmark run here (`tools/mesh-bench/`). Its recommendation (own
 the pipeline around linked Netgen) and its section 8 are for David.
 
+Added 2026-11-18: [netgen-review.md](netgen-review.md), what to improve in
+Netgen and in how GridForge calls it, from a code review and upstream's
+issues: one fix made (every root of a STEP file), the rest ranked and open.
+
 ## The gap, in one paragraph
 
 On Linux there is no open, maintained, standalone pre-processor for
