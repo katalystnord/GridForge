@@ -41,3 +41,17 @@ The `"direction"` string is a record of how the load was given; the deck
 writer does not read it.
 
 `check.py` was seen to fail with the two jobs swapped (+164 %).
+
+## Again, with two elements through the thickness (2026-11-18)
+
+With the mesh recipe's `throughWall` (study spec 2.1, default 2), the
+4 mm thickness is meshed at 1.33 mm: 24108 C3D10, 39186 nodes.
+
+| | 1624 elements | 24108 elements | hand answer |
+|---|---|---|---|
+| push, tip deflection | -0.75584 mm (-0.16 %) | -0.75785 mm (+0.10 %) | -0.75708 mm |
+| move, reaction at the clamp | 26.4610 N | 26.3904 N | the push's stiffness x 2 mm: 26.3903 N |
+
+One element through the thickness was too stiff, as such a mesh is in
+bending. Two land on the side beam theory should be on: it leaves out
+the shear, which bends a real cantilever a little more.
