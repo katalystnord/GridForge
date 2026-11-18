@@ -193,6 +193,9 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
     Bnd_Box box;
     BRepBndLib::Add(shape, box);
     const double size = std::sqrt(box.SquareExtent());
+    // A power of ten near a millionth of the size, so the grid itself is
+    // the same number on every machine.
+    const double grid = std::pow(10.0, std::floor(std::log10(1e-6 * size)));
     BRepMesh_IncrementalMesh coarse(shape, 0.01 * size, false, 0.5, false);
     IntCurvesFace_ShapeIntersector cast;
     cast.Load(shape, 1e-7);
@@ -225,6 +228,11 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
                     nearest = d;
             }
         }
+        // Rounded to nine figures: the triangulation and the lines cast
+        // through it differ in their last bits between processors (GitHub's
+        // Xeon against a Ryzen, 2026-11-18, the first stage of the
+        // trace to part), and so did the meshes they sized.
+        nearest = nearest > 0 ? QString::number(nearest, 'g', 9).toDouble() : 0;
         out.thickness[f - 1] = nearest;
         const double h = nearest / (throughWall + 1);
         // A wall: at least four times as wide (the root of the face's
@@ -251,7 +259,11 @@ static Walls measureWalls(const TopoDS_Shape &shape, const TopTools_IndexedMapOf
             for (int i = 0; i <= k; ++i)
                 for (int j = 0; i + j <= k; ++j) {
                     const gp_XY uv = ua + (ub - ua) * (double(i) / k) + (uc - ua) * (double(j) / k);
-                    out.finer.push_back({surface.Value(uv.X(), uv.Y()), h});
+                    // On a grid of a millionth of the shape's size, for
+                    // the same reason as the thickness.
+                    const gp_Pnt p = surface.Value(uv.X(), uv.Y());
+                    auto snap = [&](double x) { return std::round(x / grid) * grid; };
+                    out.finer.push_back({gp_Pnt(snap(p.X()), snap(p.Y()), snap(p.Z())), h});
                 }
         }
     }
