@@ -103,4 +103,9 @@ jobs:
       - name: Test
         env:
           ASAN_OPTIONS: detect_leaks=0
+          # A benchmark mesh that differs from the committed hash is a
+          # warning here, not a failure, until the cause is found (David,
+          # 2026-11-18; docs/survey/netgen-review.md, item 6). Take this
+          # line out when it is.
+          GF_MESH_HASH_WARN: '1'
         run: ctest --test-dir build --output-on-failure

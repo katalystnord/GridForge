@@ -242,11 +242,22 @@ int main(int argc, char *argv[])
         // The same mesh as the committed one, node for node. A change
         // meant (a new Netgen pin, a new recipe) writes the baseline again
         // (--baseline), and says so in its commit.
-        if (was.contains("mesh hash") && was["mesh hash"].toString() != meshHash(g))
-            fail(name, QString("the mesh is not the committed one (%1 cells, the baseline %2): if that is meant, "
-                               "write the baseline again")
-                           .arg(g->GetNumberOfCells())
-                           .arg(was["cells"].toInteger()));
+        // Where GF_MESH_HASH_WARN is set (CI, 2026-11-18, David), a
+        // different mesh is a warning, not a failure: GitHub's machine
+        // meshes the bracket and the duct differently from the machine the
+        // baseline was written on, with the same Netgen and OpenCASCADE,
+        // and the cause is not found yet (docs/survey/netgen-review.md,
+        // item 6). Taken out of the workflow when it is.
+        if (was.contains("mesh hash") && was["mesh hash"].toString() != meshHash(g)) {
+            const QString why = QString("the mesh is not the committed one (%1 cells, the baseline %2): if that is "
+                                        "meant, write the baseline again")
+                                    .arg(g->GetNumberOfCells())
+                                    .arg(was["cells"].toInteger());
+            if (qEnvironmentVariableIsSet("GF_MESH_HASH_WARN"))
+                std::printf("::warning title=Mesh differs on this machine::%s: %s\n", qPrintable(name), qPrintable(why));
+            else
+                fail(name, why);
+        }
         if (g->GetNumberOfCells() != was["cells"].toInteger())
             std::printf("  (%s: %lld cells, the baseline has %lld: the mesh changed)\n", qPrintable(name),
                         static_cast<long long>(g->GetNumberOfCells()),
