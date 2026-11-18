@@ -1,5 +1,6 @@
 #include "mesh/Mesher.h"
 
+#include <QCryptographicHash>
 #include <QFileInfo>
 
 #include <vtkCellData.h>
@@ -42,6 +43,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 
 #include <algorithm>
+#include <cstdio>
 #include <array>
 #include <map>
 #include <mutex>
@@ -364,8 +366,45 @@ gf::core::ResultsSeries meshStep(const QString &stepPath, const Recipe &recipe, 
                        .arg(parameters.optsteps3d)
                        .arg(parameters.parallel_meshing ? parameters.nthreads : 1);
         mesh->SetGeometry(geometry);
-        if (geometry->GenerateMesh(mesh, parameters) != 0)
+        if (qEnvironmentVariableIsSet("GF_MESH_TRACE")) {
+            // Stage by stage, a fingerprint after each, to find where two
+            // machines' meshes of the same study part (2026-11-18): the
+            // walls measured, then Netgen's edges, surface, volume and
+            // its optimisation, each run on from the last.
+            QCryptographicHash walled(QCryptographicHash::Sha256);
+            for (double t : thickness)
+                walled.addData(QByteArray::number(t, 'g', 17) + '\n');
+            for (const auto &[p, h] : walls.finer)
+                walled.addData(QString("%1 %2 %3 %4\n").arg(p.X(), 0, 'g', 17).arg(p.Y(), 0, 'g', 17)
+                                   .arg(p.Z(), 0, 'g', 17).arg(h, 0, 'g', 17).toUtf8());
+            std::fprintf(stderr, "trace: walls %zu faces, %zu points, %s\n", thickness.size(), walls.finer.size(),
+                         walled.result().toHex().left(16).constData());
+            const struct {
+                int start, end;
+                const char *name;
+            } stages[] = {{netgen::MESHCONST_ANALYSE, netgen::MESHCONST_MESHEDGES, "edges"},
+                          {netgen::MESHCONST_MESHSURFACE, netgen::MESHCONST_OPTSURFACE, "surface"},
+                          {netgen::MESHCONST_MESHVOLUME, netgen::MESHCONST_MESHVOLUME, "volume"},
+                          {netgen::MESHCONST_OPTVOLUME, netgen::MESHCONST_OPTVOLUME, "optimised"}};
+            for (const auto &stage : stages) {
+                netgen::MeshingParameters staged = parameters;
+                staged.perfstepsstart = stage.start;
+                staged.perfstepsend = stage.end;
+                if (geometry->GenerateMesh(mesh, staged) != 0)
+                    return fail("Netgen could not mesh " + file);
+                QCryptographicHash h(QCryptographicHash::Sha256);
+                for (netgen::PointIndex pi : mesh->Points().Range()) {
+                    const netgen::Point<3> &p = (*mesh)[pi];
+                    h.addData(QString("%1 %2 %3\n").arg(p(0), 0, 'g', 12).arg(p(1), 0, 'g', 12).arg(p(2), 0, 'g', 12)
+                                  .toUtf8());
+                }
+                std::fprintf(stderr, "trace: %-9s %zu points, %zu segments, %zu surface, %zu volume elements, %s\n",
+                             stage.name, size_t(mesh->GetNP()), size_t(mesh->GetNSeg()), size_t(mesh->GetNSE()),
+                             size_t(mesh->GetNE()), h.result().toHex().left(16).constData());
+            }
+        } else if (geometry->GenerateMesh(mesh, parameters) != 0) {
             return fail("Netgen could not mesh " + file);
+        }
         if (recipe.order == 2)
             geometry->GetRefinement().MakeSecondOrder(*mesh);
     } catch (const std::exception &e) {

@@ -118,6 +118,12 @@ jobs:
           GF_MESH_HASH_WARN: '1'
         run: ctest --test-dir build --output-on-failure
 
+      # The dogbone's mesh stage by stage, to set beside the same trace on
+      # the machine the baseline was written on (24108 tetrahedra there).
+      - name: Trace a mesh's stages
+        if: always()
+        run: GF_MESH_TRACE=1 build/src/gf-study mesh tests/fixtures/step/dogbone.step --size 3 --order 2 -o /tmp/gf-trace 2>&1 | grep -E 'trace|model:'
+
       # The benchmark's meshes against the committed hashes, said even when
       # the test passes (it does here while they differ: a warning).
       - name: Benchmark meshes against the baseline

@@ -480,6 +480,14 @@ add_test(NAME cli_through_wall_0_leaves_a_thin_wall_alone
 set_tests_properties(cli_through_wall_0_leaves_a_thin_wall_alone PROPERTIES
     PASS_REGULAR_EXPRESSION "recipe: largest element 5, order 1, no elements added through thin walls"
     FAIL_REGULAR_EXPRESSION "thin walls:")
+# GF_MESH_TRACE: a fingerprint after each of the mesher's stages, to find
+# where two machines' meshes of the same study part.
+# (Without GF_MESH_TRACE no trace line is written: the test red.)
+add_test(NAME cli_traces_the_meshers_stages
+    COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5
+            -o ${CMAKE_CURRENT_BINARY_DIR}/trace-out)
+set_tests_properties(cli_traces_the_meshers_stages PROPERTIES ENVIRONMENT "GF_MESH_TRACE=1"
+    PASS_REGULAR_EXPRESSION "trace: walls 6 faces, 0 points, [0-9a-f]+\ntrace: edges [^\n]*\ntrace: surface [^\n]*\ntrace: volume [^\n]*\ntrace: optimised [^\n]*[0-9a-f]+\n")
 add_test(NAME cli_through_wall_not_a_whole_number_is_refused
     COMMAND gf-study mesh ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --through-wall 1.5)
 set_tests_properties(cli_through_wall_not_a_whole_number_is_refused PROPERTIES WILL_FAIL TRUE)
