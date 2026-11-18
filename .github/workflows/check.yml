@@ -100,6 +100,14 @@ jobs:
       - name: Build
         run: cmake --build build
 
+      # What this machine is built from, to tell why a mesh differs from
+      # the one written elsewhere (docs/survey/netgen-review.md, item 6).
+      - name: Versions
+        run: |
+          nproc; grep -m1 'model name' /proc/cpuinfo; grep -m1 -o -w -E 'fma|avx2|avx512f' /proc/cpuinfo | sort -u | tr '\n' ' '; echo
+          ldd --version | head -1; c++ --version | head -1
+          dpkg-query -W -f='${Package} ${Version}\n' 'libocct-foundation*' libc6 'libtbb*' 'libstdc++6' 2>/dev/null
+
       - name: Test
         env:
           ASAN_OPTIONS: detect_leaks=0
@@ -109,3 +117,18 @@ jobs:
           # line out when it is.
           GF_MESH_HASH_WARN: '1'
         run: ctest --test-dir build --output-on-failure
+
+      # The benchmark's meshes against the committed hashes, said even when
+      # the test passes (it does here while they differ: a warning).
+      - name: Benchmark meshes against the baseline
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          ran = json.load(open('build/tests/mesher-benchmark.json'))['models']
+          kept = json.load(open('tools/mesh-bench/gridforge-baseline.json'))['models']
+          for name, r in sorted(ran.items()):
+              k = kept.get(name, {})
+              same = r.get('mesh hash') == k.get('mesh hash')
+              print(f"{name:9} {'same' if same else 'DIFFERS'}: {r['cells']} cells here, {k.get('cells')} in the baseline")
+          PY
