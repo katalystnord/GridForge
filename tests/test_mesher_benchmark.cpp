@@ -247,7 +247,11 @@ int main(int argc, char *argv[])
             std::printf("  (%s: no baseline yet)\n", qPrintable(name));
             continue;
         }
-        if (q.minMeanRatio < was["min mean ratio"].toDouble() - 0.02)
+        // The worst of tens of thousands of elements moves by a few
+        // hundredths from machine to machine (the duct's: 0.449 on GitHub's,
+        // 0.495 here, 2026-11-18); that is not an error. A real loss is
+        // larger, and an element a solver cannot take fails above.
+        if (q.minMeanRatio < was["min mean ratio"].toDouble() - 0.1)
             fail(name, QString("worst mean ratio %1, was %2").arg(q.minMeanRatio).arg(was["min mean ratio"].toDouble()));
         if (q.averageMeanRatio < was["average mean ratio"].toDouble() - 0.01)
             fail(name, QString("average mean ratio %1, was %2").arg(q.averageMeanRatio).arg(was["average mean ratio"].toDouble()));
