@@ -51,13 +51,15 @@ find_package(VTK REQUIRED COMPONENTS
 # third_party/netgen at the commit the submodule pins, by
 # tools/build-netgen.sh, into build-netgen/install. OpenCASCADE (LGPL-2.1
 # with its header exception) comes with it: Netgen reads STEP through it.
+set(GF_NETGEN_PREFIX "${CMAKE_SOURCE_DIR}/build-netgen/install" CACHE PATH
+    "Where tools/build-netgen.sh (or the .deb's build) installed Netgen")
 find_package(Netgen CONFIG REQUIRED
-    PATHS ${CMAKE_SOURCE_DIR}/build-netgen/install NO_DEFAULT_PATH)
+    PATHS ${GF_NETGEN_PREFIX} NO_DEFAULT_PATH)
 if(NOT NETGEN_USE_OCC)
     message(FATAL_ERROR "Netgen was built without OpenCASCADE; run tools/build-netgen.sh -f")
 endif()
 # The commit built, for the provenance; configure runs again when it changes.
-set(GF_NETGEN_STAMP ${CMAKE_SOURCE_DIR}/build-netgen/install/.gridforge-netgen-commit)
+set(GF_NETGEN_STAMP ${GF_NETGEN_PREFIX}/.gridforge-netgen-commit)
 file(STRINGS ${GF_NETGEN_STAMP} GF_NETGEN_COMMIT LIMIT_COUNT 1)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GF_NETGEN_STAMP})
 
@@ -66,7 +68,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GF_NETGEN_STAMP
 find_package(yaml-cpp REQUIRED)
 
 # Installed as the AppImage lays it out (tools/appimage): the programs in
-# bin, each shipped toolkit in share/gridforge/toolkits/<id> with its
+# bin, each shipped toolkit in lib/gridforge/toolkits/<id> with its
 # adapter (found there first: core::shippedToolkitFolders), and ccx beside
 # the CalculiX adapter when GF_BUNDLE_CCX names the folder tools/build-ccx.sh
 # installed it into (David, 2026-11-18: the AppImage bundles ccx).
@@ -74,9 +76,9 @@ set(GF_BUNDLE_CCX "" CACHE PATH "A ccx to ship with the CalculiX toolkit (tools/
 install(FILES LICENSE NOTICE README.md DESTINATION share/doc/gridforge)
 install(FILES packaging/gridforge.desktop DESTINATION share/applications)
 install(FILES packaging/gridforge.svg DESTINATION share/icons/hicolor/scalable/apps)
-install(FILES toolkits/calculix/toolkit.json DESTINATION share/gridforge/toolkits/calculix)
+install(FILES toolkits/calculix/toolkit.json DESTINATION lib/gridforge/toolkits/calculix)
 if(GF_BUNDLE_CCX)
-    install(PROGRAMS ${GF_BUNDLE_CCX}/bin/ccx DESTINATION share/gridforge/toolkits/calculix)
+    install(PROGRAMS ${GF_BUNDLE_CCX}/bin/ccx DESTINATION lib/gridforge/toolkits/calculix)
     install(DIRECTORY ${GF_BUNDLE_CCX}/share/doc/ccx DESTINATION share/doc)
 endif()
 

@@ -13,7 +13,7 @@ plugin (pinned as TenSense's). Inside:
 
 ```
 usr/bin/GridForge, gf-study
-usr/share/gridforge/toolkits/calculix/  toolkit.json, gf-calculix, ccx
+usr/lib/gridforge/toolkits/calculix/  toolkit.json, gf-calculix, ccx
 usr/share/doc/gridforge/                LICENSE, NOTICE, README.md
 usr/share/doc/ccx/                      gpl-2.0.txt, LOGBOOK, README.INSTALL
 usr/lib/                                Qt, VTK, OpenCASCADE, Netgen, ARPACK, ...

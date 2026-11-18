@@ -1,0 +1,40 @@
+gridforge source package
+========================
+
+Built by tools/deb/make-deb.sh from the GridForge repository; this debian/
+directory lives in the repository as packaging/debian/ and is copied in.
+
+Component tarballs (dpkg-source 3.0 (quilt), several upstream tarballs):
+
+  gridforge_<v>.orig.tar.xz           GridForge, git archive of the release
+  gridforge_<v>.orig-netgen.tar.xz    our Netgen fork at the submodule's
+                                      commit (netgen/COMMIT), with its
+                                      version.txt, as Netgen reads it
+                                      without git
+  gridforge_<v>.orig-ccx.tar.bz2      ccx_2.23.src.tar.bz2, unchanged
+  gridforge_<v>.orig-spooles.tar.gz   spooles.2.2.tgz, unchanged
+
+The ccx and SPOOLES tarballs are pinned by SHA-256 in tools/build-ccx.sh.
+Carrying them here makes this source package hold the source of the ccx
+gridforge-calculix ships (GPL-2).
+
+For now, not yet "the Debian way" (David, 2026-11-18)
+-----------------------------------------------------
+
+Debian generally wants a package to use the archive's libraries, not
+copies of its own. Two parts are carried here because the archive does
+not yet have them in the versions GridForge is tested with:
+
+* Netgen. GridForge uses Netgen past 6.2.2608; Ubuntu 26.04 has 6.2.2601.
+  When Debian's libnglib reaches GridForge's pinned commit (or GridForge's
+  fork carries nothing of its own on top of a released Netgen), gridforge
+  should depend on libnglib-dev/libnglib and drop the netgen component and
+  /usr/lib/gridforge/libnglib.so, libngcore.so.
+
+* ccx. GridForge ships CalculiX 2.23, the version its tests and examples
+  were solved with; Ubuntu 26.04 has 2.21. When Debian's calculix-ccx is
+  2.23 or newer (or GridForge accepts the archive's version, saying which
+  ccx solved each run as it already does), gridforge-calculix should
+  depend on calculix-ccx and drop the ccx and spooles components.
+
+Each is a change to debian/control and debian/rules only.

@@ -699,6 +699,10 @@ set_tests_properties(groups_the_freecad_macro_wrote_are_read PROPERTIES
 # failed first on ccx's licence not carried, then on that toolkit; both
 # fixed, it solves the box with the ccx it carries.
 
+# 2026-11-18, the toolkits installed in lib/gridforge/toolkits, not
+# share/ (programs: Debian policy): the toolkit-folder case red against
+# the share/ path, green after.
+
 # Derived stress quantities against hand answers.
 add_executable(test_stress test_stress.cpp)
 target_link_libraries(test_stress PRIVATE gf_core)

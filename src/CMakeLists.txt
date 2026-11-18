@@ -124,4 +124,4 @@ target_compile_definitions(gf-study PRIVATE GF_SHIPPED_TOOLKITS="${CMAKE_SOURCE_
 add_dependencies(gf-study gf-calculix)
 
 install(TARGETS GridForge gf-study RUNTIME DESTINATION bin)
-install(TARGETS gf-calculix RUNTIME DESTINATION share/gridforge/toolkits/calculix)
+install(TARGETS gf-calculix RUNTIME DESTINATION lib/gridforge/toolkits/calculix)

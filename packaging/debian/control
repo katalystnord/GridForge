@@ -1,0 +1,56 @@
+Source: gridforge
+Section: science
+Priority: optional
+Maintainer: David <david@katalystnord.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               ninja-build,
+               g++,
+               gfortran,
+               qt6-base-dev,
+               libvtk9-qt-dev,
+               libocct-foundation-dev,
+               libocct-modeling-data-dev,
+               libocct-modeling-algorithms-dev,
+               libocct-data-exchange-dev,
+               libocct-ocaf-dev,
+               libocct-visualization-dev,
+               libyaml-cpp-dev,
+               zlib1g-dev,
+               libarpack2-dev,
+               liblapack-dev,
+               libblas-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/katalystnord/GridForge
+Vcs-Git: https://github.com/katalystnord/GridForge.git
+Vcs-Browser: https://github.com/katalystnord/GridForge
+Rules-Requires-Root: no
+
+Package: gridforge
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         qt6-qpa-plugins,
+         qt6-svg-plugins
+Recommends: gridforge-calculix
+Suggests: freecad,
+          paraview
+Description: meshing and simulation workbench
+ GridForge takes a part's geometry (STEP, or a .brep from FreeCAD with its
+ named groups), meshes it, sets up materials, loads and supports, solves
+ it through an installable toolkit, and shows how it responds. Results
+ leave as files for ParaView.
+ .
+ Every input, mesh, deck and result is kept and traced to what made it.
+ This package carries GridForge's own build of the Netgen mesher, from the
+ fork it is tested with.
+
+Package: gridforge-calculix
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         gridforge (= ${binary:Version})
+Description: CalculiX toolkit for the GridForge workbench
+ Lets GridForge solve structural studies with CalculiX: the toolkit's
+ manifest, its adapter, and CalculiX CrunchiX (ccx) 2.23, built from its
+ released source, run as a separate program.

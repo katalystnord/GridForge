@@ -19,7 +19,7 @@ echo "ok: $("$image" --version | head -1)"
 cd "$work"
 "$image" --appimage-extract >/dev/null
 root="$work/squashfs-root"
-kit="$root/usr/share/gridforge/toolkits/calculix"
+kit="$root/usr/lib/gridforge/toolkits/calculix"
 [ -x "$kit/ccx" ] || fail "no ccx beside the CalculiX adapter"
 [ -f "$root/usr/share/doc/ccx/gpl-2.0.txt" ] || fail "ccx's licence is not carried"
 [ -f "$root/usr/share/doc/gridforge/NOTICE" ] || fail "GridForge's NOTICE is not carried"

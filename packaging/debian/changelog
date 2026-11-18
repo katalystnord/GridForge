@@ -1,0 +1,6 @@
+gridforge (0.0.1-1) unstable; urgency=medium
+
+  * First package: GridForge with its Netgen, and the CalculiX toolkit with
+    ccx 2.23.
+
+ -- David <david@katalystnord.com>  Wed, 18 Nov 2026 17:00:00 +0100

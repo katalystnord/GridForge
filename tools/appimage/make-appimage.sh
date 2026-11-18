@@ -75,7 +75,7 @@ export APPIMAGE_EXTRACT_AND_RUN=1     # no FUSE needed (CI runners have none)
 # is to find it, to copy it in.
 export LD_LIBRARY_PATH="$here/build-netgen/install/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-kit="$build/AppDir/usr/share/gridforge/toolkits/calculix"
+kit="$build/AppDir/usr/lib/gridforge/toolkits/calculix"
 cd "$out"
 "$tools/linuxdeploy-x86_64.AppImage" \
     --appdir "$build/AppDir" \

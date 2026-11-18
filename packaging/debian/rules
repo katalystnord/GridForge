@@ -1,0 +1,59 @@
+#!/usr/bin/make -f
+# GridForge's .deb (packaging/debian; built by tools/deb/make-deb.sh).
+#
+# Two parts Ubuntu does not have in the versions GridForge is tested with
+# come as component tarballs and are built here first, as GridForge's own
+# scripts build them (README.source):
+#   netgen/   our Netgen fork at the pinned commit (tools/build-netgen.sh's
+#             options), installed privately into /usr/lib/gridforge
+#   ccx/, spooles/   ccx 2.23 and SPOOLES 2.2 (tools/ccx-make.sh)
+
+# Hardened as Debian wants; no link-time optimisation, so Netgen and GridForge
+# are compiled as GridForge's own builds and tests compile them.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+
+NG := $(CURDIR)/debian/netgen-build
+CCX := $(CURDIR)/debian/ccx-build
+
+%:
+	dh $@ --buildsystem=cmake+ninja
+
+override_dh_auto_configure:
+	cmake -S netgen -B $(NG)/obj -G Ninja \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    -DCMAKE_INSTALL_PREFIX=$(NG)/install \
+	    -DUSE_SUPERBUILD=OFF -DUSE_OCC=ON -DUSE_PYTHON=OFF -DUSE_GUI=OFF \
+	    -DUSE_NATIVE_ARCH=OFF -DNG_FP_CONTRACT=OFF \
+	    -DUSE_JPEG=OFF -DUSE_MPEG=OFF -DUSE_CGNS=OFF -DUSE_MPI=OFF \
+	    -DENABLE_UNIT_TESTS=OFF -DBUILD_STUB_FILES=OFF
+	cmake --build $(NG)/obj
+	cmake --install $(NG)/obj
+	cp netgen/COMMIT $(NG)/install/.gridforge-netgen-commit
+	rm -rf $(CCX) && mkdir -p $(CCX)
+	cp -a spooles $(CCX)/SPOOLES.2.2
+	cp -a ccx $(CCX)/CalculiX
+	tools/ccx-make.sh $(CCX)/SPOOLES.2.2 $(CCX)/CalculiX/ccx_2.23/src $(CCX)/install/bin/ccx
+	mkdir -p $(CCX)/install/share/doc/ccx
+	cp $(CCX)/CalculiX/ccx_2.23/src/gpl-2.0.txt $(CCX)/CalculiX/ccx_2.23/src/LOGBOOK $(CCX)/install/share/doc/ccx/
+	dh_auto_configure -- \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    -DGF_NETGEN_PREFIX=$(NG)/install \
+	    -DGF_BUNDLE_CCX=$(CCX)/install \
+	    -DCMAKE_INSTALL_RPATH=/usr/lib/gridforge \
+	    -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF
+
+# GridForge's own suite runs before every commit and in CI; here it would
+# need a display and the stand-in solver set-up. Not run in the package build.
+override_dh_auto_test:
+
+override_dh_auto_install:
+	dh_auto_install
+	mkdir -p debian/tmp/usr/lib/gridforge
+	cp -a $(NG)/install/lib/libnglib.so $(NG)/install/lib/libngcore.so debian/tmp/usr/lib/gridforge/
+
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/debian/tmp/usr/lib/gridforge
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf $(NG) $(CCX)

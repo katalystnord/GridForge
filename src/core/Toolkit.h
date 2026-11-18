@@ -60,7 +60,7 @@ struct ToolkitSet {
 ToolkitSet findToolkits(const QStringList &folders);
 
 // Where the toolkits shipped with GridForge are: installed beside the
-// program (<programDir>/../share/gridforge/toolkits, as in the AppImage),
+// program (<programDir>/../lib/gridforge/toolkits, as in the AppImage),
 // or else `compiled`, the source tree's toolkits/ a build was made from;
 // never both (a toolkit in the second would replace the first's).
 QStringList shippedToolkitFolders(const QString &programDir, const QString &compiled);
