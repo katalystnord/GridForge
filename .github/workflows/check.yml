@@ -122,7 +122,11 @@ jobs:
       # the machine the baseline was written on (24108 tetrahedra there).
       - name: Trace a mesh's stages
         if: always()
-        run: GF_MESH_TRACE=1 build/src/gf-study mesh tests/fixtures/step/dogbone.step --size 3 --order 2 -o /tmp/gf-trace 2>&1 | grep -E 'trace|model:'
+        run: |
+          GF_MESH_TRACE=1 build/src/gf-study mesh tests/fixtures/step/dogbone.step --size 3 --order 2 -o /tmp/gf-trace 2>&1 | grep -E 'trace|model:'
+          echo "with glibc's optional routines hidden:"
+          GLIBC_TUNABLES=glibc.cpu.hwcaps=-AVX2,-FMA,-FMA4,-AVX,-AVX512F,-SSE4_1,-SSE4_2,-SSSE3 \
+            GF_MESH_TRACE=1 build/src/gf-study mesh tests/fixtures/step/dogbone.step --size 3 --order 2 -o /tmp/gf-trace 2>&1 | grep -E 'trace|model:'
 
       # The benchmark's meshes against the committed hashes, said even when
       # the test passes (it does here while they differ: a warning).
