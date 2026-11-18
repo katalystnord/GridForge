@@ -46,7 +46,8 @@ cp "$here/build-ccx/downloads/spooles.2.2.tgz" "$build/gridforge_$version.orig-s
 tar xJf "$build/gridforge_$version.orig.tar.xz" -C "$build"
 mkdir -p "$src/netgen" "$src/ccx" "$src/spooles"
 tar xJf "$build/gridforge_$version.orig-netgen.tar.xz" -C "$src/netgen" --strip-components=1
-tar xjf "$build/gridforge_$version.orig-ccx.tar.bz2" -C "$src/ccx" --strip-components=1
+# Its paths start ./CalculiX/: dpkg-source takes that as the one top folder.
+tar xjf "$build/gridforge_$version.orig-ccx.tar.bz2" -C "$src/ccx" --strip-components=2
 tar xzf "$build/gridforge_$version.orig-spooles.tar.gz" -C "$src/spooles"
 cp -a "$here/packaging/debian" "$src/debian"
 
