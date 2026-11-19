@@ -10,8 +10,12 @@
 #include "calculix/FrdToVtk.h"
 #include "calculix/InpSets.h"
 #include "core/ResultsSeries.h"
+#include "core/Study.h"
+#include "core/StudyEdit.h"
 #include "core/TestCurve.h"
 
+#include <QDir>
+#include <QFile>
 #include <QTemporaryDir>
 
 #include <vtkDataArray.h>
@@ -130,6 +134,30 @@ int main()
     const CurveComparison above = compareCurves(TestCurve{{0.02, 0.03}, {20, 30}, "m"}, TestCurve{{0.01}, {10}, "p"});
     CHECK(above.points.empty() && above.outside == 1);
 
+    // A comparison kept in a study (kind "compare") run on a solve's
+    // results: the curves, the words, and its CSV in the compare step's
+    // own folder, under the solve's run number.
+    {
+        QTemporaryDir study;
+        const QString from = fixtures + "/studies/box-tension";
+        for (const char *f : {"study.json", "box.step"})
+            QFile::copy(from + "/" + f, study.filePath(f));
+        QString id;
+        CHECK(addComparison(study.path(), fixtures + "/tensense/Zx3.vtp", "Pulled", a, b, 4, &id, &error));
+        const Study s = readStudy(study.path(), &error);
+        CHECK(error.isEmpty());
+        const StudyStep *step = s.step(id);
+        CHECK(step);
+        if (step) {
+            const ComparisonRun run = runComparison(s, *step, results, 3, &error);
+            CHECK(error.isEmpty());
+            CHECK(run.measured.strain.size() == 1906 && run.predicted.strain.size() == series.points.size() + 1);
+            CHECK(run.words == comparisonWords(compareCurves(run.measured, run.predicted)));
+            CHECK(run.predicted.source.contains("its force times 4"));
+            CHECK(run.csv == QDir(study.path()).filePath("steps/" + id + "/runs/3/compare.csv"));
+            CHECK(QFile::exists(run.csv));
+        }
+    }
     std::printf("%d failure(s)\n", failures);
     return failures ? 1 : 0;
 }

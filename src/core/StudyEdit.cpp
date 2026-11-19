@@ -902,4 +902,180 @@ bool setFinerMesh(const QString &folder, const QString &group, double size, QStr
         error);
 }
 
+namespace {
+
+// A face group's name checked for a comparison's force, and the share.
+QString comparisonFault(const QJsonObject &root, const QString &forceOn, int modelShare)
+{
+    const QJsonObject groups = root["setup"].toObject()["groups"].toObject();
+    if (!groups.contains(forceOn))
+        return QString("there is no group named %1").arg(forceOn);
+    if (!groups[forceOn].toObject().contains("faces"))
+        return QString("the force acts on a group of faces; %1 is solids").arg(forceOn);
+    if (modelShare < 1)
+        return "the model's share is 1 or more (a quarter by symmetry: 4)";
+    return {};
+}
+
+QJsonObject comparisonParameters(const QString &forceOn, const std::array<double, 3> &from,
+                                 const std::array<double, 3> &to, int modelShare)
+{
+    return {{"forceOn", forceOn},
+            {"gauge", QJsonArray{QJsonArray{from[0], from[1], from[2]}, QJsonArray{to[0], to[1], to[2]}}},
+            {"modelShare", modelShare}};
+}
+
+// An id not yet used: base, then base-2, base-3, ...
+QString freeId(const QJsonArray &steps, const QString &base)
+{
+    auto used = [&](const QString &id) {
+        for (const QJsonValue &v : steps)
+            if (v.toObject()["id"].toString() == id)
+                return true;
+        return false;
+    };
+    QString id = base;
+    for (int n = 2; used(id); ++n)
+        id = QString("%1-%2").arg(base).arg(n);
+    return id;
+}
+
+} // namespace
+
+bool addComparison(const QString &folder, const QString &curve, const QString &forceOn,
+                   const std::array<double, 3> &from, const std::array<double, 3> &to, int modelShare, QString *id,
+                   QString *error)
+{
+    const QFileInfo source(curve);
+    if (!source.isFile()) {
+        if (error)
+            *error = "no file " + curve;
+        return false;
+    }
+    // The curve brought into the study (spec 1: the folder is the whole
+    // study), unless it is there already.
+    const QDir dir(folder);
+    const QString kept = "inputs/" + source.fileName();
+    const QString target = dir.filePath(kept);
+    bool copied = false;
+    if (QFileInfo(target).canonicalFilePath() != source.canonicalFilePath()) {
+        if (QFile::exists(target)) {
+            // The same curve brought in before is used again; another one
+            // under the same name is not put over it.
+            QFile a(curve), b(target);
+            if (!a.open(QIODevice::ReadOnly) || !b.open(QIODevice::ReadOnly) || a.readAll() != b.readAll()) {
+                if (error)
+                    *error = QString("%1 holds another curve already").arg(kept);
+                return false;
+            }
+        } else if (!dir.mkpath("inputs") || !QFile::copy(curve, target)) {
+            if (error)
+                *error = "cannot copy " + curve + " into " + dir.filePath("inputs");
+            return false;
+        } else {
+            copied = true;
+        }
+    }
+    const bool done = rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            if (const QString why = comparisonFault(study, forceOn, modelShare); !why.isEmpty())
+                return fail(why);
+            QJsonObject root = study;
+            QJsonArray steps = root["steps"].toArray();
+            QString solve;
+            for (const QJsonValue &v : steps)
+                if (solve.isEmpty() && v.toObject()["kind"].toString() == "solve")
+                    solve = v.toObject()["id"].toString();
+            if (solve.isEmpty())
+                return fail("the study has no solve step to compare with");
+            const QString test = freeId(steps, "test");
+            steps.append(QJsonObject{{"id", test}, {"kind", "input"}, {"file", kept}});
+            *id = freeId(steps, "compare");
+            steps.append(QJsonObject{{"id", *id},
+                                     {"kind", "compare"},
+                                     {"by", "gridforge"},
+                                     {"inputs", QJsonObject{{"results", solve + ".results"}, {"measured", test + ".file"}}},
+                                     {"parameters", comparisonParameters(forceOn, from, to, modelShare)}});
+            root["steps"] = steps;
+            return root;
+        },
+        error);
+    if (!done && copied)
+        QFile::remove(target);
+    return done;
+}
+
+bool setComparison(const QString &folder, const QString &id, const QString &forceOn,
+                   const std::array<double, 3> &from, const std::array<double, 3> &to, int modelShare,
+                   QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            auto fail = [&](const QString &why) {
+                if (e)
+                    *e = why;
+                return QJsonObject();
+            };
+            if (const QString why = comparisonFault(study, forceOn, modelShare); !why.isEmpty())
+                return fail(why);
+            QJsonObject root = study;
+            QJsonArray steps = root["steps"].toArray();
+            for (int i = 0; i < steps.size(); ++i) {
+                QJsonObject step = steps[i].toObject();
+                if (step["id"].toString() != id || step["kind"].toString() != "compare")
+                    continue;
+                step["parameters"] = comparisonParameters(forceOn, from, to, modelShare);
+                steps[i] = step;
+                root["steps"] = steps;
+                return root;
+            }
+            return fail(QString("there is no comparison %1").arg(id));
+        },
+        error);
+}
+
+bool removeComparison(const QString &folder, const QString &id, QString *error)
+{
+    return rewriteStudy(
+        folder,
+        [&](const QJsonObject &study, QString *e) {
+            QJsonObject root = study;
+            QJsonArray steps = root["steps"].toArray();
+            QString input;
+            for (int i = 0; i < steps.size(); ++i) {
+                const QJsonObject step = steps[i].toObject();
+                if (step["id"].toString() == id && step["kind"].toString() == "compare") {
+                    input = step["inputs"].toObject()["measured"].toString().section('.', 0, 0);
+                    steps.removeAt(i);
+                    break;
+                }
+            }
+            if (input.isEmpty()) {
+                if (e)
+                    *e = QString("there is no comparison %1").arg(id);
+                return QJsonObject();
+            }
+            // Its input step too, unless another step still takes it.
+            bool used = false;
+            for (const QJsonValue &v : steps)
+                for (const QJsonValue &link : v.toObject()["inputs"].toObject())
+                    used = used || link.toString().section('.', 0, 0) == input;
+            for (int i = 0; !used && i < steps.size(); ++i)
+                if (steps[i].toObject()["id"].toString() == input) {
+                    steps.removeAt(i);
+                    break;
+                }
+            root["steps"] = steps;
+            return root;
+        },
+        error);
+}
+
 } // namespace gf::core

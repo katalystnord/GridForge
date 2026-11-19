@@ -112,7 +112,13 @@ add_test(NAME a_measured_curve_is_set_beside_the_predicted_one COMMAND test_test
 # the case sharpened (and a curve starting above the strain added): red.
 # The window's case (a_test_s_curve_is_set_beside_the_run_s) written
 # first (it did not build: no CurvePlot); then Compare enabled before a
-# solve: red. The plot's ticks: 0.6 made by adding 0.2 three times was
+# solve: red. Kept in the study (2026-11-19): test_study's two cases
+# red against stubs (19), the run of a kept comparison red against its
+# stub (6); the window's case red until the form kept it, and then red on
+# a real fault: adding the test's curve, an input step, made the window
+# mesh again (the keep-mesh rule counted every input); the rule now
+# counts the mesh's own inputs, and the case is red with the old rule.
+# The plot's ticks: 0.6 made by adding 0.2 three times was
 # red against the exact list, the ticks now made as whole multiples.
 
 add_executable(test_convergence test_convergence.cpp)

@@ -16,6 +16,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <array>
+
 #include <map>
 #include <optional>
 #include <vector>
@@ -89,6 +91,21 @@ bool renameGroup(const QString &folder, const QString &from, const QString &to, 
 // A finer mesh on a group of faces: its largest element there, in the
 // GridForge mesh step's "refine" (study spec 2.1); 0 takes it out.
 bool setFinerMesh(const QString &folder, const QString &group, double size, QString *error);
+
+// A comparison with a test (study spec 2.1, kind "compare"): the test's
+// curve (TenSense's .vtp) copied into inputs/, an input step for it, and a
+// compare step taking the first solve's results and the curve, with the
+// group the force acts on, the extensometer's two points and the model's
+// share of the test piece. *id is the compare step's.
+bool addComparison(const QString &folder, const QString &curve, const QString &forceOn,
+                   const std::array<double, 3> &from, const std::array<double, 3> &to, int modelShare, QString *id,
+                   QString *error);
+// Its group, gauge and share changed.
+bool setComparison(const QString &folder, const QString &id, const QString &forceOn,
+                   const std::array<double, 3> &from, const std::array<double, 3> &to, int modelShare,
+                   QString *error);
+// Taken out, with its input step (the curve's file stays in inputs/).
+bool removeComparison(const QString &folder, const QString &id, QString *error);
 
 // Deletes a group nothing uses. False with *error (the file unchanged),
 // saying what uses it, if a support or load does.

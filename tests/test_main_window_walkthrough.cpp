@@ -284,29 +284,65 @@ private slots:
         QVERIFY(file && group && from && to && times && apply);
         // Groups of faces only, as the force acts on faces.
         QVERIFY(group->findText("Pulled") >= 0 && group->findText("Steel part") < 0);
+        // Not a gauge: said, nothing kept.
         file->setText(QString(GF_FIXTURES) + "/tensense/Zx3.vtp");
         group->setCurrentText("Pulled");
         from->setText("2, 10, 15");
+        to->setText("8, 10");
+        QTest::mouseClick(apply, Qt::LeftButton);
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
+            "Cannot compare: the gauge's points are each x, y, z"));
         to->setText("8, 10, 15");
         times->setValue(4);
         QTest::mouseClick(apply, Qt::LeftButton);
+        // Kept in the study: the curve in inputs/, the steps in study.json,
+        // an item under Results, selected.
+        QVERIFY(QFile::exists(QDir(study).filePath("inputs/Zx3.vtp")));
+        QFile f(QDir(study).filePath("study.json"));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(QString::fromUtf8(f.readAll()).contains("\"kind\": \"compare\""));
+        auto *tree = w.findChild<QTreeWidget *>("studyTree");
+        QTreeWidgetItem *item = findItem(tree, "Measured against predicted: Zx3.vtp");
+        QVERIFY(item);
+        QCOMPARE(item->text(1), QString("force on Pulled, extensometer 6 mm, model 1/4"));
+        QCOMPARE(tree->currentItem(), item);
+        // A test's curve does not touch the mesh: kept, not made again.
+        QVERIFY(!w.meshing());
+        QCOMPARE(w.findChild<QPlainTextEdit *>("messages")->toPlainText().count("Meshing box.step"), 1);
+        // Run on the results there are: plotted, said, kept.
         auto *plot = w.findChild<gf::gui::CurvePlot *>("curvePlot");
         QVERIFY(plot);
         QCOMPARE(plot->measured().strain.size(), size_t(1906));
         QCOMPARE(plot->predicted().strain.size(), size_t(2));  // the zero point and the one increment
         QVERIFY(w.findChild<QDockWidget *>("compareDock")->isVisible());
-        const QString said = w.findChild<QPlainTextEdit *>("messages")->toPlainText();
-        QVERIFY2(said.contains("predicted against measured, at 1 strain"), qPrintable(said));
-        QVERIFY(QFile::exists(QDir(study).filePath("steps/solve/runs/1/compare.csv")));
+        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains("predicted against measured, at 1 strain"));
+        QVERIFY(QFile::exists(QDir(study).filePath("steps/compare/runs/1/compare.csv")));
         if (!screenshot.isEmpty()) {
             plot->resize(640, 300);
             QVERIFY(plot->grab().save(screenshot));
         }
-        // Not a gauge: said, nothing plotted anew.
-        to->setText("8, 10");
-        QTest::mouseClick(apply, Qt::LeftButton);
-        QVERIFY(w.findChild<QPlainTextEdit *>("messages")->toPlainText().contains(
-            "Cannot compare: the gauge's points are each x, y, z"));
+        // The item's Properties: the same form, filled, to change it.
+        props = w.findChild<QWidget *>("properties");
+        QCOMPARE(props->findChild<QSpinBox *>("modelShare")->value(), 4);
+        QCOMPARE(props->findChild<QLineEdit *>("gaugeTo")->text(), QString("8, 10, 15"));
+        QVERIFY(!props->findChild<QLineEdit *>("testFile")->isEnabled());
+        // A second solve compares again, by itself.
+        w.findChild<QAction *>("run")->trigger();
+        QTRY_VERIFY_WITH_TIMEOUT(banner->text().startsWith("Run 2 solved"), 60000);
+        QVERIFY(QFile::exists(QDir(study).filePath("steps/compare/runs/2/compare.csv")));
+        // And the study opened again shows it at once.
+        MainWindow again;
+        again.show();
+        QVERIFY(again.openStudy(study));
+        QTRY_VERIFY_WITH_TIMEOUT(!again.meshing(), 60000);
+        QTRY_COMPARE_WITH_TIMEOUT(again.findChild<gf::gui::CurvePlot *>("curvePlot")->predicted().strain.size(),
+                                  size_t(2), 10000);
+        // Taken out from its Properties.
+        tree->setCurrentItem(findItem(tree, "Measured against predicted: Zx3.vtp"));
+        auto *remove = w.findChild<QWidget *>("properties")->findChild<QPushButton *>("removeCompare");
+        QVERIFY(remove);
+        QTest::mouseClick(remove, Qt::LeftButton);
+        QVERIFY(!findItem(w.findChild<QTreeWidget *>("studyTree"), "Measured against predicted: Zx3.vtp"));
     }
 
     void the_selected_tab_has_an_ember_line_under_it()

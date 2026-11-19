@@ -1,5 +1,11 @@
 #include "core/TestCurve.h"
 
+#include "core/Study.h"
+
+#include <QDir>
+#include <QJsonArray>
+#include <QSaveFile>
+
 #include <QFileInfo>
 
 #include <vtkDataArray.h>
@@ -240,6 +246,52 @@ QByteArray comparisonCsv(const TestCurve &measured, const TestCurve &predicted, 
                     .arg(p.difference(), 0, 'g', 6)
                     .toUtf8();
     return text;
+}
+
+ComparisonRun runComparison(const Study &study, const StudyStep &step, const QString &results, int run,
+                            QString *error)
+{
+    ComparisonRun out;
+    auto fail = [&](const QString &why) {
+        if (error)
+            *error = why;
+        return ComparisonRun{};
+    };
+    const auto measured = step.inputs.find("measured");
+    const StudyStep *test =
+        measured == step.inputs.end() ? nullptr : study.step(measured->second.value(0).section('.', 0, 0));
+    if (!test)
+        return fail(QString("comparison %1 has no test's curve").arg(step.id));
+    const QJsonArray gauge = step.parameters["gauge"].toArray();
+    std::array<double, 3> a{}, b{};
+    for (int d = 0; d < 3; ++d) {
+        a[d] = gauge[0].toArray()[d].toDouble();
+        b[d] = gauge[1].toArray()[d].toDouble();
+    }
+    QString why;
+    out.measured = readTenSenseCurve(QDir(study.folder).filePath(test->file), &why);
+    if (why.isEmpty())
+        out.predicted = predictedCurve(results, step.parameters["forceOn"].toString(), a, b, &why);
+    if (!why.isEmpty())
+        return fail(why);
+    const int share = step.parameters["modelShare"].toInt(1);
+    if (share > 1) {
+        for (double &f : out.predicted.force)
+            f *= share;
+        out.predicted.source += QString(", its force times %1 (the model is 1/%1 of the test piece)").arg(share);
+    }
+    out.comparison = compareCurves(out.measured, out.predicted);
+    out.words = comparisonWords(out.comparison);
+    const QString folder = QDir(study.folder).filePath(QString("steps/%1/runs/%2").arg(step.id).arg(run));
+    QDir().mkpath(folder);
+    QSaveFile csv(QDir(folder).filePath("compare.csv"));
+    if (!csv.open(QIODevice::WriteOnly) || csv.write(comparisonCsv(out.measured, out.predicted, out.comparison)) < 0
+        || !csv.commit())
+        return fail("cannot write " + csv.fileName());
+    out.csv = csv.fileName();
+    if (error)
+        error->clear();
+    return out;
 }
 
 } // namespace gf::core

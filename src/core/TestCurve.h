@@ -58,4 +58,19 @@ QString comparisonWords(const CurveComparison &c);
 // lines), then strain, predicted force, measured force and difference.
 QByteArray comparisonCsv(const TestCurve &measured, const TestCurve &predicted, const CurveComparison &c);
 
+struct Study;
+struct StudyStep;
+
+// A comparison kept in a study (study spec 2.1, kind "compare") run on a
+// solve's results: the test's curve and the predicted one, the words, and
+// the CSV written to <study>/steps/<id>/runs/<run>/compare.csv (run: the
+// solve's run it compares). On a fault, *error and no CSV.
+struct ComparisonRun {
+    TestCurve measured, predicted;
+    CurveComparison comparison;
+    QString words, csv;
+};
+ComparisonRun runComparison(const Study &study, const StudyStep &step, const QString &results, int run,
+                            QString *error);
+
 } // namespace gf::core

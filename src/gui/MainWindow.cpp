@@ -395,7 +395,7 @@ void MainWindow::buildActions()
     m_compareTest = studyMenu->addAction(tr("Compare with a Test..."));
     m_compareTest->setObjectName(QStringLiteral("compareTest"));
     m_compareTest->setToolTip(tr("A test's curve, as TenSense analysed it, beside the run's"));
-    connect(m_compareTest, &QAction::triggered, this, &MainWindow::showCompareForm);
+    connect(m_compareTest, &QAction::triggered, this, [this] { showCompareForm(); });
     menuBar()->addMenu(tr("&Mesh"));
     QMenu *run = menuBar()->addMenu(tr("&Run"));
     menuBar()->addMenu(tr("R&esults"));
@@ -596,10 +596,15 @@ bool MainWindow::openStudy(const QString &path)
         // Not the groups: they are sets on the mesh, made again on it;
         // but a refined group's faces are part of the recipe.
         QJsonObject o{{"folder", s.folder}};
-        for (const core::StudyStep *m : s.stepsOf("mesh"))
+        // The inputs the mesh steps take (the geometry), not every input:
+        // a test's curve brought in for a comparison does not touch it.
+        for (const core::StudyStep *m : s.stepsOf("mesh")) {
             o[m->id] = core::meshParameters(m->parameters, s.setup, nullptr);
-        for (const core::StudyStep *i : s.stepsOf("input"))
-            o["input:" + i->id] = i->file;
+            for (const auto &[name, links] : m->inputs)
+                for (const QString &link : links)
+                    if (const core::StudyStep *i = s.step(link.section('.', 0, 0)); i && i->kind == "input")
+                        o["input:" + i->id] = i->file;
+        }
         return o;
     };
     const bool keepMesh = !m_mesh.points.empty() && !m_meshPending && meshInputs(study) == meshInputs(m_study);
@@ -734,6 +739,10 @@ void MainWindow::showProperties(QTreeWidgetItem *item)
     m_editKey = item->data(0, Qt::UserRole).toString();
     if (m_editKey.startsWith("group:")) {
         showGroupEditing(m_editKey.mid(6));
+        return;
+    }
+    if (m_editKey.startsWith("compare:")) {
+        showCompareForm(m_editKey.mid(8));
         return;
     }
     const QJsonObject entry = core::itemEntry(m_study.setupJson, m_editKey);
@@ -1756,7 +1765,7 @@ void MainWindow::addFreecadGroups()
     }
 }
 
-void MainWindow::showCompareForm()
+void MainWindow::showCompareForm(const QString &id)
 {
     endEdgePick();
     while (m_propertyForm->count() > 0) {
@@ -1764,14 +1773,20 @@ void MainWindow::showCompareForm()
         delete row->widget();
         delete row;
     }
-    // The test: TenSense's analysed curve.
+    // A comparison kept in the study (kind "compare"), or a new one.
+    const core::StudyStep *kept = id.isEmpty() ? nullptr : m_study.step(id);
+    const core::StudyStep *test = nullptr;
+    if (kept && kept->inputs.count("measured"))
+        test = m_study.step(kept->inputs.at("measured").value(0).section('.', 0, 0));
     auto *fileRow = new QWidget(m_properties);
     auto *fileLayout = new QHBoxLayout(fileRow);
     fileLayout->setContentsMargins(0, 0, 0, 0);
-    auto *file = new QLineEdit(fileRow);
+    auto *file = new QLineEdit(test ? test->file : QString(), fileRow);
     file->setObjectName(QStringLiteral("testFile"));
     file->setPlaceholderText(tr("TenSense's analysed curve, a .vtp"));
+    file->setEnabled(!kept);  // a kept comparison's curve is in the study's inputs
     auto *choose = new QPushButton(tr("Choose..."), fileRow);
+    choose->setEnabled(!kept);
     fileLayout->addWidget(file, 1);
     fileLayout->addWidget(choose);
     m_propertyForm->addRow(tr("Test"), fileRow);
@@ -1787,9 +1802,17 @@ void MainWindow::showCompareForm()
     for (const core::Group &g : m_study.setup.groups)
         if (!g.faces.empty())
             group->addItem(g.name);
+    if (kept)
+        group->setCurrentText(kept->parameters["forceOn"].toString());
     m_propertyForm->addRow(tr("Force on"), group);
     // The extensometer: two points of the part as it was made.
-    auto *from = new QLineEdit(m_properties), *to = new QLineEdit(m_properties);
+    auto pointText = [&](int k) {
+        if (!kept)
+            return QString();
+        const QJsonArray p = kept->parameters["gauge"].toArray()[k].toArray();
+        return QString("%1, %2, %3").arg(p[0].toDouble()).arg(p[1].toDouble()).arg(p[2].toDouble());
+    };
+    auto *from = new QLineEdit(pointText(0), m_properties), *to = new QLineEdit(pointText(1), m_properties);
     from->setObjectName(QStringLiteral("gaugeFrom"));
     to->setObjectName(QStringLiteral("gaugeTo"));
     from->setPlaceholderText(tr("x, y, z"));
@@ -1800,13 +1823,33 @@ void MainWindow::showCompareForm()
     share->setObjectName(QStringLiteral("modelShare"));
     share->setRange(1, 64);
     share->setPrefix(tr("1/"));
+    share->setValue(kept ? kept->parameters["modelShare"].toInt(1) : 1);
     share->setToolTip(tr("The model's part of the test piece by symmetry (a quarter: 1/4); its force is taken that "
                          "many times"));
     m_propertyForm->addRow(tr("Model is"), share);
-    auto *apply = new QPushButton(icon("pqApply"), tr("Compare"), m_properties);
+    auto *buttons = new QWidget(m_properties);
+    auto *row = new QHBoxLayout(buttons);
+    row->setContentsMargins(0, 6, 0, 6);
+    auto *apply = new QPushButton(icon("pqApply"), kept ? tr("Apply") : tr("Compare"), buttons);
     apply->setObjectName(QStringLiteral("applyCompare"));
-    m_propertyForm->addRow(apply);
-    connect(apply, &QPushButton::clicked, this, [this, file, group, from, to, share] {
+    row->addWidget(apply);
+    if (kept) {
+        auto *remove = new QPushButton(icon("pqDelete"), tr("Remove comparison"), buttons);
+        remove->setObjectName(QStringLiteral("removeCompare"));
+        row->addWidget(remove);
+        connect(remove, &QPushButton::clicked, this, [this, id] {
+            QString error;
+            if (!core::removeComparison(m_study.folder, id, &error)) {
+                say(tr("Cannot remove the comparison: %1").arg(error), Tone::Problem);
+                return;
+            }
+            say(tr("Comparison %1 taken out of the study").arg(id), Tone::Done);
+            openStudy(m_study.folder);
+        });
+    }
+    row->addStretch();
+    m_propertyForm->addRow(buttons);
+    connect(apply, &QPushButton::clicked, this, [this, id, file, group, from, to, share] {
         auto point = [](const QString &text, std::array<double, 3> *out) {
             const QStringList xyz = text.split(',');
             bool ok = xyz.size() == 3;
@@ -1819,36 +1862,31 @@ void MainWindow::showCompareForm()
             say(tr("Cannot compare: the gauge's points are each x, y, z"), Tone::Problem);
             return;
         }
-        QString error;
-        const core::TestCurve measured = core::readTenSenseCurve(file->text().trimmed(), &error);
-        core::TestCurve predicted;
-        if (error.isEmpty())
-            predicted = core::predictedCurve(m_results.path(), group->currentText(), a, b, &error);
-        if (!error.isEmpty()) {
+        QString error, kept = id;
+        const bool done = id.isEmpty()
+                              ? core::addComparison(m_study.folder, file->text().trimmed(), group->currentText(), a, b,
+                                                    share->value(), &kept, &error)
+                              : core::setComparison(m_study.folder, id, group->currentText(), a, b, share->value(),
+                                                    &error);
+        if (!done) {
             say(tr("Cannot compare: %1").arg(error), Tone::Problem);
             return;
         }
-        if (share->value() > 1) {
-            for (double &f : predicted.force)
-                f *= share->value();
-            predicted.source += tr(", its force times %1 (the model is 1/%1 of the test piece)").arg(share->value());
-        }
-        const core::CurveComparison c = core::compareCurves(measured, predicted);
-        m_curvePlot->setCurves(measured, predicted);
+        say(id.isEmpty() ? tr("Comparison %1 kept in the study; it runs again with every solve").arg(kept)
+                         : tr("Comparison %1 changed").arg(kept),
+            Tone::Done);
+        openStudy(m_study.folder);
+        for (QTreeWidgetItemIterator it(m_tree); *it; ++it)
+            if ((*it)->data(0, Qt::UserRole).toString() == "compare:" + kept) {
+                m_tree->setCurrentItem(*it);
+                break;
+            }
+        if (m_results.timeCount() > 0)
+            runComparisons(m_results.path(), kept);
         if (auto *d = findChild<QDockWidget *>("compareDock")) {
             d->show();
             d->raise();
         }
-        say(core::comparisonWords(c), Tone::Done);
-        // Kept beside the run's results: <run>/compare.csv.
-        QDir run = QFileInfo(m_results.path()).absoluteDir();
-        run.cdUp();
-        QSaveFile csv(run.filePath("compare.csv"));
-        const QByteArray text = gf::core::comparisonCsv(measured, predicted, c);
-        if (csv.open(QIODevice::WriteOnly) && csv.write(text) >= 0 && csv.commit())
-            say(tr("Kept in %1").arg(csv.fileName()), Tone::Detail);
-        else
-            say(tr("Cannot write %1").arg(csv.fileName()), Tone::Problem);
     });
 }
 
@@ -2098,7 +2136,36 @@ bool MainWindow::showResults(const QString &resultsFile)
     m_layouts->setCurrentIndex(1);
     showIncrement(m_increment);
     updateActions();
+    runComparisons(resultsFile);
     return true;
+}
+
+void MainWindow::runComparisons(const QString &resultsFile, const QString &shown)
+{
+    // The run the results are from: <study>/steps/<solve>/runs/<n>/results/.
+    QDir runFolder = QFileInfo(resultsFile).absoluteDir();
+    runFolder.cdUp();
+    const int run = runFolder.dirName().toInt();
+    const QString solve = QFileInfo(runFolder.absolutePath()).absoluteDir().absolutePath().section('/', -2, -2);
+    bool plotted = false;
+    for (const core::StudyStep *c : m_study.stepsOf("compare")) {
+        const auto from = c->inputs.find("results");
+        if (from == c->inputs.end() || from->second.value(0).section('.', 0, 0) != solve)
+            continue;
+        QString error;
+        const core::ComparisonRun done = core::runComparison(m_study, *c, resultsFile, run, &error);
+        if (!error.isEmpty()) {
+            say(tr("Cannot compare %1 with run %2: %3").arg(c->id).arg(run).arg(error), Tone::Problem);
+            continue;
+        }
+        const core::StudyStep *test = m_study.step(c->inputs.at("measured").value(0).section('.', 0, 0));
+        say(tr("Run %1 against %2: %3").arg(run).arg(test ? QFileInfo(test->file).fileName() : c->id, done.words),
+            Tone::Done);
+        if (!plotted && (shown.isEmpty() || shown == c->id)) {
+            m_curvePlot->setCurves(done.measured, done.predicted);
+            plotted = true;
+        }
+    }
 }
 
 void MainWindow::showIncrement(int k)

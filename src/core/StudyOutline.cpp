@@ -1,5 +1,7 @@
 #include "core/StudyOutline.h"
 
+#include <QJsonArray>
+
 #include <QFileInfo>
 
 #include <cmath>
@@ -199,7 +201,26 @@ std::vector<OutlineItem> studyOutline(const Study &study)
     for (const StudyStep *s : study.stepsOf("solve"))
         jobs.children.push_back({s->id, toolkitName(s->by) + ", not run", "job", "job:" + s->id, {}});
     out.push_back(jobs);
-    out.push_back({"Results", "none yet", "results", "results", {}});
+    OutlineItem results{"Results", "none yet", "results", "results", {}};
+    // Each comparison with a test, kept to run with every solve.
+    for (const StudyStep *c : study.stepsOf("compare")) {
+        const auto measured = c->inputs.find("measured");
+        const StudyStep *test =
+            measured == c->inputs.end() ? nullptr : study.step(measured->second.value(0).section('.', 0, 0));
+        const QJsonArray gauge = c->parameters["gauge"].toArray();
+        double length = 0;
+        for (int d = 0; d < 3; ++d) {
+            const double span = gauge[1].toArray()[d].toDouble() - gauge[0].toArray()[d].toDouble();
+            length += span * span;
+        }
+        QString detail = QString("force on %1, extensometer %2 %3")
+                             .arg(c->parameters["forceOn"].toString(), number(std::sqrt(length)), u.length);
+        if (c->parameters["modelShare"].toInt(1) > 1)
+            detail += QString(", model 1/%1").arg(c->parameters["modelShare"].toInt());
+        results.children.push_back({"Measured against predicted: " + (test ? QFileInfo(test->file).fileName() : c->id),
+                                    detail, "compare", "compare:" + c->id, {}});
+    }
+    out.push_back(results);
     return out;
 }
 

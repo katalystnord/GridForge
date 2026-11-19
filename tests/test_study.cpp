@@ -162,7 +162,7 @@ CASE(each_fault_is_refused_saying_what_and_where)
               s["kind"] = "bake";
               setStep(o, 1, s);
           })
-          == "steps[1]: kind \"bake\" is not input, mesh, solve or derive");
+          == "steps[1]: kind \"bake\" is not input, mesh, solve, derive or compare");
     CHECK(errorWith([](QJsonObject &o) {
               QJsonObject setup = o["setup"].toObject();
               setup["units"] = "in-lbf-s";
@@ -583,6 +583,112 @@ CASE(the_study_tree_says_which_groups_are_meshed_finer)
     const QStringList got = lines(studyOutline(readStudy(folder, &error)));
     CHECK(got.contains("Mesh | GridForge (Netgen), largest element 3 mm, quadratic, finer on Pulled grip"));
     CHECK(got.contains("  Pulled grip | face 6, meshed finer: 0.5 mm"));
+}
+
+// A comparison with a test (study spec 2.1, kind "compare"): the test's
+// curve brought into inputs/, an input step for it, and a compare step
+// linking the solve's results and the curve, with its force group, gauge
+// and the model's share. Kept, so it runs again with every solve.
+CASE(a_comparison_with_a_test_is_kept_in_the_study)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error, id;
+    CHECK(addComparison(folder, QString(GF_FIXTURES) + "/tensense/Zx3.vtp", "Pulled grip", {{45, 0, 2}}, {{105, 0, 2}}, 1,
+                        &id, &error));
+    CHECK(error.isEmpty() && id == "compare");
+    CHECK(QFileInfo::exists(QDir(folder).filePath("inputs/Zx3.vtp")));
+    const Study s = readStudy(folder, &error);
+    CHECK(error.isEmpty());
+    const StudyStep *c = s.step("compare"), *test = s.step("test");
+    CHECK(test && test->kind == "input" && test->file == "inputs/Zx3.vtp");
+    CHECK(c && c->kind == "compare" && c->by == "gridforge");
+    if (c) {
+        CHECK(c->inputs.at("results") == QStringList({"solve.results"}));
+        CHECK(c->inputs.at("measured") == QStringList({"test.file"}));
+        CHECK(c->parameters["forceOn"].toString() == "Pulled grip");
+        CHECK(c->parameters["gauge"].toArray() == QJsonArray({QJsonArray{45, 0, 2}, QJsonArray{105, 0, 2}}));
+        CHECK(c->parameters["modelShare"].toInt() == 1);
+    }
+    // In the tree, under Results.
+    CHECK(lines(studyOutline(s)).contains("  Measured against predicted: Zx3.vtp | force on Pulled grip, "
+                                          "extensometer 60 mm"));
+    // A second: its own ids; changed in place; taken out with its input.
+    CHECK(addComparison(folder, QString(GF_FIXTURES) + "/tensense/Zx3.vtp", "Fixed grip", {{45, 0, 2}}, {{105, 0, 2}}, 4,
+                        &id, &error));
+    const Study two = readStudy(folder, &error);
+    CHECK(id == "compare-2" && two.step("test-2"));
+    CHECK(setComparison(folder, "compare-2", "Pulled grip", {{50, 0, 2}}, {{100, 0, 2}}, 2, &error));
+    const Study after = readStudy(folder, &error);
+    const StudyStep *changed = after.step("compare-2");
+    CHECK(changed && changed->parameters["modelShare"].toInt() == 2
+          && changed->parameters["forceOn"].toString() == "Pulled grip");
+    CHECK(removeComparison(folder, "compare-2", &error));
+    const Study gone = readStudy(folder, &error);
+    CHECK(!gone.step("compare-2") && !gone.step("test-2"));
+    // Refused: a group of solids, a group not there, a share below 1.
+    CHECK(!addComparison(folder, QString(GF_FIXTURES) + "/tensense/Zx3.vtp", "Dogbone", {{45, 0, 2}}, {{105, 0, 2}}, 1, &id,
+                         &error)
+          && error == "the force acts on a group of faces; Dogbone is solids");
+    CHECK(!addComparison(folder, QString(GF_FIXTURES) + "/tensense/Zx3.vtp", "Nothing", {{45, 0, 2}}, {{105, 0, 2}}, 1, &id,
+                         &error)
+          && error == "there is no group named Nothing");
+    CHECK(!setComparison(folder, "compare", "Pulled grip", {{45, 0, 2}}, {{105, 0, 2}}, 0, &error)
+          && error == "the model's share is 1 or more (a quarter by symmetry: 4)");
+}
+
+// What readStudy refuses in a compare step, said with where.
+CASE(a_compare_step_the_study_cannot_take_is_refused)
+{
+    QTemporaryDir dir;
+    const QString folder = copyDogbone(dir);
+    QString error, id;
+    CHECK(addComparison(folder, QString(GF_FIXTURES) + "/tensense/Zx3.vtp", "Pulled grip", {{45, 0, 2}}, {{105, 0, 2}}, 1,
+                        &id, &error));
+    auto broken = [&](const std::function<void(QJsonObject &)> &change) {
+        QFile f(QDir(folder).filePath("study.json"));
+        if (!f.open(QIODevice::ReadOnly))
+            return QString("(unread)");
+        QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        QJsonArray steps = root["steps"].toArray();
+        QJsonObject c = steps.last().toObject();
+        change(c);
+        steps[steps.size() - 1] = c;
+        root["steps"] = steps;
+        QTemporaryDir other;
+        QFile::copy(QDir(folder).filePath("dogbone.step"), other.filePath("dogbone.step"));
+        QDir(other.path()).mkpath("inputs");
+        QDir(other.path()).mkpath("materials");
+        QFile::copy(QDir(folder).filePath("inputs/Zx3.vtp"), other.filePath("inputs/Zx3.vtp"));
+        for (const char *m : {"materials/tensense-ro.FCMat", "materials/tensense-ro-plastic.inp"})
+            QFile::copy(QDir(folder).filePath(m), other.filePath(m));
+        QFile g(other.filePath("study.json"));
+        if (!g.open(QIODevice::WriteOnly))
+            return QString("(unwritten)");
+        g.write(QJsonDocument(root).toJson());
+        g.close();
+        QString e;
+        readStudy(other.path(), &e);
+        return e;
+    };
+    const QString at = "steps[4]";
+    CHECK(broken([](QJsonObject &c) { c["inputs"] = QJsonObject{{"results", "mesh.mesh"}, {"measured", "test.file"}}; })
+          == at + ".inputs.results: a comparison takes a solve's results, and mesh is a mesh step");
+    CHECK(broken([](QJsonObject &c) { c["inputs"] = QJsonObject{{"results", "solve.results"}, {"measured", "part.file"}}; })
+          == at + ".inputs.measured: a comparison takes a test's curve (.vtp), and part's file is dogbone.step");
+    CHECK(broken([](QJsonObject &c) {
+              QJsonObject p = c["parameters"].toObject();
+              p["forceOn"] = "Dogbone";
+              c["parameters"] = p;
+          })
+          == at + ".parameters.forceOn: the force acts on a group of faces; Dogbone is solids");
+    CHECK(broken([](QJsonObject &c) {
+              QJsonObject p = c["parameters"].toObject();
+              p["gauge"] = QJsonArray{QJsonArray{1, 2, 3}};
+              c["parameters"] = p;
+          })
+          == at + ".parameters.gauge: the extensometer's two points, each [x, y, z]");
 }
 
 CASE(a_rename_or_delete_the_study_cannot_take_is_refused_and_the_file_kept)

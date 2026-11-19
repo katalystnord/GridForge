@@ -182,7 +182,10 @@ private:
     void showMaterialForm();
     // Measured against predicted: a test's curve (TenSense's .vtp) beside
     // the run shown, plotted in its dock, said, and kept in the run's folder.
-    void showCompareForm();
+    void showCompareForm(const QString &id = {});
+    // Every comparison kept in the study whose solve made `resultsFile`,
+    // run on it: said, its CSV kept, and the first (or `shown`) plotted.
+    void runComparisons(const QString &resultsFile, const QString &shown = {});
     // The picked faces' signatures, as the mesh measured them.
     std::map<int, gf::core::FaceSignature> signaturesOf(const std::vector<int> &faces) const;
     // Edge picking for a load along an edge: the geometry's edges drawn,

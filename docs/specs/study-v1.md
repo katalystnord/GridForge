@@ -126,6 +126,38 @@ repeatable is shown as such wherever its outputs are used (tenet 9).
   Widgets, no QML), active (last push 2026-11-14), no tagged releases.
   To be measured against our needs when the view is built.
 
+### 2.5 Comparing with a test (kind `compare`, added 2026-11-19)
+
+A test's measured curve, set beside what a solve predicts for it (David,
+2026-11-19: kept in the study, so it is run again with every solve).
+The curve is brought into `inputs/` as an `input` step; the comparison
+is a step of its own, done by GridForge:
+
+```json
+{"id": "test", "kind": "input", "file": "inputs/06.vtp"},
+{"id": "compare", "kind": "compare", "by": "gridforge",
+ "inputs": {"results": "solve.results", "measured": "test.file"},
+ "parameters": {"forceOn": "Pulled end",
+                "gauge": [[5, -1, 1], [55, -1, 1]],
+                "modelShare": 4}}
+```
+
+| | meaning |
+|---|---|
+| `inputs.results` | one solve step's results |
+| `inputs.measured` | one input step whose file is TenSense's analysed curve (`.vtp`, its exports spec, section 3) |
+| `forceOn` | the group of faces the test's force acts on: the predicted force is the sum of its nodes' reactions along the gauge |
+| `gauge` | the extensometer's two points in the part as it was made, `[x, y, z]` each, in the study's lengths: the predicted strain is the change of their distance, the points moved with the part |
+| `modelShare` | the model is 1/N of the test piece by symmetry; its force is taken N times. Default 1 |
+
+Each run of the solve it takes is compared, and the comparison kept as
+`steps/<id>/runs/<n>/compare.csv`, n the solve's run: where each curve
+came from, then strain, predicted and measured force and their
+difference at each predicted point inside the measured strains. Its
+output, for later steps, is `comparison`. Read and checked as the rest
+of the study: the links' kinds, the group (of faces), the two points,
+the share; each fault said with where.
+
 ## 3. Not in version 1
 
 - **Variants** (a parameter study): one step or branch run over a set of
