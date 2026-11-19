@@ -24,7 +24,11 @@ same test predicted by GridForge and ccx from TenSense's analysis of it.
   (times 4, the quarter) against a virtual extensometer from x = 5 to
   x = 55, beside the measured curve.
 
-    GF_CCX=../../build-ccx/install/bin/ccx TS_ANALYSE=.../ts-analyse ./run.sh
+    ./run.sh
+
+(TenSense's `ts-analyse` is found on PATH or in its build beside
+GridForge, `../TenSense/build-ninja/src/ts-analyse`, else set
+`TS_ANALYSE`; ccx on PATH or GridForge's own build, else set `GF_CCX`.)
 
 ## What it gave (2026-11-18, ccx 2.23, TenSense 0.3.0, 51 s)
 

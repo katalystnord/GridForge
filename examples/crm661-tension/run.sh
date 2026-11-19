@@ -7,7 +7,13 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 gf=${GF_STUDY:-$here/../../build-ninja/src/gf-study}
-ts=${TS_ANALYSE:-ts-analyse}
+# TenSense: TS_ANALYSE, else on PATH, else its build beside GridForge.
+ts=${TS_ANALYSE:-$(command -v ts-analyse || echo "$here/../../../TenSense/build-ninja/src/ts-analyse")}
+[ -x "$ts" ] || { echo "run.sh: TenSense's ts-analyse not found; set TS_ANALYSE to it" >&2; exit 1; }
+# ccx: GF_CCX, else on PATH, else GridForge's own build (tools/build-ccx.sh).
+if [ -z "${GF_CCX:-}" ] && ! command -v ccx >/dev/null 2>&1 && [ -x "$here/../../build-ccx/install/bin/ccx" ]; then
+    export GF_CCX="$here/../../build-ccx/install/bin/ccx"
+fi
 url='https://npl.co.uk/getattachment/bf46dd80-b0ca-43a5-b836-ad4dab8c0064/tensile-ascii-set.zip?lang=en-US'
 sha=e8671a82c2887b03be4d872206007d841bcc293db9dd53e6615eee019f305ed7
 cd "$here"
