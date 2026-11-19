@@ -184,7 +184,9 @@ int main(int argc, char *argv[])
         return refuse(words, 1);
     }
 
-    // The results, with the mesh's sets.
+    // The results, with the mesh's sets. Each part said as it starts: on a
+    // long run they take a while, and the job must not sit silent.
+    say({{"type", "log"}, {"level", "info"}, {"text", "ccx finished; reading its results (job.frd)"}});
     const gf::calculix::FrdFile frd = gf::calculix::readFrd(work.filePath("job.frd"));
     if (!frd.ok())
         return refuse("job.frd: " + frd.error, 1);
@@ -201,6 +203,10 @@ int main(int argc, char *argv[])
                               .arg(gf::core::applicationName(), gf::core::applicationVersion(),
                                    gf::core::applicationBuild());
     const QString out = job.filePath("results/results.vtkhdf");
+    const qsizetype points = qsizetype(results.points.size());
+    say({{"type", "log"},
+         {"level", "info"},
+         {"text", QString("writing the results for ParaView: %1 time point%2").arg(points).arg(points == 1 ? "" : "s")}});
     if (!gf::core::writeVtkHdf(results, out, &error))
         return refuse(error, 1);
     QJsonArray provenance;

@@ -124,6 +124,30 @@ const QString fake = fixtures + "/fake-ccx/ccx";
 
 } // namespace
 
+// After ccx, reading and writing its results takes a while on a long run
+// (a minute for 52 increments, 2026-11-19): each part said as it starts,
+// so the job never sits silent (tenet 7), and in order: ccx done, the
+// results read, the file written, then the file named.
+CASE(the_adapter_says_what_it_does_after_ccx)
+{
+    QTemporaryDir dir;
+    CHECK(makeJob(dir.path()));
+    const Run r = run(dir.path(), fake);
+    CHECK(r.exitCode == 0);
+    QStringList said;
+    for (const QJsonObject &o : r.lines)
+        if (o["type"].toString() == "log" && o["level"].toString() == "info")
+            said << o["text"].toString();
+        else if (o["type"].toString() == "file" && o["role"].toString().isEmpty())
+            said << "(file)";
+    const qsizetype done = said.indexOf("ccx finished; reading its results (job.frd)");
+    const qsizetype write = said.indexOf("writing the results for ParaView: 1 time point");
+    CHECK(done >= 0 && write > done);
+    CHECK(write >= 0 && said.indexOf("(file)") > write);
+    if (done < 0 || write < 0)
+        std::printf("  (said: %s)\n", qPrintable(said.join(" | ")));
+}
+
 CASE(a_job_is_solved_and_its_results_left_in_results)
 {
     QTemporaryDir dir;

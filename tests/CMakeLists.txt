@@ -552,6 +552,32 @@ set_tests_properties(cli_through_wall_not_a_whole_number_is_refused PROPERTIES W
 # and the verdict. The stand-in ccx replays the same results whatever the
 # mesh, so the values cannot move: "the same on all three meshes". What
 # real ccx gives is in examples/dogbone-bend/README.md.
+# gf-study solve says progress and the toolkit's own words; the solver's
+# residual at each iteration only with --verbose (box-plastic replayed:
+# its 50 increments' residuals in its job.cvg) (CRM 661's 52 increments
+# gave 104 such lines, 2026-11-19). The adapter's info lines stay.
+add_test(NAME cli_solve_keeps_the_residuals_for_verbose
+    COMMAND gf-study solve ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-plastic/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --order 2
+            -o ${CMAKE_CURRENT_BINARY_DIR}/solve-quiet)
+set_tests_properties(cli_solve_keeps_the_residuals_for_verbose PROPERTIES
+    ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-plastic"
+    PASS_REGULAR_EXPRESSION "100%  step 1, increment 50\n.*info: ccx finished; reading its results"
+    FAIL_REGULAR_EXPRESSION "force residual")
+add_test(NAME cli_solve_says_the_residuals_when_verbose
+    COMMAND gf-study solve ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-plastic/tension.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/step/box.step --size 5 --order 2 --verbose
+            -o ${CMAKE_CURRENT_BINARY_DIR}/solve-verbose)
+set_tests_properties(cli_solve_says_the_residuals_when_verbose PROPERTIES
+    ENVIRONMENT "GF_CCX=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/fake-ccx/ccx;FAKE_CCX_FROM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/calculix/box-plastic"
+    PASS_REGULAR_EXPRESSION "force residual: ")
+# NEGATIVE CHECKS, 2026-11-19, a quiet solve: both written first against
+# box-setup's replay, whose one residual line... was none: the quiet case
+# passed for nothing, so both moved to box-plastic's 50 increments; then
+# both red (the residuals printed always; --verbose unknown). The
+# adapter's case (the_adapter_says_what_it_does_after_ccx) red before
+# its two lines.
+
 # gf-study --refine: a group of faces meshed finer, said in the mesh's
 # provenance; a group not there refused.
 add_test(NAME cli_meshes_a_group_finer_when_asked

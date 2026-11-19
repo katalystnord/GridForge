@@ -244,6 +244,10 @@ int meshWorker(const QString &input, const QString &recipeJson, const QString &o
 // 2.1), for deck, solve and converge.
 QJsonObject refineOption;
 
+// --verbose: the solver's residual at each iteration too (a long plastic
+// run says a hundred or more).
+bool verbose = false;
+
 // Measured against predicted (core/TestCurve): a results file's curve,
 // through a virtual extensometer and a group's reactions, beside a test's
 // curve as TenSense analysed it; the two in words, and side by side in a
@@ -420,7 +424,7 @@ int solvePrepared(const QString &setupFile, const gf::core::Setup &setup, const 
         using Type = gf::core::ProtocolLine::Type;
         if (l.type == Type::Progress)
             std::printf("  %3.0f%%  %s\n", 100 * l.fraction, qPrintable(l.text));
-        else if (l.type == Type::Metric)
+        else if (l.type == Type::Metric && verbose)
             std::printf("        %s: %g (%s)\n", qPrintable(l.name), l.value, qPrintable(l.text));
         else if (l.type == Type::Log)
             std::printf("  %s: %s\n", qPrintable(l.level), qPrintable(l.text));
@@ -714,6 +718,9 @@ int main(int argc, char *argv[])
                                                  "largest element there (repeatable: --refine Fillet=0.5).",
                                        "GROUP=SIZE");
     parser.addOption(refineOpt);
+    const QCommandLineOption verboseOpt("verbose", "solve, converge: also the solver's residual at each "
+                                                   "iteration.");
+    parser.addOption(verboseOpt);
     const QCommandLineOption forceOnOpt("force-on", "compare: the group of faces the test's force acts on.",
                                         "GROUP");
     const QCommandLineOption gaugeOpt("gauge", "compare: the extensometer's two points in the part as made, "
@@ -745,6 +752,7 @@ int main(int argc, char *argv[])
         }
         refineOption[r.left(eq)] = size;
     }
+    verbose = parser.isSet(verboseOpt);
     const QStringList args = parser.positionalArguments();
     if (args.size() == 2 && args[0] == "convert" && args[1].endsWith(".msh", Qt::CaseInsensitive)) {
         if (parser.isSet(deckOpt)) {

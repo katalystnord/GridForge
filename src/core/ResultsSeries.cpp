@@ -292,7 +292,12 @@ bool writeVtkHdf(const ResultsSeries &series, const QString &path, QString *erro
     writer->SetInputConnection(source->GetOutputPort());
     writer->SetFileName(part.toUtf8().constData());
     writer->SetWriteAllTimeSteps(true);
-    writer->SetCompressionLevel(4);
+    // Not compressed: compression (level 4, HDF5's own default) made the
+    // writing of a 52-increment plastic run 23 s instead of 2.8, and each
+    // reading of it 9 s instead of 1.6, to save 38 % of the size (123 MB
+    // against 198; single-precision fields compress poorly). Measured
+    // 2026-11-19, examples/crm661-tension; larger chunks were worse still.
+    writer->SetCompressionLevel(0);
     const bool written = writer->Write() == 1 && failure.isEmpty();
     if (!written || (QFile::exists(path) && !QFile::remove(path)) || !QFile::rename(part, path)) {
         QFile::remove(part);

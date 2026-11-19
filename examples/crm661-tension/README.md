@@ -30,7 +30,7 @@ same test predicted by GridForge and ccx from TenSense's analysis of it.
 GridForge, `../TenSense/build-ninja/src/ts-analyse`, else set
 `TS_ANALYSE`; ccx on PATH or GridForge's own build, else set `GF_CCX`.)
 
-## What it gave (2026-11-18, ccx 2.23, TenSense 0.3.0, 51 s)
+## What it gave (2026-11-18, ccx 2.23, TenSense 0.3.0; the whole run.sh 24 s since 2026-11-19)
 
     predicted against measured, at 52 strains from 0.315 % to 31.5 %:
     at most 1.17 % apart (under, at 1.1 %), 0.373 % on average
